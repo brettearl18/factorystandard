@@ -94,4 +94,3 @@ This will build the Next.js app and deploy to Firebase Hosting.
 Firestore rules enforce:
 - Staff/Admin: Full read/write access
 - Clients: Read-only access to their own guitars and client-visible notes
-
