@@ -94,3 +94,36 @@ export interface GuitarNote {
   photoUrls?: string[];
 }
 
+export type NotificationType = 
+  | "guitar_stage_changed"
+  | "guitar_note_added"
+  | "guitar_created"
+  | "guitar_assigned"
+  | "run_created"
+  | "run_archived"
+  | "guitar_archived";
+
+export interface Notification {
+  id: string;
+  userId: string; // Staff/admin user who should receive this notification
+  type: NotificationType;
+  title: string;
+  message: string;
+  read: boolean;
+  readAt?: number;
+  createdAt: number;
+  // Related entity IDs for navigation
+  guitarId?: string;
+  runId?: string;
+  noteId?: string;
+  // Additional metadata
+  metadata?: {
+    guitarModel?: string;
+    guitarFinish?: string;
+    customerName?: string;
+    stageName?: string;
+    runName?: string;
+    authorName?: string;
+  };
+}
+

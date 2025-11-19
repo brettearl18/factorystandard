@@ -1,6 +1,7 @@
 import {
   doc,
   getDoc,
+  getDocs,
   collection,
   query,
   where,
@@ -8,13 +9,15 @@ import {
   onSnapshot,
   updateDoc,
   addDoc,
+  deleteDoc,
+  writeBatch,
   Timestamp,
   QuerySnapshot,
   DocumentData,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Run, RunStage, GuitarBuild, GuitarNote } from "@/types/guitars";
+import type { Run, RunStage, GuitarBuild, GuitarNote, Notification } from "@/types/guitars";
 
 // Run queries
 export async function getRun(runId: string): Promise<Run | null> {
@@ -51,6 +54,21 @@ export async function createRun(runData: Omit<Run, "id">): Promise<string> {
     ...runData,
     startsAt: Timestamp.now().toMillis(),
   });
+  
+  // Notify all staff about new run (non-blocking)
+  notifyAllStaff({
+    type: "run_created",
+    title: `New Run Created: ${runData.name}`,
+    message: `A new run "${runData.name}" has been created`,
+    runId: docRef.id,
+    metadata: {
+      runName: runData.name,
+    },
+  }).catch((error) => {
+    // Log error but don't throw - notifications are non-critical
+    console.error("Failed to send notifications for new run:", error);
+  });
+  
   return docRef.id;
 }
 
@@ -139,6 +157,24 @@ export async function createGuitar(
   if (guitarData.photoCount !== undefined) cleanData.photoCount = guitarData.photoCount;
   
   const docRef = await addDoc(guitarsRef, cleanData);
+  
+  // Notify all staff about new guitar (non-blocking)
+  notifyAllStaff({
+    type: "guitar_created",
+    title: `New Guitar Added: ${guitarData.model}`,
+    message: `${guitarData.model} - ${guitarData.finish} (${guitarData.orderNumber})${guitarData.customerName ? ` for ${guitarData.customerName}` : ""}`,
+    guitarId: docRef.id,
+    runId: guitarData.runId,
+    metadata: {
+      guitarModel: guitarData.model,
+      guitarFinish: guitarData.finish,
+      customerName: guitarData.customerName,
+    },
+  }).catch((error) => {
+    // Log error but don't throw - notifications are non-critical
+    console.error("Failed to send notifications for new guitar:", error);
+  });
+  
   return docRef.id;
 }
 
@@ -194,10 +230,66 @@ export async function updateGuitarStage(
   guitarId: string,
   stageId: string
 ): Promise<void> {
+  // Get guitar and run info for notification
+  const guitar = await getGuitar(guitarId);
+  if (!guitar) return;
+  
+  const run = await getRun(guitar.runId);
+  if (!run) return;
+  
+  // Get stage info
+  let stageName = "Unknown Stage";
+  let stageData: any = null;
+  const stagesRef = collection(db, "runs", guitar.runId, "stages");
+  const stageDoc = await getDoc(doc(stagesRef, stageId));
+  if (stageDoc.exists()) {
+    stageData = stageDoc.data();
+    stageName = stageData?.label || stageName;
+  }
+  const clientStageLabel = stageData?.clientStatusLabel || stageName;
+  const isClientVisibleStage = stageData?.internalOnly === false;
+  
   await updateDoc(doc(db, "guitars", guitarId), {
     stageId,
     updatedAt: Timestamp.now().toMillis(),
   });
+  
+  // Notify all staff about stage change (non-blocking)
+  notifyAllStaff({
+    type: "guitar_stage_changed",
+    title: `Guitar moved to ${stageName}`,
+    message: `${guitar.model} - ${guitar.finish} (${guitar.orderNumber}) moved to ${stageName}`,
+    guitarId: guitarId,
+    runId: guitar.runId,
+    metadata: {
+      guitarModel: guitar.model,
+      guitarFinish: guitar.finish,
+      customerName: guitar.customerName,
+      stageName: stageName,
+      runName: run.name,
+    },
+  }).catch((error) => {
+    // Log error but don't throw - notifications are non-critical
+    console.error("Failed to send notifications for stage change:", error);
+  });
+  
+  // Notify client if this stage is visible to them
+  if (guitar.clientUid && isClientVisibleStage) {
+    notifyUser(guitar.clientUid, {
+      type: "guitar_stage_changed",
+      title: `${guitar.model} moved to ${clientStageLabel}`,
+      message: `Your guitar is now in ${clientStageLabel}.`,
+      guitarId: guitarId,
+      runId: guitar.runId,
+      metadata: {
+        guitarModel: guitar.model,
+        guitarFinish: guitar.finish,
+        stageName: clientStageLabel,
+      },
+    }).catch((error) => {
+      console.error("Failed to send client notification for stage change:", error);
+    });
+  }
 }
 
 // Notes queries
@@ -226,20 +318,107 @@ export async function addGuitarNote(
   guitarId: string,
   note: Omit<GuitarNote, "id" | "createdAt">
 ): Promise<string> {
-  const notesRef = collection(db, "guitars", guitarId, "notes");
-  const docRef = await addDoc(notesRef, {
-    ...note,
+  // First, create the note - this is the critical operation
+  // Clean up undefined values - Firestore doesn't accept undefined
+  const cleanNote: any = {
+    guitarId: note.guitarId,
+    stageId: note.stageId,
+    authorUid: note.authorUid,
+    authorName: note.authorName,
+    message: note.message,
     createdAt: Timestamp.now().toMillis(),
-  });
+    visibleToClient: note.visibleToClient,
+  };
+  
+  // Only include photoUrls if it exists and has items
+  if (note.photoUrls && note.photoUrls.length > 0) {
+    cleanNote.photoUrls = note.photoUrls;
+  }
+  
+  const notesRef = collection(db, "guitars", guitarId, "notes");
+  const docRef = await addDoc(notesRef, cleanNote);
+  
+  // Then, try to get guitar and run info for notification (non-blocking)
+  // Don't let notification setup failures block note creation
+  try {
+    const guitar = await getGuitar(guitarId);
+    if (guitar) {
+      const run = await getRun(guitar.runId);
+      const clientUid = guitar.clientUid;
+      
+      // Notify all staff about new note (only if visible to client or has photos)
+      if (note.visibleToClient || (note.photoUrls && note.photoUrls.length > 0)) {
+        notifyAllStaff({
+          type: "guitar_note_added",
+          title: `New update: ${guitar.model}`,
+          message: `${note.authorName} added an update${note.photoUrls && note.photoUrls.length > 0 ? ` with ${note.photoUrls.length} photo(s)` : ""}`,
+          guitarId: guitarId,
+          runId: guitar.runId,
+          noteId: docRef.id,
+          metadata: {
+            guitarModel: guitar.model,
+            guitarFinish: guitar.finish,
+            customerName: guitar.customerName,
+            runName: run?.name,
+            authorName: note.authorName,
+          },
+        }).catch((error) => {
+          // Log error but don't throw - notifications are non-critical
+          console.error("Failed to send notifications for note:", error);
+        });
+      }
+      
+      // Notify the client when a client-visible update is added
+      if (clientUid && note.visibleToClient) {
+        notifyUser(clientUid, {
+          type: "guitar_note_added",
+          title: `New update on ${guitar.model}`,
+          message: note.message || "A new update has been posted.",
+          guitarId: guitarId,
+          runId: guitar.runId,
+          noteId: docRef.id,
+          metadata: {
+            guitarModel: guitar.model,
+            guitarFinish: guitar.finish,
+            runName: run?.name,
+            authorName: note.authorName,
+          },
+        }).catch((error) => {
+          console.error("Failed to send client notification for note:", error);
+        });
+      }
+    }
+  } catch (notificationError) {
+    // Log notification setup error but don't throw - note was already created
+    console.error("Failed to set up notifications for note (note was still created):", notificationError);
+  }
+  
   return docRef.id;
 }
 
 // Archive functions
 export async function archiveRun(runId: string): Promise<void> {
+  const run = await getRun(runId);
+  if (!run) return;
+  
   const runRef = doc(db, "runs", runId);
   await updateDoc(runRef, {
     archived: true,
     archivedAt: Timestamp.now().toMillis(),
+  });
+  
+  // Notify all staff about run archive (non-blocking)
+  notifyAllStaff({
+    type: "run_archived",
+    title: `Run Archived: ${run.name}`,
+    message: `Run "${run.name}" has been archived`,
+    runId: runId,
+    metadata: {
+      runName: run.name,
+    },
+  }).catch((error) => {
+    // Log error but don't throw - notifications are non-critical
+    console.error("Failed to send notifications for archived run:", error);
   });
 }
 
@@ -252,10 +431,30 @@ export async function unarchiveRun(runId: string): Promise<void> {
 }
 
 export async function archiveGuitar(guitarId: string): Promise<void> {
+  const guitar = await getGuitar(guitarId);
+  if (!guitar) return;
+  
   const guitarRef = doc(db, "guitars", guitarId);
   await updateDoc(guitarRef, {
     archived: true,
     archivedAt: Timestamp.now().toMillis(),
+  });
+  
+  // Notify all staff about guitar archive (non-blocking)
+  notifyAllStaff({
+    type: "guitar_archived",
+    title: `Guitar Archived: ${guitar.model}`,
+    message: `${guitar.model} - ${guitar.finish} (${guitar.orderNumber}) has been archived`,
+    guitarId: guitarId,
+    runId: guitar.runId,
+    metadata: {
+      guitarModel: guitar.model,
+      guitarFinish: guitar.finish,
+      customerName: guitar.customerName,
+    },
+  }).catch((error) => {
+    // Log error but don't throw - notifications are non-critical
+    console.error("Failed to send notifications for archived guitar:", error);
   });
 }
 
@@ -264,6 +463,128 @@ export async function unarchiveGuitar(guitarId: string): Promise<void> {
   await updateDoc(guitarRef, {
     archived: false,
     archivedAt: null,
+  });
+}
+
+// Notification functions
+export async function createNotification(
+  notification: Omit<Notification, "id" | "createdAt">
+): Promise<string> {
+  const notificationsRef = collection(db, "notifications");
+  const docRef = await addDoc(notificationsRef, {
+    ...notification,
+    read: false,
+    createdAt: Timestamp.now().toMillis(),
+  });
+  return docRef.id;
+}
+
+export function subscribeNotifications(
+  userId: string,
+  callback: (notifications: Notification[]) => void
+): Unsubscribe {
+  const notificationsRef = collection(db, "notifications");
+  const q = query(
+    notificationsRef,
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc")
+  );
+  
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const notifications = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Notification[];
+    callback(notifications);
+  });
+}
+
+export async function markNotificationAsRead(notificationId: string): Promise<void> {
+  const notificationRef = doc(db, "notifications", notificationId);
+  await updateDoc(notificationRef, {
+    read: true,
+    readAt: Timestamp.now().toMillis(),
+  });
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  const notificationsRef = collection(db, "notifications");
+  const q = query(
+    notificationsRef,
+    where("userId", "==", userId),
+    where("read", "==", false)
+  );
+  
+  const snapshot = await getDocs(q);
+  const batch = writeBatch(db);
+  
+  snapshot.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      read: true,
+      readAt: Timestamp.now().toMillis(),
+    });
+  });
+  
+  await batch.commit();
+}
+
+export async function deleteNotification(notificationId: string): Promise<void> {
+  const notificationRef = doc(db, "notifications", notificationId);
+  await deleteDoc(notificationRef);
+}
+
+// Helper function to notify all staff users
+export async function notifyAllStaff(
+  notification: Omit<Notification, "id" | "createdAt" | "userId">
+): Promise<void> {
+  // Get all staff users via Cloud Function
+  const { getFunctions, httpsCallable } = await import("firebase/functions");
+  const functions = getFunctions();
+  const listUsers = httpsCallable(functions, "listUsers");
+  
+  try {
+    const result = await listUsers({ roleFilter: "staff" });
+    const users = (result.data as any)?.users || [];
+    
+    // Also include admins
+    const adminResult = await listUsers({ roleFilter: "admin" });
+    const admins = (adminResult.data as any)?.users || [];
+    
+    const allStaff = [...users, ...admins];
+    const uniqueStaff = Array.from(
+      new Map(allStaff.map((u: any) => [u.uid, u])).values()
+    );
+    
+    // Create notifications for each staff member
+    const batch = writeBatch(db);
+    const notificationsRef = collection(db, "notifications");
+    
+    uniqueStaff.forEach((user: any) => {
+      const notificationRef = doc(notificationsRef);
+      batch.set(notificationRef, {
+        ...notification,
+        userId: user.uid,
+        read: false,
+        createdAt: Timestamp.now().toMillis(),
+      });
+    });
+    
+    await batch.commit();
+  } catch (error) {
+    console.error("Error notifying staff:", error);
+    // Fallback: create notification for current user if available
+    // This is a graceful degradation
+  }
+}
+
+// Helper function to notify a specific user
+export async function notifyUser(
+  userId: string,
+  notification: Omit<Notification, "id" | "createdAt" | "userId">
+): Promise<string> {
+  return createNotification({
+    ...notification,
+    userId,
   });
 }
 

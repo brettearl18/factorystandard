@@ -42,6 +42,19 @@ service cloud.firestore {
           resource.data.visibleToClient == true;
       }
     }
+
+    function ownsNotification() {
+      return resource.data.userId == request.auth.uid;
+    }
+
+    // Notifications - staff/admin + clients (own notifications)
+    match /notifications/{notificationId} {
+      allow read: if (isStaff() || isClient()) && ownsNotification();
+      allow write: if isStaff();
+      allow create: if isStaff();
+      allow update: if (isStaff() || isClient()) && ownsNotification();
+      allow delete: if (isStaff() || isClient()) && ownsNotification();
+    }
   }
 }
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { addGuitarNote, updateGuitarPhotoInfo } from "@/lib/firestore";
-import { uploadGuitarPhoto } from "@/lib/storage";
+import { uploadGuitarPhoto, isGoogleDriveLink } from "@/lib/storage";
 import { updateGuitarStage } from "@/lib/firestore";
 import type { GuitarBuild, RunStage } from "@/types/guitars";
 
@@ -25,7 +25,7 @@ export function GuitarNoteDrawer({
 }: GuitarNoteDrawerProps) {
   const { currentUser } = useAuth();
   const [message, setMessage] = useState("");
-  const [visibleToClient, setVisibleToClient] = useState(false);
+  const [visibleToClient, setVisibleToClient] = useState(true);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]); // For Google Drive links
   const [driveLinkInput, setDriveLinkInput] = useState("");
@@ -42,8 +42,8 @@ export function GuitarNoteDrawer({
   const handleAddDriveLink = () => {
     if (!driveLinkInput.trim()) return;
     
-    const convertedLink = convertGoogleDriveLink(driveLinkInput.trim());
-    setPhotoUrls((prev) => [...prev, convertedLink]);
+    // Store Google Drive links as-is (no conversion needed for folder links)
+    setPhotoUrls((prev) => [...prev, driveLinkInput.trim()]);
     setDriveLinkInput("");
   };
 
@@ -54,6 +54,24 @@ export function GuitarNoteDrawer({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+
+    // Validation: Check if requirements are met
+    if (!skipStageUpdate) {
+      if (stage.requiresNote && !message.trim()) {
+        alert("A note is required for this stage.");
+        return;
+      }
+      if (stage.requiresPhoto && photos.length === 0 && photoUrls.length === 0) {
+        alert("A photo is required for this stage.");
+        return;
+      }
+    }
+
+    // Allow submission with just a message (no photos required unless stage requires it)
+    if (!message.trim() && photos.length === 0 && photoUrls.length === 0) {
+      alert("Please add a message or at least one photo.");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -72,40 +90,44 @@ export function GuitarNoteDrawer({
         await updateGuitarStage(guitar.id, stage.id);
       }
 
-      // Add note if message provided or photos uploaded
-      if (message.trim() || allPhotoUrls.length > 0) {
-        await addGuitarNote(guitar.id, {
-          guitarId: guitar.id,
-          stageId: stage.id,
-          authorUid: currentUser.uid,
-          authorName: currentUser.displayName || currentUser.email || "Staff",
-          message: message.trim() || "Stage updated",
-          visibleToClient,
-          photoUrls: allPhotoUrls.length > 0 ? allPhotoUrls : undefined,
-        });
+      // Add note - message is required, photos are optional
+      await addGuitarNote(guitar.id, {
+        guitarId: guitar.id,
+        stageId: stage.id,
+        authorUid: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email || "Staff",
+        message: message.trim() || "Update added",
+        visibleToClient,
+        photoUrls: allPhotoUrls.length > 0 ? allPhotoUrls : undefined,
+      });
 
-        // Update guitar photo info
-        if (allPhotoUrls.length > 0) {
-          const coverPhotoUrl = guitar.coverPhotoUrl || allPhotoUrls[0];
-          const currentPhotoCount = guitar.photoCount || 0;
-          await updateGuitarPhotoInfo(
-            guitar.id,
-            coverPhotoUrl,
-            currentPhotoCount + allPhotoUrls.length
-          );
-        }
+      // Update guitar photo info only if photos were added
+      if (allPhotoUrls.length > 0) {
+        const coverPhotoUrl = guitar.coverPhotoUrl || allPhotoUrls[0];
+        const currentPhotoCount = guitar.photoCount || 0;
+        await updateGuitarPhotoInfo(
+          guitar.id,
+          coverPhotoUrl,
+          currentPhotoCount + allPhotoUrls.length
+        );
       }
 
       // Reset form
       setMessage("");
-      setVisibleToClient(false);
+      setVisibleToClient(true);
       setPhotos([]);
       setPhotoUrls([]);
       setDriveLinkInput("");
       onClose(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving note:", error);
-      alert("Failed to save note. Please try again.");
+      const errorMessage = error?.message || "Unknown error occurred";
+      console.error("Error details:", {
+        message: errorMessage,
+        code: error?.code,
+        stack: error?.stack,
+      });
+      alert(`Failed to save note: ${errorMessage}. Please check the console for details.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -150,25 +172,28 @@ export function GuitarNoteDrawer({
           </div>
 
           <div className="mb-4 flex-1">
-            <label className="block text-sm font-medium mb-2">Note</label>
+            <label className="block text-sm font-medium mb-2">
+              Note {!skipStageUpdate && stage.requiresNote && <span className="text-red-500">*</span>}
+            </label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="w-full p-2 border rounded-md resize-none h-32"
               placeholder={skipStageUpdate ? "Add an update or note..." : "Add a note about this stage change..."}
-              required={!skipStageUpdate && stage.requiresNote}
             />
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Photos</label>
+            <label className="block text-sm font-medium mb-2">
+              Photos {!skipStageUpdate && stage.requiresPhoto && <span className="text-red-500">*</span>}
+              <span className="text-xs text-gray-500 font-normal ml-2">(Optional)</span>
+            </label>
             <input
               type="file"
               accept="image/*"
               multiple
               onChange={handleFileChange}
               className="w-full p-2 border rounded-md mb-2"
-              required={stage.requiresPhoto && photos.length === 0 && photoUrls.length === 0}
             />
             {(photos.length > 0 || photoUrls.length > 0) && (
               <p className="text-xs text-gray-500 mt-1 mb-2">
@@ -256,8 +281,8 @@ export function GuitarNoteDrawer({
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              disabled={isSubmitting}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting || (!message.trim() && photos.length === 0 && photoUrls.length === 0)}
             >
               {isSubmitting ? "Saving..." : "Save"}
             </button>
