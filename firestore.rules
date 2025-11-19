@@ -55,6 +55,16 @@ service cloud.firestore {
       allow update: if (isStaff() || isClient()) && ownsNotification();
       allow delete: if (isStaff() || isClient()) && ownsNotification();
     }
+
+    match /clients/{clientId} {
+      allow read, write: if isStaff();
+      allow read, update: if isClient() && request.auth.uid == clientId;
+
+      match /invoices/{invoiceId} {
+        allow read: if isStaff() || (isClient() && request.auth.uid == clientId);
+        allow write: if isStaff();
+      }
+    }
   }
 }
 

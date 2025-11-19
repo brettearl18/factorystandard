@@ -94,18 +94,51 @@ export interface GuitarNote {
   photoUrls?: string[];
 }
 
-export type NotificationType = 
-  | "guitar_stage_changed"
-  | "guitar_note_added"
-  | "guitar_created"
-  | "guitar_assigned"
-  | "run_created"
-  | "run_archived"
-  | "guitar_archived";
+export interface ClientProfile {
+  uid: string;
+  phone?: string;
+  alternateEmail?: string;
+  shippingAddress?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  preferredContact?: "phone" | "email" | "sms";
+  notes?: string;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
+export interface InvoicePayment {
+  id: string;
+  amount: number;
+  currency: string;
+  method: string;
+  note?: string;
+  paidAt: number;
+  recordedBy: string;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  title: string;
+  description?: string;
+  amount: number;
+  currency: string;
+  status: "pending" | "paid" | "overdue" | "partial";
+  dueDate?: number;
+  downloadUrl?: string;
+  uploadedAt: number;
+  uploadedBy: string;
+  payments?: InvoicePayment[];
+}
 
 export interface Notification {
   id: string;
-  userId: string; // Staff/admin user who should receive this notification
+  userId: string;
   type: NotificationType;
   title: string;
   message: string;
@@ -126,4 +159,13 @@ export interface Notification {
     authorName?: string;
   };
 }
+
+export type NotificationType =
+  | "guitar_stage_changed"
+  | "guitar_note_added"
+  | "guitar_created"
+  | "guitar_assigned"
+  | "run_created"
+  | "run_archived"
+  | "guitar_archived";
 

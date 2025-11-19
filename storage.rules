@@ -30,6 +30,15 @@ service firebase.storage {
                      request.resource.contentType.matches('image/.*');
     }
 
+    // Invoice uploads
+    match /invoices/{clientUid}/{allPaths=**} {
+      allow read: if isStaff() || (isClient() && request.auth.uid == clientUid);
+      allow write: if isStaff() &&
+        request.resource.size < 20 * 1024 * 1024 &&
+        (request.resource.contentType.matches('application/(pdf|octet-stream)') ||
+         request.resource.contentType.matches('image/.*'));
+    }
+
     // Deny all other paths
     match /{allPaths=**} {
       allow read, write: if false;

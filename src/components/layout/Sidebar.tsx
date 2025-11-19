@@ -55,6 +55,11 @@ export function Sidebar() {
       href: "/my-guitars",
       icon: Guitar,
     },
+    {
+      label: "Settings",
+      href: "/my/settings",
+      icon: Settings,
+    },
   ];
 
   const navItems = userRole === "client" ? clientNavItems : staffNavItems;

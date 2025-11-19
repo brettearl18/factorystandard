@@ -28,6 +28,18 @@ export async function uploadReferenceImage(
   return downloadURL;
 }
 
+export async function uploadInvoiceFile(
+  clientUid: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `invoices/${clientUid}/${filename}`);
+
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
 /**
  * Converts a Google Drive share link to a direct image URL
  * Supports formats like:

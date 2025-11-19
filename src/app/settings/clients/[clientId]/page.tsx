@@ -7,10 +7,32 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
-import { subscribeRunStages, subscribeGuitarNotes, getGuitar } from "@/lib/firestore";
+import { useClientProfile } from "@/hooks/useClientProfile";
+import { useClientInvoices } from "@/hooks/useClientInvoices";
+import {
+  subscribeRunStages,
+  subscribeGuitarNotes,
+  getGuitar,
+  updateClientProfile,
+} from "@/lib/firestore";
+import { ClientContactCard } from "@/components/client/ClientContactCard";
+import { InvoiceList } from "@/components/client/InvoiceList";
+import { UploadInvoiceModal } from "@/components/client/UploadInvoiceModal";
+import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, ArrowLeft, User } from "lucide-react";
-import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
+import {
+  Calendar,
+  Clock,
+  Guitar,
+  TrendingUp,
+  CheckCircle,
+  Package,
+  Activity,
+  ArrowRight,
+  ArrowLeft,
+  User,
+} from "lucide-react";
+import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 
 interface ClientUser {
   uid: string;
@@ -31,11 +53,15 @@ export default function ClientDashboardPage({
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
   const guitars = useClientGuitars(clientId);
+  const profile = useClientProfile(clientId);
+  const invoices = useClientInvoices(clientId);
   const [client, setClient] = useState<ClientUser | null>(null);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
   const [recentNotes, setRecentNotes] = useState<Map<string, GuitarNote>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -201,6 +227,10 @@ export default function ClientDashboardPage({
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 5);
 
+  const handleSaveProfile = (updates: Partial<ClientProfile>) => {
+    return updateClientProfile(clientId, updates, currentUser?.uid);
+  };
+
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -224,6 +254,16 @@ export default function ClientDashboardPage({
               <p className="text-gray-600">{client.email}</p>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 mb-10">
+          <ClientContactCard profile={profile} onSave={handleSaveProfile} canEdit />
+          <InvoiceList
+            invoices={invoices}
+            canManage
+            onUploadInvoice={() => setIsUploadModalOpen(true)}
+            onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
+          />
         </div>
 
         {guitars.length === 0 ? (
@@ -438,6 +478,24 @@ export default function ClientDashboardPage({
           </>
         )}
       </div>
+
+      {currentUser && (
+        <UploadInvoiceModal
+          clientUid={clientId}
+          uploadedBy={currentUser.uid}
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+        />
+      )}
+
+      {currentUser && (
+        <RecordPaymentModal
+          clientUid={clientId}
+          invoice={paymentInvoice}
+          isOpen={Boolean(paymentInvoice)}
+          onClose={() => setPaymentInvoice(null)}
+        />
+      )}
     </AppLayout>
   );
 }

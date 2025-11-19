@@ -15,9 +15,19 @@ import {
   QuerySnapshot,
   DocumentData,
   Unsubscribe,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Run, RunStage, GuitarBuild, GuitarNote, Notification } from "@/types/guitars";
+import type {
+  Run,
+  RunStage,
+  GuitarBuild,
+  GuitarNote,
+  Notification,
+  ClientProfile,
+  InvoiceRecord,
+  InvoicePayment,
+} from "@/types/guitars";
 
 // Run queries
 export async function getRun(runId: string): Promise<Run | null> {
@@ -394,6 +404,119 @@ export async function addGuitarNote(
   }
   
   return docRef.id;
+}
+
+// Client profile & billing
+export function subscribeClientProfile(
+  clientUid: string | null,
+  callback: (profile: ClientProfile | null) => void
+): Unsubscribe | null {
+  if (!clientUid) {
+    callback(null);
+    return null;
+  }
+
+  const profileRef = doc(db, "clients", clientUid);
+  return onSnapshot(profileRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback(null);
+      return;
+    }
+    callback({ uid: snapshot.id, ...snapshot.data() } as ClientProfile);
+  });
+}
+
+export async function updateClientProfile(
+  clientUid: string,
+  updates: Partial<ClientProfile>,
+  updatedBy?: string
+): Promise<void> {
+  const profileRef = doc(db, "clients", clientUid);
+  await setDoc(
+    profileRef,
+    {
+      ...updates,
+      updatedAt: Timestamp.now().toMillis(),
+      ...(updatedBy ? { updatedBy } : {}),
+    },
+    { merge: true }
+  );
+}
+
+export function subscribeClientInvoices(
+  clientUid: string | null,
+  callback: (invoices: InvoiceRecord[]) => void
+): Unsubscribe | null {
+  if (!clientUid) {
+    callback([]);
+    return null;
+  }
+
+  const invoicesRef = collection(db, "clients", clientUid, "invoices");
+  const q = query(invoicesRef, orderBy("uploadedAt", "desc"));
+
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const invoices = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as InvoiceRecord[];
+    callback(invoices);
+  });
+}
+
+export async function createInvoiceRecord(
+  clientUid: string,
+  invoice: Omit<InvoiceRecord, "id" | "uploadedAt" | "uploadedBy" | "payments"> & {
+    uploadedBy: string;
+  }
+): Promise<string> {
+  const invoicesRef = collection(db, "clients", clientUid, "invoices");
+  const docRef = await addDoc(invoicesRef, {
+    ...invoice,
+    uploadedAt: Timestamp.now().toMillis(),
+    payments: [],
+  });
+  return docRef.id;
+}
+
+export async function recordInvoicePayment(
+  clientUid: string,
+  invoiceId: string,
+  payment: Omit<InvoicePayment, "id" | "paidAt"> & { paidAt?: number }
+): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+
+  const invoice = snapshot.data() as InvoiceRecord;
+  const paymentId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2, 10);
+  const paidAt = payment.paidAt ?? Timestamp.now().toMillis();
+  const paymentData: InvoicePayment = {
+    id: paymentId,
+    ...payment,
+    paidAt,
+  };
+
+  const existingPayments = invoice.payments || [];
+  const newPayments = [...existingPayments, paymentData];
+  const totalPaid = newPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  let newStatus: InvoiceRecord["status"] = invoice.status;
+  if (totalPaid >= invoice.amount) {
+    newStatus = "paid";
+  } else if (totalPaid > 0) {
+    newStatus = "partial";
+  }
+
+  await updateDoc(invoiceRef, {
+    payments: newPayments,
+    status: newStatus,
+  });
 }
 
 // Archive functions
