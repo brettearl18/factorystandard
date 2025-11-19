@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink } from "lucide-react";
-import { subscribeGuitarNotes, getRun, subscribeRunStages } from "@/lib/firestore";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore } from "lucide-react";
+import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ export function GuitarDetailModal({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isNoteDrawerOpen, setIsNoteDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const { userRole } = useAuth();
 
   useEffect(() => {
@@ -35,10 +36,10 @@ export function GuitarDetailModal({
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
 
-    // Load notes
+    // Load notes (staff/admin see all notes, no filtering needed)
     const unsubscribeNotes = subscribeGuitarNotes(guitar.id, (allNotes) => {
       setNotes(allNotes);
-    });
+    }, false); // clientOnly=false for staff/admin
     unsubscribes.push(unsubscribeNotes);
 
     // Load run and stage
@@ -94,13 +95,55 @@ export function GuitarDetailModal({
           </div>
           <div className="flex items-center gap-2">
             {(userRole === "staff" || userRole === "admin") && (
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    if (isArchiving) return;
+                    setIsArchiving(true);
+                    try {
+                      if (guitar.archived) {
+                        await unarchiveGuitar(guitar.id);
+                      } else {
+                        if (confirm(`Are you sure you want to archive "${guitar.model}"? It will be hidden from active views.`)) {
+                          await archiveGuitar(guitar.id);
+                        }
+                      }
+                    } catch (error) {
+                      console.error("Error archiving guitar:", error);
+                      alert("Failed to archive guitar. Please try again.");
+                    } finally {
+                      setIsArchiving(false);
+                    }
+                  }}
+                  disabled={isArchiving}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    guitar.archived
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-600 text-white hover:bg-gray-700"
+                  } disabled:opacity-50`}
+                >
+                  {isArchiving ? (
+                    "Processing..."
+                  ) : guitar.archived ? (
+                    <>
+                      <ArchiveRestore className="w-4 h-4" />
+                      Unarchive
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="w-4 h-4" />
+                      Archive
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </button>
+              </>
             )}
             <button
               onClick={onClose}

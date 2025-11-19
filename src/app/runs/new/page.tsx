@@ -5,8 +5,76 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createRun, createStage } from "@/lib/firestore";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, FileText } from "lucide-react";
 import type { RunStage } from "@/types/guitars";
+
+// Standard template stages
+const STANDARD_STAGES: Omit<RunStage, "id">[] = [
+  {
+    label: "Design & Planning",
+    order: 0,
+    internalOnly: false,
+    requiresNote: false,
+    requiresPhoto: false,
+    clientStatusLabel: "In Planning",
+  },
+  {
+    label: "Wood Selection & Prep",
+    order: 1,
+    internalOnly: true,
+    requiresNote: false,
+    requiresPhoto: true,
+    clientStatusLabel: "In Build",
+  },
+  {
+    label: "Body Shaping",
+    order: 2,
+    internalOnly: true,
+    requiresNote: false,
+    requiresPhoto: true,
+    clientStatusLabel: "In Build",
+  },
+  {
+    label: "Neck Carve & Routing",
+    order: 3,
+    internalOnly: true,
+    requiresNote: true,
+    requiresPhoto: true,
+    clientStatusLabel: "In Build",
+  },
+  {
+    label: "Finishing",
+    order: 4,
+    internalOnly: true,
+    requiresNote: false,
+    requiresPhoto: true,
+    clientStatusLabel: "In Finish",
+  },
+  {
+    label: "Assembly & Setup",
+    order: 5,
+    internalOnly: true,
+    requiresNote: true,
+    requiresPhoto: true,
+    clientStatusLabel: "Final Assembly",
+  },
+  {
+    label: "Quality Check",
+    order: 6,
+    internalOnly: false,
+    requiresNote: true,
+    requiresPhoto: true,
+    clientStatusLabel: "Quality Check",
+  },
+  {
+    label: "Ready for Shipping",
+    order: 7,
+    internalOnly: false,
+    requiresNote: false,
+    requiresPhoto: true,
+    clientStatusLabel: "Ready to Ship",
+  },
+];
 
 export default function NewRunPage() {
   const { currentUser, userRole, loading } = useAuth();
@@ -85,6 +153,13 @@ export default function NewRunPage() {
     setStages(newStages);
   };
 
+  const loadStandardTemplate = () => {
+    if (stages.length > 0 && !confirm("This will replace all current stages. Continue?")) {
+      return;
+    }
+    setStages(STANDARD_STAGES.map((stage, index) => ({ ...stage, order: index })));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!runName.trim() || stages.length === 0) return;
@@ -137,14 +212,24 @@ export default function NewRunPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <label className="block text-sm font-medium">Stages</label>
-            <button
-              type="button"
-              onClick={addStage}
-              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Add Stage
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={loadStandardTemplate}
+                className="flex items-center gap-2 text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Load Standard Template
+              </button>
+              <button
+                type="button"
+                onClick={addStage}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                Add Stage
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">

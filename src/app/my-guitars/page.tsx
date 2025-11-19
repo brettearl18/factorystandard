@@ -69,16 +69,16 @@ export default function MyGuitarsPage() {
     const unsubscribes: (() => void)[] = [];
 
     guitars.forEach((guitar) => {
+      // For clients, use clientOnly=true to filter in the query (required by security rules)
       const unsubscribe = subscribeGuitarNotes(guitar.id, (allNotes) => {
-        const visibleNotes = allNotes
-          .filter((note) => note.visibleToClient)
-          .sort((a, b) => b.createdAt - a.createdAt);
+        // Notes are already filtered by visibleToClient in the query
+        const sortedNotes = allNotes.sort((a, b) => b.createdAt - a.createdAt);
         
-        if (visibleNotes.length > 0) {
-          notesMap.set(guitar.id, visibleNotes[0]); // Most recent note
+        if (sortedNotes.length > 0) {
+          notesMap.set(guitar.id, sortedNotes[0]); // Most recent note
           setRecentNotes(new Map(notesMap));
         }
-      });
+      }, true); // clientOnly=true for clients
       unsubscribes.push(unsubscribe);
     });
 

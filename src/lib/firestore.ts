@@ -24,9 +24,11 @@ export async function getRun(runId: string): Promise<Run | null> {
 }
 
 export function subscribeRuns(
-  callback: (runs: Run[]) => void
+  callback: (runs: Run[]) => void,
+  includeArchived: boolean = false
 ): Unsubscribe {
   const runsRef = collection(db, "runs");
+  // Query all runs and filter in memory to handle documents without archived field
   const q = query(runsRef, orderBy("startsAt", "desc"));
   
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
@@ -34,7 +36,12 @@ export function subscribeRuns(
       id: doc.id,
       ...doc.data(),
     })) as Run[];
-    callback(runs);
+    // Filter out archived items if includeArchived is false
+    // Documents without archived field are treated as not archived
+    const filteredRuns = includeArchived 
+      ? runs 
+      : runs.filter((r) => !r.archived);
+    callback(filteredRuns);
   });
 }
 
@@ -75,9 +82,11 @@ export function subscribeRunStages(
 // Guitar queries
 export function subscribeGuitarsForRun(
   runId: string,
-  callback: (guitars: GuitarBuild[]) => void
+  callback: (guitars: GuitarBuild[]) => void,
+  includeArchived: boolean = false
 ): Unsubscribe {
   const guitarsRef = collection(db, "guitars");
+  // Query all guitars for the run and filter in memory to handle documents without archived field
   const q = query(
     guitarsRef,
     where("runId", "==", runId),
@@ -89,7 +98,12 @@ export function subscribeGuitarsForRun(
       id: doc.id,
       ...doc.data(),
     })) as GuitarBuild[];
-    callback(guitars);
+    // Filter out archived items if includeArchived is false
+    // Documents without archived field are treated as not archived
+    const filteredGuitars = includeArchived 
+      ? guitars 
+      : guitars.filter((g) => !g.archived);
+    callback(filteredGuitars);
   });
 }
 
@@ -130,9 +144,11 @@ export async function createGuitar(
 
 export function subscribeClientGuitars(
   clientUid: string,
-  callback: (guitars: GuitarBuild[]) => void
+  callback: (guitars: GuitarBuild[]) => void,
+  includeArchived: boolean = false
 ): Unsubscribe {
   const guitarsRef = collection(db, "guitars");
+  // Query all guitars for the client and filter in memory to handle documents without archived field
   const q = query(
     guitarsRef,
     where("clientUid", "==", clientUid),
@@ -144,7 +160,12 @@ export function subscribeClientGuitars(
       id: doc.id,
       ...doc.data(),
     })) as GuitarBuild[];
-    callback(guitars);
+    // Filter out archived items if includeArchived is false
+    // Documents without archived field are treated as not archived
+    const filteredGuitars = includeArchived 
+      ? guitars 
+      : guitars.filter((g) => !g.archived);
+    callback(filteredGuitars);
   });
 }
 
@@ -182,10 +203,15 @@ export async function updateGuitarStage(
 // Notes queries
 export function subscribeGuitarNotes(
   guitarId: string,
-  callback: (notes: GuitarNote[]) => void
+  callback: (notes: GuitarNote[]) => void,
+  clientOnly: boolean = false
 ): Unsubscribe {
   const notesRef = collection(db, "guitars", guitarId, "notes");
-  const q = query(notesRef, orderBy("createdAt", "desc"));
+  
+  // For clients, filter by visibleToClient in the query to satisfy security rules
+  const q = clientOnly
+    ? query(notesRef, where("visibleToClient", "==", true), orderBy("createdAt", "desc"))
+    : query(notesRef, orderBy("createdAt", "desc"));
   
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
     const notes = snapshot.docs.map((doc) => ({
@@ -206,6 +232,39 @@ export async function addGuitarNote(
     createdAt: Timestamp.now().toMillis(),
   });
   return docRef.id;
+}
+
+// Archive functions
+export async function archiveRun(runId: string): Promise<void> {
+  const runRef = doc(db, "runs", runId);
+  await updateDoc(runRef, {
+    archived: true,
+    archivedAt: Timestamp.now().toMillis(),
+  });
+}
+
+export async function unarchiveRun(runId: string): Promise<void> {
+  const runRef = doc(db, "runs", runId);
+  await updateDoc(runRef, {
+    archived: false,
+    archivedAt: null,
+  });
+}
+
+export async function archiveGuitar(guitarId: string): Promise<void> {
+  const guitarRef = doc(db, "guitars", guitarId);
+  await updateDoc(guitarRef, {
+    archived: true,
+    archivedAt: Timestamp.now().toMillis(),
+  });
+}
+
+export async function unarchiveGuitar(guitarId: string): Promise<void> {
+  const guitarRef = doc(db, "guitars", guitarId);
+  await updateDoc(guitarRef, {
+    archived: false,
+    archivedAt: null,
+  });
 }
 
 export async function updateGuitarPhotoInfo(

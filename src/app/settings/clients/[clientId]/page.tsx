@@ -116,16 +116,15 @@ export default function ClientDashboardPage({
     const unsubscribes: (() => void)[] = [];
 
     guitars.forEach((guitar) => {
+      // Staff/admin can see all notes, no filtering needed
       const unsubscribe = subscribeGuitarNotes(guitar.id, (allNotes) => {
-        const visibleNotes = allNotes
-          .filter((note) => note.visibleToClient)
-          .sort((a, b) => b.createdAt - a.createdAt);
+        const sortedNotes = allNotes.sort((a, b) => b.createdAt - a.createdAt);
         
-        if (visibleNotes.length > 0) {
-          notesMap.set(guitar.id, visibleNotes[0]);
+        if (sortedNotes.length > 0) {
+          notesMap.set(guitar.id, sortedNotes[0]);
           setRecentNotes(new Map(notesMap));
         }
-      });
+      }, false); // clientOnly=false for staff/admin
       unsubscribes.push(unsubscribe);
     });
 

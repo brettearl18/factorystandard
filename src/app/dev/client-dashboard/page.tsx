@@ -89,16 +89,15 @@ export default function DevClientDashboardPage() {
     const unsubscribes: (() => void)[] = [];
 
     guitars.forEach((guitar) => {
+      // Dev route - use clientOnly=true to filter in query
       const unsubscribe = subscribeGuitarNotes(guitar.id, (allNotes) => {
-        const visibleNotes = allNotes
-          .filter((note) => note.visibleToClient)
-          .sort((a, b) => b.createdAt - a.createdAt);
+        const sortedNotes = allNotes.sort((a, b) => b.createdAt - a.createdAt);
         
-        if (visibleNotes.length > 0) {
-          notesMap.set(guitar.id, visibleNotes[0]);
+        if (sortedNotes.length > 0) {
+          notesMap.set(guitar.id, sortedNotes[0]);
           setRecentNotes(new Map(notesMap));
         }
-      });
+      }, true); // clientOnly=true for dev client view
       unsubscribes.push(unsubscribe);
     });
 

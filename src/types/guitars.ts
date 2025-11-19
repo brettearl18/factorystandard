@@ -7,6 +7,8 @@ export interface Run {
   isActive: boolean;
   startsAt: number;       // Date.now()
   endsAt?: number;
+  archived?: boolean;     // true if archived (soft delete)
+  archivedAt?: number;    // timestamp when archived
 }
 
 export interface RunStage {
@@ -76,6 +78,8 @@ export interface GuitarBuild {
   updatedAt: number;
   coverPhotoUrl?: string;
   photoCount?: number;
+  archived?: boolean;     // true if archived (soft delete)
+  archivedAt?: number;    // timestamp when archived
 }
 
 export interface GuitarNote {

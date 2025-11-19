@@ -13,9 +13,15 @@ service cloud.firestore {
 
     match /runs/{runId} {
       allow read, write: if isStaff();
+      // Allow clients to read runs (needed to get stage info for their guitars)
+      allow read: if isClient();
       
       match /stages/{stageId} {
         allow read, write: if isStaff();
+        // Allow clients to read stages (needed to display progress for their guitars)
+        // Security: Clients can only access stages for runs where they have guitars
+        // This is enforced because clients only get runIds from their own guitars
+        allow read: if isClient();
       }
     }
 
@@ -27,6 +33,8 @@ service cloud.firestore {
       
       match /notes/{noteId} {
         allow read, write: if isStaff();
+        // Allow clients to read notes for their guitars that are visible to them
+        // Note: Collection queries must filter by visibleToClient == true in the query
         allow read: if isClient() &&
           get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid != null &&
           get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid ==

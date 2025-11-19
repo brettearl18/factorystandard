@@ -2,37 +2,45 @@
  * Seed script to create initial data for development/testing
  * 
  * Usage:
- *   npx ts-node scripts/seed-data.ts
+ *   npx tsx scripts/seed-data.ts [clientUid]
  * 
  * This creates:
  * - A sample Run
  * - Sample stages for the run
- * - Sample guitars
+ * - Sample guitars (assigned to the provided clientUid or Perry's UID)
  * 
  * Note: Requires Firebase Admin SDK credentials
  */
 
 import * as admin from "firebase-admin";
+import * as path from "path";
+import * as fs from "fs";
 
-// Initialize Firebase Admin
+// Get service account key path from environment or use default
+const serviceAccountPath =
+  process.env.SERVICE_ACCOUNT_KEY_PATH ||
+  process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+  path.resolve(process.cwd(), "service-account-key.json");
+
+if (!fs.existsSync(serviceAccountPath)) {
+  console.error(
+    `Error: Service account key not found at ${serviceAccountPath}`
+  );
+  console.error(
+    "Please set SERVICE_ACCOUNT_KEY_PATH environment variable or place service-account-key.json in the project root."
+  );
+  process.exit(1);
+}
+
+const serviceAccount = JSON.parse(
+  fs.readFileSync(serviceAccountPath, "utf8")
+);
+
+// Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
-  const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  
-  if (serviceAccountPath) {
-    try {
-      const serviceAccount = require(require('path').resolve(process.cwd(), serviceAccountPath));
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    } catch (error) {
-      console.error(`Failed to load service account from ${serviceAccountPath}:`, error);
-      // Try to use default credentials
-      admin.initializeApp();
-    }
-  } else {
-    // Try to use default credentials (e.g., from Firebase emulator or GCP)
-    admin.initializeApp();
-  }
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
 }
 
 const db = admin.firestore();
@@ -131,40 +139,67 @@ async function seedData() {
       console.log(`✅ Created stage: ${stage.label} (${stageRef.id})`);
     }
 
-    // Create sample guitars (you'll need to replace clientUid with actual user IDs)
+    // Get client UID from command line or use Perry's UID
+    const clientUid = process.argv[2] || "LNndBSmb4Kbstbv7VKJvojlD0ve2"; // Perry's UID by default
+    
+    // Verify client exists
+    try {
+      const clientUser = await admin.auth().getUser(clientUid);
+      console.log(`\n✅ Using client: ${clientUser.email} (${clientUid})\n`);
+    } catch (error: any) {
+      console.error(`\n❌ Error: Client with UID ${clientUid} not found.`);
+      console.error("   Please provide a valid client UID or create the user first.\n");
+      process.exit(1);
+    }
+
+    // Create sample guitars for Perry
     const sampleGuitars = [
       {
         runId: runRef.id,
-        stageId: stageRefs[2].id, // Body Shaping
-        clientUid: "REPLACE_WITH_CLIENT_UID", // Replace with actual client UID
-        customerName: "John Doe",
-        customerEmail: "john@example.com",
+        stageId: stageRefs[0].id, // Design & Planning
+        clientUid: clientUid,
+        customerName: "Perry Ormsby",
+        customerEmail: "perry@ormsbyguitars.com",
         orderNumber: "ORD-001",
-        model: "Hype GTR",
-        finish: "Interstellar",
+        model: "Goliath Roberto",
+        finish: "Green",
         createdAt: Date.now(),
         updatedAt: Date.now(),
       },
       {
         runId: runRef.id,
-        stageId: stageRefs[4].id, // Finishing
-        clientUid: "REPLACE_WITH_CLIENT_UID", // Replace with actual client UID
-        customerName: "Jane Smith",
-        customerEmail: "jane@example.com",
+        stageId: stageRefs[2].id, // Body Shaping
+        clientUid: clientUid,
+        customerName: "Perry Ormsby",
+        customerEmail: "perry@ormsbyguitars.com",
         orderNumber: "ORD-002",
-        model: "Classic Custom",
-        finish: "Vintage Sunburst",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        model: "Hype GTR",
+        finish: "Interstellar Blue",
+        createdAt: Date.now() - 86400000, // 1 day ago
+        updatedAt: Date.now() - 86400000,
       },
     ];
 
-    console.log("\n⚠️  Sample guitars created with placeholder clientUid.");
-    console.log("   Update the clientUid fields with actual Firebase Auth user IDs.\n");
-
     for (const guitar of sampleGuitars) {
       const guitarRef = await db.collection("guitars").add(guitar);
-      console.log(`✅ Created guitar: ${guitar.model} (${guitarRef.id})`);
+      console.log(`✅ Created guitar: ${guitar.model} - ${guitar.finish} (${guitarRef.id})`);
+      
+      // Add a sample note to the first guitar
+      if (guitar.orderNumber === "ORD-001") {
+        const noteRef = await db
+          .collection("guitars")
+          .doc(guitarRef.id)
+          .collection("notes")
+          .add({
+            message: "Guitar design approved. Starting wood selection process.",
+            authorName: "Factory Staff",
+            authorUid: "system",
+            visibleToClient: true,
+            createdAt: Date.now(),
+            photoUrls: [],
+          });
+        console.log(`   ✅ Added sample note to ${guitar.model}`);
+      }
     }
 
     console.log("\n✅ Seeding complete!");

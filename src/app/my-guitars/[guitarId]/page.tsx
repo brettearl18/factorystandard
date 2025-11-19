@@ -110,12 +110,12 @@ export default function GuitarDetailPage({
         });
 
         // Subscribe to notes
+        // For clients, use clientOnly=true to filter in the query (required by security rules)
         unsubscribeNotes = subscribeGuitarNotes(guitarId, (allNotes) => {
-          const visibleNotes = userRole === "client" 
-            ? allNotes.filter((note) => note.visibleToClient)
-            : allNotes;
-          setNotes(visibleNotes);
-        });
+          // If client, notes are already filtered by visibleToClient in the query
+          // If staff/admin, get all notes
+          setNotes(allNotes);
+        }, userRole === "client");
       } catch (error) {
         console.error("Error loading initial data:", error);
       }

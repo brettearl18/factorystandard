@@ -46,11 +46,11 @@ export default function DevGuitarDetailPage({
             setLoading(false);
           });
 
-          // Load notes (only visible to client)
+          // Load notes (only visible to client) - filter in query
           unsubscribeNotes = subscribeGuitarNotes(guitarId, (allNotes) => {
-            const visibleNotes = allNotes.filter((note) => note.visibleToClient);
-            setNotes(visibleNotes);
-          });
+            // Notes are already filtered by visibleToClient in the query
+            setNotes(allNotes);
+          }, true); // clientOnly=true for dev client view
         } else {
           setLoading(false);
         }
