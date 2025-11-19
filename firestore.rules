@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isStaff() {
+      return request.auth != null &&
+        (request.auth.token.role == "staff" || request.auth.token.role == "admin");
+    }
+
+    function isClient() {
+      return request.auth != null &&
+        request.auth.token.role == "client";
+    }
+
+    match /runs/{runId} {
+      allow read, write: if isStaff();
+      
+      match /stages/{stageId} {
+        allow read, write: if isStaff();
+      }
+    }
+
+    match /guitars/{guitarId} {
+      allow read, write: if isStaff();
+      allow read: if isClient() &&
+                    resource.data.clientUid != null &&
+                    resource.data.clientUid == request.auth.uid;
+      
+      match /notes/{noteId} {
+        allow read, write: if isStaff();
+        allow read: if isClient() &&
+          get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid != null &&
+          get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid ==
+            request.auth.uid &&
+          resource.data.visibleToClient == true;
+      }
+    }
+  }
+}
+

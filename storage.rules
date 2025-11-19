@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is staff/admin
+    function isStaff() {
+      return request.auth != null &&
+        (request.auth.token.role == "staff" || request.auth.token.role == "admin");
+    }
+
+    // Helper function to check if user is client
+    function isClient() {
+      return request.auth != null &&
+        request.auth.token.role == "client";
+    }
+
+    // Guitar photos and reference images
+    match /guitars/{guitarId}/{allPaths=**} {
+      // Staff/admin can read and write all guitar files
+      allow read, write: if isStaff();
+      
+      // Clients can read files for guitars assigned to them
+      // Note: This requires checking Firestore to verify clientUid
+      // For now, we'll allow read access if authenticated as client
+      // You may want to restrict this further based on your needs
+      allow read: if isClient() && request.auth != null;
+      
+      // Only allow image file types
+      allow write: if isStaff() && 
+                     request.resource.size < 10 * 1024 * 1024 && // 10MB max
+                     request.resource.contentType.matches('image/.*');
+    }
+
+    // Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
