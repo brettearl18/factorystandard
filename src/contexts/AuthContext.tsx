@@ -16,6 +16,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshToken: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,12 +52,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   };
 
+  const refreshToken = async () => {
+    if (currentUser) {
+      // Force refresh the token to get updated claims
+      await currentUser.getIdToken(true);
+      const token = await currentUser.getIdTokenResult(true);
+      const role = token.claims.role as UserRole | undefined;
+      setUserRole(role || null);
+    }
+  };
+
   const value = {
     currentUser,
     userRole,
     loading,
     signIn,
     signOut,
+    refreshToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

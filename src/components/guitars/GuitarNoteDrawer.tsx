@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, CheckCircle, AlertCircle, Flag, TrendingUp, Info } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { addGuitarNote, updateGuitarPhotoInfo } from "@/lib/firestore";
 import { uploadGuitarPhoto, isGoogleDriveLink } from "@/lib/storage";
 import { updateGuitarStage } from "@/lib/firestore";
-import type { GuitarBuild, RunStage } from "@/types/guitars";
+import type { GuitarBuild, RunStage, NoteType } from "@/types/guitars";
 
 interface GuitarNoteDrawerProps {
   guitar: GuitarBuild;
@@ -25,6 +25,7 @@ export function GuitarNoteDrawer({
 }: GuitarNoteDrawerProps) {
   const { currentUser } = useAuth();
   const [message, setMessage] = useState("");
+  const [noteType, setNoteType] = useState<NoteType>("update");
   const [visibleToClient, setVisibleToClient] = useState(true);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]); // For Google Drive links
@@ -55,19 +56,15 @@ export function GuitarNoteDrawer({
     e.preventDefault();
     if (!currentUser) return;
 
-    // Validation: Check if requirements are met
+    // Validation: Check if note is required
     if (!skipStageUpdate) {
       if (stage.requiresNote && !message.trim()) {
         alert("A note is required for this stage.");
         return;
       }
-      if (stage.requiresPhoto && photos.length === 0 && photoUrls.length === 0) {
-        alert("A photo is required for this stage.");
-        return;
-      }
     }
 
-    // Allow submission with just a message (no photos required unless stage requires it)
+    // Photos are always optional - allow submission with just a message
     if (!message.trim() && photos.length === 0 && photoUrls.length === 0) {
       alert("Please add a message or at least one photo.");
       return;
@@ -87,7 +84,10 @@ export function GuitarNoteDrawer({
 
       // Update guitar stage only if not skipping stage update
       if (!skipStageUpdate) {
-        await updateGuitarStage(guitar.id, stage.id);
+        // Update stage asynchronously - don't wait for it
+        updateGuitarStage(guitar.id, stage.id, currentUser?.uid).catch((error) => {
+          console.error("Error updating stage:", error);
+        });
       }
 
       // Add note - message is required, photos are optional
@@ -97,6 +97,7 @@ export function GuitarNoteDrawer({
         authorUid: currentUser.uid,
         authorName: currentUser.displayName || currentUser.email || "Staff",
         message: message.trim() || "Update added",
+        type: noteType,
         visibleToClient,
         photoUrls: allPhotoUrls.length > 0 ? allPhotoUrls : undefined,
       });
@@ -114,6 +115,7 @@ export function GuitarNoteDrawer({
 
       // Reset form
       setMessage("");
+      setNoteType("update");
       setVisibleToClient(true);
       setPhotos([]);
       setPhotoUrls([]);
@@ -162,13 +164,39 @@ export function GuitarNoteDrawer({
                     * A note is required for this stage
                   </p>
                 )}
-                {stage.requiresPhoto && (
-                  <p className="text-xs text-orange-600 mb-2">
-                    * A photo is required for this stage
-                  </p>
-                )}
               </>
             )}
+          </div>
+
+          {/* Update Type */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              Update Type
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "update" as NoteType, label: "Update", icon: Info },
+                { value: "milestone" as NoteType, label: "Milestone", icon: CheckCircle },
+                { value: "quality_check" as NoteType, label: "Quality Check", icon: Flag },
+                { value: "issue" as NoteType, label: "Issue", icon: AlertCircle },
+                { value: "status_change" as NoteType, label: "Status", icon: TrendingUp },
+                { value: "general" as NoteType, label: "General", icon: Info },
+              ].map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setNoteType(value)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all ${
+                    noteType === value
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-gray-200 hover:border-gray-300 text-gray-600"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mb-4 flex-1">
@@ -185,8 +213,7 @@ export function GuitarNoteDrawer({
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">
-              Photos {!skipStageUpdate && stage.requiresPhoto && <span className="text-red-500">*</span>}
-              <span className="text-xs text-gray-500 font-normal ml-2">(Optional)</span>
+              Photos <span className="text-xs text-gray-500 font-normal ml-2">(Optional)</span>
             </label>
             <input
               type="file"

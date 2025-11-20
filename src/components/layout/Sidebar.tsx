@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranding } from "@/hooks/useBranding";
 import {
   LayoutDashboard,
   Package,
@@ -17,6 +18,7 @@ import {
 
 export function Sidebar() {
   const { currentUser, userRole, signOut } = useAuth();
+  const branding = useBranding();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -67,22 +69,34 @@ export function Sidebar() {
   const SidebarContent = () => (
     <>
       {/* Logo/Brand */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <Link href={userRole === "client" ? "/my-guitars" : "/dashboard"} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Guitar className="w-5 h-5 text-white" />
+      <div className="p-6 border-b border-slate bg-card">
+        <Link
+          href={userRole === "client" ? "/my-guitars" : "/dashboard"}
+          className="flex items-center gap-3"
+        >
+          {branding.companyLogo ? (
+            <img
+              src={branding.companyLogo}
+              alt={branding.companyName || "Factory Standards"}
+              className="h-10 w-auto object-contain"
+            />
+          ) : (
+            <div 
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-soft"
+              style={{ backgroundColor: branding.primaryColor || "#F97316" }}
+            >
+              <Guitar className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="font-bold text-gray-900">Factory Standards</h1>
-              <p className="text-xs text-gray-500">Perth Guitar Runs</p>
-            </div>
-          </Link>
-        </div>
+          )}
+          <div>
+            <h1 className="font-display text-lg">{branding.companyName || "Factory Standards"}</h1>
+            <p className="text-[11px] text-textMuted/80">Perth Custom Runs</p>
+          </div>
+        </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-2 bg-card">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -91,10 +105,10 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
                 active
-                  ? "bg-blue-50 text-blue-700 font-semibold"
-                  : "text-gray-700 hover:bg-gray-50"
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "text-textMuted hover:bg-slate/40 border-transparent"
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -105,13 +119,13 @@ export function Sidebar() {
       </nav>
 
       {/* User Info & Sign Out */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="mb-3 px-4 py-2 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500 mb-1">Signed in as</p>
-          <p className="text-sm font-medium text-gray-900 truncate">
+      <div className="p-4 border-t border-slate bg-card">
+        <div className="mb-3 px-4 py-3 bg-shell rounded-xl border border-slate">
+          <p className="text-xs text-textMuted uppercase tracking-[0.2em] mb-1">Signed in</p>
+          <p className="text-sm font-semibold truncate">
             {currentUser.email}
           </p>
-          <p className="text-xs text-gray-500 mt-1 capitalize">
+          <p className="text-xs text-textMuted mt-1 capitalize">
             {userRole || "No role"}
           </p>
         </div>
@@ -120,7 +134,7 @@ export function Sidebar() {
             await signOut();
             window.location.href = "/login";
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-textMuted hover:bg-shell border border-slate transition-colors"
         >
           <LogOut className="w-5 h-5" />
           <span>Sign Out</span>
@@ -153,7 +167,7 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 z-40 flex flex-col transition-transform duration-300 ${
+        className={`fixed left-0 top-0 h-full w-64 bg-card border-r border-slate z-40 flex flex-col transition-transform duration-300 ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0`}
       >

@@ -16,8 +16,9 @@ import type { ClientProfile, InvoiceRecord } from "@/types/guitars";
 export default function ClientSettingsPage() {
   const { currentUser, userRole, loading } = useAuth();
   const router = useRouter();
-  const profile = useClientProfile(currentUser?.uid || null);
-  const invoices = useClientInvoices(currentUser?.uid || null);
+  const isClient = userRole === "client";
+  const profile = useClientProfile(isClient ? currentUser?.uid || null : null);
+  const invoices = useClientInvoices(isClient ? currentUser?.uid || null : null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
 
@@ -29,9 +30,12 @@ export default function ClientSettingsPage() {
       router.push("/login");
       return;
     }
-  }, [currentUser, loading, router]);
+    if (!isClient) {
+      router.push("/settings");
+    }
+  }, [currentUser, loading, isClient, router]);
 
-  if (loading || !currentUser) {
+  if (loading || !currentUser || !isClient) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p>Loading...</p>
@@ -57,7 +61,7 @@ export default function ClientSettingsPage() {
         <ClientContactCard
           profile={profile}
           onSave={handleSaveProfile}
-          canEdit={userRole !== "staff" && userRole !== "admin"}
+          canEdit={true}
         />
 
         <InvoiceList

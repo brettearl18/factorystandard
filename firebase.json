@@ -11,7 +11,7 @@
     "runtime": "nodejs20"
   },
   "hosting": {
-    "public": ".next",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -20,7 +20,10 @@
     "rewrites": [
       {
         "source": "**",
-        "destination": "/index.html"
+        "run": {
+          "serviceId": "factory-standards-web",
+          "region": "australia-southeast1"
+        }
       }
     ]
   }

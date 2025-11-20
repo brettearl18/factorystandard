@@ -50,11 +50,43 @@ For detailed Firebase setup instructions, see [FIREBASE_SETUP.md](./FIREBASE_SET
 
 ## Deployment
 
+### Option 1: Vercel (Recommended)
+
+Vercel provides the best experience for Next.js applications with zero configuration.
+
+**Quick Deploy:**
+1. Push your code to GitHub/GitLab/Bitbucket
+2. Go to [vercel.com](https://vercel.com) and import your repository
+3. Add environment variables (see HOSTING_SETUP.md)
+4. Deploy!
+
+**Or use CLI:**
 ```bash
-./deploy.sh
+chmod +x deploy-vercel.sh
+./deploy-vercel.sh
 ```
 
-This will build the Next.js app and deploy to Firebase Hosting.
+### Option 2: Firebase Hosting
+
+Recommended when you want everything under Firebase/GCP (no Vercel login required).  
+Uses Firebase Hosting (as CDN) + Cloud Run (to run the Next.js server).
+
+```bash
+chmod +x deploy-cloud-run.sh
+./deploy-cloud-run.sh
+```
+
+This script will:
+1. Build the Docker image (Cloud Build)
+2. Deploy the container to Cloud Run
+3. Update Firebase Hosting rewrites to point at Cloud Run
+
+Before running, ensure:
+- `gcloud` CLI is authenticated (`gcloud auth login`)
+- Firebase CLI is logged in (`firebase login`)
+- `.env.production` (or Cloud Run env vars) contains the `NEXT_PUBLIC_*` values
+
+**More details:** See [HOSTING_SETUP.md](./HOSTING_SETUP.md) for the full Firebase Hosting + Cloud Run walkthrough.
 
 ## Project Structure
 

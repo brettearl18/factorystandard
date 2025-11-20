@@ -7,13 +7,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { subscribeRunStages, subscribeGuitarNotes } from "@/lib/firestore";
-import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight } from "lucide-react";
+import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
 
 export default function MyGuitarsPage() {
   const { currentUser, userRole, loading } = useAuth();
   const router = useRouter();
-  const guitars = useClientGuitars(currentUser?.uid || null);
+  const [clientViewMode, setClientViewMode] = useState(false);
+  const [viewingClientId, setViewingClientId] = useState<string | null>(null);
+  const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
+  const clientId = clientViewMode && viewingClientId ? viewingClientId : (userRole === "client" ? currentUser?.uid || null : null);
+  const guitars = useClientGuitars(clientId);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
   const [recentNotes, setRecentNotes] = useState<Map<string, GuitarNote>>(new Map());
@@ -26,7 +30,8 @@ export default function MyGuitarsPage() {
       return;
     }
 
-    if (userRole !== "client") {
+    // Allow staff/admin to view client dashboards
+    if (userRole !== "client" && userRole !== "staff" && userRole !== "admin") {
       router.push("/");
       return;
     }
@@ -70,15 +75,14 @@ export default function MyGuitarsPage() {
 
     guitars.forEach((guitar) => {
       // For clients, use clientOnly=true to filter in the query (required by security rules)
+      // Limit to 1 note since we only need the most recent one (cost optimization)
       const unsubscribe = subscribeGuitarNotes(guitar.id, (allNotes) => {
-        // Notes are already filtered by visibleToClient in the query
-        const sortedNotes = allNotes.sort((a, b) => b.createdAt - a.createdAt);
-        
-        if (sortedNotes.length > 0) {
-          notesMap.set(guitar.id, sortedNotes[0]); // Most recent note
+        // Notes are already filtered by visibleToClient in the query and limited to 1
+        if (allNotes.length > 0) {
+          notesMap.set(guitar.id, allNotes[0]); // Most recent note
           setRecentNotes(new Map(notesMap));
         }
-      }, true); // clientOnly=true for clients
+      }, true, 1); // clientOnly=true, limit to 1 note for cost optimization
       unsubscribes.push(unsubscribe);
     });
 
@@ -95,8 +99,29 @@ export default function MyGuitarsPage() {
     );
   }
 
-  if (!currentUser || userRole !== "client") {
+  if (!currentUser) {
     return null;
+  }
+
+  // If admin/staff and not in client view mode, show a message to select a client
+  if (isAdminViewing) {
+    return (
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+            <Eye className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-blue-900 mb-2">View Client Dashboard</h2>
+            <p className="text-blue-700 mb-4">To view a client's dashboard, navigate to their guitar detail page and use the "View as Client" button.</p>
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Go to Settings
+            </Link>
+          </div>
+        </div>
+      </AppLayout>
+    );
   }
 
   const getClientStatus = (guitar: GuitarBuild): string => {

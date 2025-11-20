@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore } from "lucide-react";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
 import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { isGoogleDriveLink } from "@/lib/storage";
+import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
 
 interface GuitarDetailModalProps {
@@ -28,7 +29,9 @@ export function GuitarDetailModal({
   const [isNoteDrawerOpen, setIsNoteDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [clientViewMode, setClientViewMode] = useState(false);
   const { userRole } = useAuth();
+  const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -36,10 +39,11 @@ export function GuitarDetailModal({
     setLoading(true);
     const unsubscribes: (() => void)[] = [];
 
-    // Load notes (staff/admin see all notes, no filtering needed)
+    // Load notes - filter based on client view mode
+    const shouldFilterClientOnly = clientViewMode && (userRole === "staff" || userRole === "admin");
     const unsubscribeNotes = subscribeGuitarNotes(guitar.id, (allNotes) => {
       setNotes(allNotes);
-    }, false); // clientOnly=false for staff/admin
+    }, shouldFilterClientOnly);
     unsubscribes.push(unsubscribeNotes);
 
     // Load run and stage
@@ -60,7 +64,7 @@ export function GuitarDetailModal({
     return () => {
       unsubscribes.forEach((unsub) => unsub());
     };
-  }, [isOpen, guitar.id, guitar.runId, guitar.stageId]);
+  }, [isOpen, guitar.id, guitar.runId, guitar.stageId, clientViewMode, userRole]);
 
   if (!isOpen) return null;
 
@@ -94,6 +98,27 @@ export function GuitarDetailModal({
             <p className="text-gray-600 mt-1">{guitar.finish}</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Client View Mode Toggle */}
+            {isAdminViewing && (
+              <button
+                onClick={() => setClientViewMode(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                title="View as Client"
+              >
+                <Eye className="w-4 h-4" />
+                View as Client
+              </button>
+            )}
+            {clientViewMode && (userRole === "staff" || userRole === "admin") && (
+              <button
+                onClick={() => setClientViewMode(false)}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                title="Exit Client View"
+              >
+                <EyeOff className="w-4 h-4" />
+                Exit Client View
+              </button>
+            )}
             {(userRole === "staff" || userRole === "admin") && (
               <>
                 <button
@@ -626,18 +651,27 @@ export function GuitarDetailModal({
                     <div className="space-y-4 max-h-96 overflow-y-auto">
                       {notes
                         .sort((a, b) => b.createdAt - a.createdAt)
-                        .map((note) => (
+                        .map((note) => {
+                          const NoteIcon = getNoteTypeIcon(note.type);
+                          const noteTypeColor = getNoteTypeColor(note.type);
+                          return (
                           <div
                             key={note.id}
                             className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-500"
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <div>
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold text-gray-900">
                                   {note.authorName}
                                 </span>
+                                {note.type && (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${noteTypeColor}`}>
+                                    <NoteIcon className="w-3 h-3" />
+                                    {getNoteTypeLabel(note.type)}
+                                  </span>
+                                )}
                                 {note.visibleToClient && (
-                                  <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
+                                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
                                     Client Visible
                                   </span>
                                 )}
@@ -683,7 +717,8 @@ export function GuitarDetailModal({
                               </div>
                             )}
                           </div>
-                        ))}
+                        );
+                        })}
                     </div>
                   )}
                 </div>

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createRun, createStage } from "@/lib/firestore";
-import { Plus, X, GripVertical, FileText } from "lucide-react";
-import type { RunStage } from "@/types/guitars";
+import { Plus, X, GripVertical, FileText, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
+import type { RunStage, InvoiceSchedule } from "@/types/guitars";
 
 // Standard template stages
 const STANDARD_STAGES: Omit<RunStage, "id">[] = [
@@ -90,6 +90,7 @@ export default function NewRunPage() {
       clientStatusLabel: "In Planning",
     },
   ]);
+  const [expandedInvoiceSchedules, setExpandedInvoiceSchedules] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (loading) {
@@ -130,6 +131,26 @@ export default function NewRunPage() {
   const updateStage = (index: number, updates: Partial<RunStage>) => {
     const newStages = [...stages];
     newStages[index] = { ...newStages[index], ...updates };
+    setStages(newStages);
+  };
+
+  const toggleInvoiceSchedule = (index: number) => {
+    const newExpanded = new Set(expandedInvoiceSchedules);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedInvoiceSchedules(newExpanded);
+  };
+
+  const updateInvoiceSchedule = (index: number, updates: Partial<InvoiceSchedule>) => {
+    const newStages = [...stages];
+    const currentSchedule = newStages[index].invoiceSchedule || { enabled: false };
+    newStages[index] = {
+      ...newStages[index],
+      invoiceSchedule: { ...currentSchedule, ...updates },
+    };
     setStages(newStages);
   };
 
@@ -333,6 +354,154 @@ export default function NewRunPage() {
                         />
                         Requires Photo
                       </label>
+                    </div>
+
+                    {/* Invoice Schedule Section */}
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => toggleInvoiceSchedule(index)}
+                        className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 w-full"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        <span>Invoice Schedule</span>
+                        {expandedInvoiceSchedules.has(index) ? (
+                          <ChevronUp className="w-4 h-4 ml-auto" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 ml-auto" />
+                        )}
+                      </button>
+
+                      {expandedInvoiceSchedules.has(index) && (
+                        <div className="mt-3 space-y-3 bg-blue-50 p-3 rounded-md border border-blue-200">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={stage.invoiceSchedule?.enabled || false}
+                              onChange={(e) =>
+                                updateInvoiceSchedule(index, {
+                                  enabled: e.target.checked,
+                                })
+                              }
+                              className="rounded"
+                            />
+                            <span className="font-medium">Create invoice when guitar reaches this stage</span>
+                          </label>
+
+                          {stage.invoiceSchedule?.enabled && (
+                            <div className="space-y-3 pl-6">
+                              <div>
+                                <label className="block text-xs font-medium mb-1">
+                                  Invoice Title (optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={stage.invoiceSchedule?.title || ""}
+                                  onChange={(e) =>
+                                    updateInvoiceSchedule(index, {
+                                      title: e.target.value,
+                                    })
+                                  }
+                                  placeholder={`Defaults to "${stage.label}"`}
+                                  className="w-full p-2 border rounded-md text-sm"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium mb-1">
+                                    Amount <span className="text-red-500">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={stage.invoiceSchedule?.amount || ""}
+                                    onChange={(e) =>
+                                      updateInvoiceSchedule(index, {
+                                        amount: e.target.value ? parseFloat(e.target.value) : undefined,
+                                      })
+                                    }
+                                    className="w-full p-2 border rounded-md text-sm"
+                                    required={stage.invoiceSchedule?.enabled}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium mb-1">
+                                    Currency
+                                  </label>
+                                  <select
+                                    value={stage.invoiceSchedule?.currency || "AUD"}
+                                    onChange={(e) =>
+                                      updateInvoiceSchedule(index, {
+                                        currency: e.target.value,
+                                      })
+                                    }
+                                    className="w-full p-2 border rounded-md text-sm"
+                                  >
+                                    <option value="AUD">AUD</option>
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium mb-1">
+                                  Due Date (days from stage entry)
+                                </label>
+                                <input
+                                  type="number"
+                                  value={stage.invoiceSchedule?.dueDateDays || 30}
+                                  onChange={(e) =>
+                                    updateInvoiceSchedule(index, {
+                                      dueDateDays: e.target.value ? parseInt(e.target.value) : 30,
+                                    })
+                                  }
+                                  className="w-full p-2 border rounded-md text-sm"
+                                  min="1"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Invoice will be due {stage.invoiceSchedule?.dueDateDays || 30} days after guitar enters this stage
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium mb-1">
+                                  Payment Link (optional)
+                                </label>
+                                <input
+                                  type="url"
+                                  value={stage.invoiceSchedule?.paymentLink || ""}
+                                  onChange={(e) =>
+                                    updateInvoiceSchedule(index, {
+                                      paymentLink: e.target.value,
+                                    })
+                                  }
+                                  placeholder="https://pay.stripe.com/..."
+                                  className="w-full p-2 border rounded-md text-sm"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium mb-1">
+                                  Description (optional)
+                                </label>
+                                <textarea
+                                  value={stage.invoiceSchedule?.description || ""}
+                                  onChange={(e) =>
+                                    updateInvoiceSchedule(index, {
+                                      description: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Optional invoice description"
+                                  className="w-full p-2 border rounded-md text-sm"
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

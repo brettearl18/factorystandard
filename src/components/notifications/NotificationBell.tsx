@@ -14,11 +14,6 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Only show when user is authenticated
-  if (!currentUser || !userRole) {
-    return null;
-  }
-
   useEffect(() => {
     if (!currentUser) return;
 
@@ -45,6 +40,11 @@ export function NotificationBell() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
+
+  // Only show when user is authenticated (after all hooks are called)
+  if (!currentUser || !userRole) {
+    return null;
+  }
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -81,7 +81,26 @@ export function NotificationBell() {
     await deleteNotification(notificationId);
   };
 
-  const getNotificationIcon = (type: Notification["type"]) => {
+  const getNotificationIcon = (type: Notification["type"], metadata?: Notification["metadata"]) => {
+    // For guitar_note_added, use icon based on note type
+    if (type === "guitar_note_added" && metadata?.noteType) {
+      switch (metadata.noteType) {
+        case "milestone":
+          return "🎯";
+        case "quality_check":
+          return "✅";
+        case "issue":
+          return "⚠️";
+        case "status_change":
+          return "📊";
+        case "general":
+          return "ℹ️";
+        case "update":
+        default:
+          return "📝";
+      }
+    }
+    
     switch (type) {
       case "guitar_stage_changed":
         return "🎸";
@@ -170,7 +189,7 @@ export function NotificationBell() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="text-2xl flex-shrink-0">
-                        {getNotificationIcon(notification.type)}
+                        {getNotificationIcon(notification.type, notification.metadata)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">

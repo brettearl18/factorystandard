@@ -222,9 +222,6 @@ export default function DevGuitarDetailPage({
                           <h3 className={`font-semibold ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}`}>
                             {s.clientStatusLabel || s.label}
                           </h3>
-                          {s.description && (
-                            <p className="text-sm text-gray-600 mt-1">{s.description}</p>
-                          )}
                         </div>
                       </div>
                     );

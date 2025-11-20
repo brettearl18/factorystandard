@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useRunStages } from "@/hooks/useRunStages";
 import { useRunGuitars } from "@/hooks/useRunGuitars";
 import { useRunBoardStore } from "@/store/runBoardStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { updateGuitarStage } from "@/lib/firestore";
 import { getRun } from "@/lib/firestore";
 import { GuitarCard } from "./GuitarCard";
 import { GuitarNoteDrawer } from "@/components/guitars/GuitarNoteDrawer";
 import { GuitarDetailModal } from "@/components/guitars/GuitarDetailModal";
 import { AddGuitarModal } from "@/components/guitars/AddGuitarModal";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, DollarSign } from "lucide-react";
 import Link from "next/link";
 import type { GuitarBuild, RunStage, Run } from "@/types/guitars";
 
@@ -19,6 +20,7 @@ interface RunBoardProps {
 }
 
 export function RunBoard({ runId }: RunBoardProps) {
+  const { currentUser } = useAuth();
   const stages = useRunStages(runId);
   const guitars = useRunGuitars(runId);
   const { setStages, setGuitars, moveGuitar } = useRunBoardStore();
@@ -70,25 +72,26 @@ export function RunBoard({ runId }: RunBoardProps) {
       return;
     }
 
-    // Optimistic update
-    moveGuitar(draggedGuitar.id, stage.id);
+    // Store the dragged guitar and target stage
+    setTargetStage(stage);
+    setIsDrawerOpen(true);
+    // Don't clear draggedGuitar yet - we need it for the drawer
 
-    // Check if we need to prompt for note/photo
-    if (stage.requiresNote || stage.requiresPhoto) {
-      setTargetStage(stage);
-      setIsDrawerOpen(true);
-    } else {
-      // Update Firestore
-      await updateGuitarStage(draggedGuitar.id, stage.id);
-    }
-
-    setDraggedGuitar(null);
+    // Optimistic update happens in the drawer when saved
   };
 
   const handleDrawerClose = async (noteAdded: boolean) => {
-    if (draggedGuitar && targetStage && !noteAdded) {
-      // If drawer was closed without adding note, still update the stage
-      await updateGuitarStage(draggedGuitar.id, targetStage.id);
+    if (draggedGuitar && targetStage) {
+      if (noteAdded) {
+        // Optimistic update - stage was already updated in the drawer
+        moveGuitar(draggedGuitar.id, targetStage.id);
+      } else {
+        // User skipped - update stage without note
+        moveGuitar(draggedGuitar.id, targetStage.id);
+        updateGuitarStage(draggedGuitar.id, targetStage.id, currentUser?.uid).catch((error) => {
+          console.error("Error updating stage:", error);
+        });
+      }
     }
     setIsDrawerOpen(false);
     setTargetStage(null);
@@ -163,11 +166,19 @@ export function RunBoard({ runId }: RunBoardProps) {
                       <h3 className="font-semibold text-base text-gray-900">
                         {stage.label}
                       </h3>
-                      {stage.internalOnly && (
-                        <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
-                          Internal
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {stage.invoiceSchedule?.enabled && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full" title={`Invoice: ${stage.invoiceSchedule.currency || 'AUD'} ${stage.invoiceSchedule.amount}`}>
+                            <DollarSign className="w-3 h-3" />
+                            {stage.invoiceSchedule.currency || 'AUD'} {stage.invoiceSchedule.amount}
+                          </span>
+                        )}
+                        {stage.internalOnly && (
+                          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                            Internal
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">

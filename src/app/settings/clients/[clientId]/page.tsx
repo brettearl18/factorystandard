@@ -33,6 +33,7 @@ import {
   User,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
+import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 
 interface ClientUser {
   uid: string;
@@ -52,9 +53,11 @@ export default function ClientDashboardPage({
   const { clientId } = use(params);
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
-  const guitars = useClientGuitars(clientId);
-  const profile = useClientProfile(clientId);
-  const invoices = useClientInvoices(clientId);
+  // Only subscribe to client data if user is authenticated and is staff/admin
+  const canViewClientData = !authLoading && currentUser && (userRole === "staff" || userRole === "admin");
+  const guitars = useClientGuitars(canViewClientData ? clientId : null);
+  const profile = useClientProfile(canViewClientData ? clientId : null);
+  const invoices = useClientInvoices(canViewClientData ? clientId : null);
   const [client, setClient] = useState<ClientUser | null>(null);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
@@ -349,6 +352,8 @@ export default function ClientDashboardPage({
                       {allRecentNotes.map((note) => {
                         const guitar = guitars.find((g) => g.id === note.guitarId);
                         if (!guitar) return null;
+                        const NoteIcon = getNoteTypeIcon(note.type);
+                        const noteTypeColor = getNoteTypeColor(note.type);
                         return (
                           <Link
                             key={note.id}
@@ -358,9 +363,17 @@ export default function ClientDashboardPage({
                             <div className="flex items-start gap-3">
                               <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 mb-1 group-hover:text-blue-600">
-                                  {guitar.model}
-                                </p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-600">
+                                    {guitar.model}
+                                  </p>
+                                  {note.type && (
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border ${noteTypeColor}`}>
+                                      <NoteIcon className="w-3 h-3" />
+                                      {getNoteTypeLabel(note.type)}
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-600 mb-1 line-clamp-2">{note.message}</p>
                                 <p className="text-xs text-gray-400">
                                   {new Date(note.createdAt).toLocaleDateString()} at{" "}

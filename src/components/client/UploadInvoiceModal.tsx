@@ -21,6 +21,7 @@ export function UploadInvoiceModal({
   const [currency, setCurrency] = useState("AUD");
   const [dueDate, setDueDate] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [paymentLink, setPaymentLink] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,13 +34,20 @@ export function UploadInvoiceModal({
     setCurrency("AUD");
     setDueDate("");
     setFile(null);
+    setPaymentLink("");
     setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !amount || !file) {
-      setError("Title, amount, and invoice file are required.");
+    if (!title || !amount) {
+      setError("Title and amount are required.");
+      return;
+    }
+
+    // Either file or payment link (or both) must be provided
+    if (!file && !paymentLink.trim()) {
+      setError("Please provide either an invoice file or a payment link (or both).");
       return;
     }
 
@@ -51,7 +59,20 @@ export function UploadInvoiceModal({
         throw new Error("Amount must be a number");
       }
 
-      const downloadUrl = await uploadInvoiceFile(clientUid, file);
+      // Validate payment link URL if provided
+      if (paymentLink.trim()) {
+        try {
+          new URL(paymentLink.trim());
+        } catch {
+          throw new Error("Payment link must be a valid URL");
+        }
+      }
+
+      let downloadUrl: string | undefined;
+      if (file) {
+        downloadUrl = await uploadInvoiceFile(clientUid, file);
+      }
+
       await createInvoiceRecord(clientUid, {
         title,
         description: description || undefined,
@@ -60,6 +81,7 @@ export function UploadInvoiceModal({
         status: "pending",
         dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
         downloadUrl,
+        paymentLink: paymentLink.trim() || undefined,
         uploadedBy,
       });
 
@@ -140,13 +162,29 @@ export function UploadInvoiceModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice File (PDF/Image)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Invoice File (PDF/Image) <span className="text-gray-500 text-xs">(Optional if payment link provided)</span>
+            </label>
             <input
               type="file"
               accept="application/pdf,image/*"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
-              required
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Payment Link <span className="text-gray-500 text-xs">(Optional if invoice file provided)</span>
+            </label>
+            <input
+              type="url"
+              value={paymentLink}
+              onChange={(e) => setPaymentLink(e.target.value)}
+              className="w-full border rounded-md px-3 py-2"
+              placeholder="https://pay.stripe.com/..."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Link to payment page (e.g., Stripe, PayPal, bank transfer)
+            </p>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button

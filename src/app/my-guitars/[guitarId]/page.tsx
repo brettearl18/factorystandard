@@ -8,8 +8,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages } from "@/lib/firestore";
 import { isGoogleDriveLink } from "@/lib/storage";
-import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink } from "lucide-react";
-import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
+import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff } from "lucide-react";
+import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
+import { useClientInvoices } from "@/hooks/useClientInvoices";
+import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
+
+const formatCurrency = (amount: number, currency: string = "AUD") =>
+  new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
 
 export default function GuitarDetailPage({
   params,
@@ -25,6 +34,11 @@ export default function GuitarDetailPage({
   const [allStages, setAllStages] = useState<RunStage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [clientViewMode, setClientViewMode] = useState(false);
+  const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
+  const canViewInvoices = userRole === "client" || (isAdminViewing && clientViewMode && guitar?.clientUid);
+  const invoiceOwnerUid = canViewInvoices ? (userRole === "client" ? currentUser?.uid : guitar?.clientUid) || null : null;
+  const invoices = useClientInvoices(invoiceOwnerUid);
 
   useEffect(() => {
     if (authLoading) return;
@@ -110,12 +124,13 @@ export default function GuitarDetailPage({
         });
 
         // Subscribe to notes
-        // For clients, use clientOnly=true to filter in the query (required by security rules)
+        // For clients or admin in client view mode, use clientOnly=true to filter in the query (required by security rules)
+        const shouldFilterClientOnly = userRole === "client" || (clientViewMode && (userRole === "staff" || userRole === "admin"));
         unsubscribeNotes = subscribeGuitarNotes(guitarId, (allNotes) => {
-          // If client, notes are already filtered by visibleToClient in the query
-          // If staff/admin, get all notes
+          // If client or in client view mode, notes are already filtered by visibleToClient in the query
+          // If staff/admin in normal mode, get all notes
           setNotes(allNotes);
-        }, userRole === "client");
+        }, shouldFilterClientOnly);
       } catch (error) {
         console.error("Error loading initial data:", error);
       }
@@ -128,7 +143,7 @@ export default function GuitarDetailPage({
       if (unsubscribeStages) unsubscribeStages();
       if (unsubscribeNotes) unsubscribeNotes();
     };
-  }, [guitarId, currentUser, userRole, router]);
+  }, [guitarId, currentUser, userRole, router, clientViewMode]);
 
   // Update stage state when guitar or stages change
   // This must be before any early returns to follow Rules of Hooks
@@ -158,6 +173,15 @@ export default function GuitarDetailPage({
   }
 
   const clientStatus = stage?.clientStatusLabel || "In Progress";
+  const sortedInvoices = [...invoices].sort(
+    (a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0)
+  );
+  const outstandingInvoices = sortedInvoices.filter((invoice) => invoice.status !== "paid");
+  const totalOutstanding = outstandingInvoices.reduce((sum, invoice) => {
+    const payments = invoice.payments || [];
+    const paid = payments.reduce((acc, payment) => acc + (payment.amount || 0), 0);
+    return sum + Math.max(invoice.amount - paid, 0);
+  }, 0);
   
   // Collect all photos
   const allPhotos: string[] = [];
@@ -201,13 +225,53 @@ export default function GuitarDetailPage({
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Admin View Mode Toggle */}
+        {isAdminViewing && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Admin View</p>
+                <p className="text-xs text-blue-700">You're viewing as an admin. Toggle to see the client's view.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setClientViewMode(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              View as Client
+            </button>
+          </div>
+        )}
+
+        {/* Client View Mode Banner */}
+        {clientViewMode && (userRole === "staff" || userRole === "admin") && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm font-semibold text-green-900">Client View Mode</p>
+                <p className="text-xs text-green-700">You're seeing exactly what the client sees.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setClientViewMode(false)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-2"
+            >
+              <EyeOff className="w-4 h-4" />
+              Exit Client View
+            </button>
+          </div>
+        )}
+
         {/* Back Button */}
         <Link
-          href="/my-guitars"
+          href={userRole === "client" ? "/my-guitars" : "/settings"}
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to My Guitars</span>
+          <span>{userRole === "client" ? "Back to My Guitars" : "Back to Settings"}</span>
         </Link>
 
         {/* Hero Section */}
@@ -354,10 +418,21 @@ export default function GuitarDetailPage({
                 <div className="space-y-6">
                   {notes
                     .sort((a, b) => b.createdAt - a.createdAt)
-                    .map((note) => (
+                    .map((note) => {
+                      const NoteIcon = getNoteTypeIcon(note.type);
+                      const noteTypeColor = getNoteTypeColor(note.type);
+                      return (
                       <div key={note.id} className="border-l-4 border-blue-500 pl-4 pb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-gray-900">{note.authorName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{note.authorName}</span>
+                            {note.type && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${noteTypeColor}`}>
+                                <NoteIcon className="w-3 h-3" />
+                                {getNoteTypeLabel(note.type)}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-sm text-gray-500">
                             {new Date(note.createdAt).toLocaleDateString()}{" "}
                             {new Date(note.createdAt).toLocaleTimeString([], {
@@ -401,7 +476,8 @@ export default function GuitarDetailPage({
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                 </div>
               )}
             </div>
@@ -444,6 +520,124 @@ export default function GuitarDetailPage({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Invoices */}
+            {canViewInvoices && invoiceOwnerUid && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold">Invoices</h3>
+                    <p className="text-sm text-gray-500">
+                      Track payments for this build.
+                    </p>
+                  </div>
+                  {totalOutstanding > 0 && (
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 uppercase">Outstanding</p>
+                      <p className="text-sm font-semibold text-red-600">
+                        {formatCurrency(totalOutstanding)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {sortedInvoices.length === 0 ? (
+                  <div className="text-center text-gray-500 text-sm py-6 border border-dashed rounded-lg">
+                    No invoices yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {sortedInvoices.slice(0, 3).map((invoice) => {
+                      const payments = invoice.payments || [];
+                      const paidAmount = payments.reduce(
+                        (sum, payment) => sum + (payment.amount || 0),
+                        0
+                      );
+                      const outstanding = Math.max(invoice.amount - paidAmount, 0);
+
+                      return (
+                        <div key={invoice.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900">{invoice.title}</p>
+                              <p className="text-xs text-gray-500">
+                                Due{" "}
+                                {invoice.dueDate
+                                  ? new Date(invoice.dueDate).toLocaleDateString()
+                                  : "TBC"}
+                              </p>
+                            </div>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                invoice.status === "paid"
+                                  ? "bg-green-100 text-green-700"
+                                  : invoice.status === "overdue"
+                                  ? "bg-red-100 text-red-700"
+                                  : invoice.status === "partial"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {invoice.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="mt-3 text-sm text-gray-600">
+                            <div className="flex items-center justify-between">
+                              <span>Amount:</span>
+                              <span className="font-semibold">
+                                {formatCurrency(invoice.amount, invoice.currency)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>Paid:</span>
+                              <span>{formatCurrency(paidAmount, invoice.currency)}</span>
+                            </div>
+                            {outstanding > 0 && (
+                              <div className="flex items-center justify-between text-red-600">
+                                <span>Outstanding:</span>
+                                <span className="font-semibold">
+                                  {formatCurrency(outstanding, invoice.currency)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            {invoice.downloadUrl && (
+                              <a
+                                href={invoice.downloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+                              >
+                                <Download className="w-4 h-4" />
+                                Download
+                              </a>
+                            )}
+                            {invoice.paymentLink && (
+                              <a
+                                href={invoice.paymentLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-green-600 hover:text-green-700 bg-green-50 px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-100"
+                              >
+                                💳 Pay Now
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Link
+                  href="/my/settings"
+                  className="mt-4 inline-flex items-center justify-center w-full text-sm font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  View all invoices →
+                </Link>
               </div>
             )}
 

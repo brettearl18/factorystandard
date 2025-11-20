@@ -7,8 +7,19 @@ export interface Run {
   isActive: boolean;
   startsAt: number;       // Date.now()
   endsAt?: number;
+  thumbnailUrl?: string; // thumbnail image for easy reference
   archived?: boolean;     // true if archived (soft delete)
   archivedAt?: number;    // timestamp when archived
+}
+
+export interface InvoiceSchedule {
+  enabled: boolean;        // whether to create invoice when guitar reaches this stage
+  title?: string;         // invoice title (defaults to stage label if not provided)
+  amount?: number;         // invoice amount (required if enabled)
+  currency?: string;       // invoice currency (defaults to AUD)
+  dueDateDays?: number;   // days from stage entry until due date (defaults to 30)
+  paymentLink?: string;   // optional payment link
+  description?: string;   // optional invoice description
 }
 
 export interface RunStage {
@@ -19,6 +30,7 @@ export interface RunStage {
   requiresNote?: boolean; // prompt for note on move
   requiresPhoto?: boolean;// prompt for photo on move
   clientStatusLabel?: string; // simplified client-facing status e.g. "In Build"
+  invoiceSchedule?: InvoiceSchedule; // invoice schedule for this stage
 }
 
 export interface GuitarSpecs {
@@ -82,6 +94,14 @@ export interface GuitarBuild {
   archivedAt?: number;    // timestamp when archived
 }
 
+export type NoteType = 
+  | "update"
+  | "milestone"
+  | "issue"
+  | "quality_check"
+  | "status_change"
+  | "general";
+
 export interface GuitarNote {
   id: string;
   guitarId: string;
@@ -89,6 +109,7 @@ export interface GuitarNote {
   authorUid: string;
   authorName: string;
   message: string;
+  type?: NoteType; // Type of update
   createdAt: number;
   visibleToClient: boolean;
   photoUrls?: string[];
@@ -131,6 +152,7 @@ export interface InvoiceRecord {
   status: "pending" | "paid" | "overdue" | "partial";
   dueDate?: number;
   downloadUrl?: string;
+  paymentLink?: string; // URL for payment (e.g., Stripe, PayPal, bank transfer link)
   uploadedAt: number;
   uploadedBy: string;
   payments?: InvoicePayment[];
@@ -157,6 +179,7 @@ export interface Notification {
     stageName?: string;
     runName?: string;
     authorName?: string;
+    noteType?: string; // Type of note (update, milestone, issue, etc.)
   };
 }
 

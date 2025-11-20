@@ -1,3 +1,16 @@
+/**
+ * Firestore Operations
+ * 
+ * COST OPTIMIZATION NOTES:
+ * - All queries use limits where appropriate to minimize read operations
+ * - Notifications: Limited to 50 most recent (configurable)
+ * - Notes: Can be limited per query (used for client dashboard - only fetches 1 most recent)
+ * - Invoices: Limited to 100 most recent
+ * - Dashboard: Only loads 100 most recent guitars instead of all
+ * - Real-time listeners (onSnapshot) are used only when necessary for live updates
+ * - All listeners are properly unsubscribed to prevent memory leaks and unnecessary reads
+ */
+
 import {
   doc,
   getDoc,
@@ -6,6 +19,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   updateDoc,
   addDoc,
@@ -28,6 +42,7 @@ import type {
   InvoiceRecord,
   InvoicePayment,
 } from "@/types/guitars";
+import type { AppSettings } from "@/types/settings";
 
 // Run queries
 export async function getRun(runId: string): Promise<Run | null> {
@@ -70,6 +85,7 @@ export async function createRun(runData: Omit<Run, "id">): Promise<string> {
     type: "run_created",
     title: `New Run Created: ${runData.name}`,
     message: `A new run "${runData.name}" has been created`,
+    read: false,
     runId: docRef.id,
     metadata: {
       runName: runData.name,
@@ -80,6 +96,14 @@ export async function createRun(runData: Omit<Run, "id">): Promise<string> {
   });
   
   return docRef.id;
+}
+
+export async function updateRun(
+  runId: string,
+  updates: Partial<Omit<Run, "id">>
+): Promise<void> {
+  const runRef = doc(db, "runs", runId);
+  await updateDoc(runRef, updates);
 }
 
 export async function createStage(
@@ -173,6 +197,7 @@ export async function createGuitar(
     type: "guitar_created",
     title: `New Guitar Added: ${guitarData.model}`,
     message: `${guitarData.model} - ${guitarData.finish} (${guitarData.orderNumber})${guitarData.customerName ? ` for ${guitarData.customerName}` : ""}`,
+    read: false,
     guitarId: docRef.id,
     runId: guitarData.runId,
     metadata: {
@@ -238,7 +263,8 @@ export function subscribeGuitar(
 
 export async function updateGuitarStage(
   guitarId: string,
-  stageId: string
+  stageId: string,
+  updatedBy?: string
 ): Promise<void> {
   // Get guitar and run info for notification
   const guitar = await getGuitar(guitarId);
@@ -264,11 +290,35 @@ export async function updateGuitarStage(
     updatedAt: Timestamp.now().toMillis(),
   });
   
+  // Check if this stage has an invoice schedule and create invoice if needed (non-blocking)
+  if (guitar.clientUid && stageData?.invoiceSchedule?.enabled && stageData.invoiceSchedule.amount) {
+    const schedule = stageData.invoiceSchedule;
+    const invoiceTitle = schedule.title || `${stageName} - ${guitar.model}`;
+    const invoiceAmount = schedule.amount;
+    const invoiceCurrency = schedule.currency || "AUD";
+    const dueDateDays = schedule.dueDateDays || 30;
+    const dueDate = Date.now() + (dueDateDays * 24 * 60 * 60 * 1000);
+    
+    createInvoiceRecord(guitar.clientUid, {
+      title: invoiceTitle,
+      description: schedule.description || `Invoice for ${guitar.model} - ${stageName}`,
+      amount: invoiceAmount,
+      currency: invoiceCurrency,
+      status: "pending",
+      dueDate,
+      paymentLink: schedule.paymentLink,
+      uploadedBy: updatedBy || "system",
+    }).catch((error) => {
+      console.error("Failed to create invoice for stage change:", error);
+    });
+  }
+  
   // Notify all staff about stage change (non-blocking)
   notifyAllStaff({
     type: "guitar_stage_changed",
     title: `Guitar moved to ${stageName}`,
     message: `${guitar.model} - ${guitar.finish} (${guitar.orderNumber}) moved to ${stageName}`,
+    read: false,
     guitarId: guitarId,
     runId: guitar.runId,
     metadata: {
@@ -289,6 +339,7 @@ export async function updateGuitarStage(
       type: "guitar_stage_changed",
       title: `${guitar.model} moved to ${clientStageLabel}`,
       message: `Your guitar is now in ${clientStageLabel}.`,
+      read: false,
       guitarId: guitarId,
       runId: guitar.runId,
       metadata: {
@@ -306,14 +357,42 @@ export async function updateGuitarStage(
 export function subscribeGuitarNotes(
   guitarId: string,
   callback: (notes: GuitarNote[]) => void,
-  clientOnly: boolean = false
+  clientOnly: boolean = false,
+  maxNotes: number | null = null
 ): Unsubscribe {
   const notesRef = collection(db, "guitars", guitarId, "notes");
   
   // For clients, filter by visibleToClient in the query to satisfy security rules
-  const q = clientOnly
-    ? query(notesRef, where("visibleToClient", "==", true), orderBy("createdAt", "desc"))
-    : query(notesRef, orderBy("createdAt", "desc"));
+  let q;
+  if (clientOnly) {
+    if (maxNotes) {
+      q = query(
+        notesRef,
+        where("visibleToClient", "==", true),
+        orderBy("createdAt", "desc"),
+        limit(maxNotes)
+      );
+    } else {
+      q = query(
+        notesRef,
+        where("visibleToClient", "==", true),
+        orderBy("createdAt", "desc")
+      );
+    }
+  } else {
+    if (maxNotes) {
+      q = query(
+        notesRef,
+        orderBy("createdAt", "desc"),
+        limit(maxNotes)
+      );
+    } else {
+      q = query(
+        notesRef,
+        orderBy("createdAt", "desc")
+      );
+    }
+  }
   
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
     const notes = snapshot.docs.map((doc) => ({
@@ -340,6 +419,11 @@ export async function addGuitarNote(
     visibleToClient: note.visibleToClient,
   };
   
+  // Include type if provided
+  if (note.type) {
+    cleanNote.type = note.type;
+  }
+  
   // Only include photoUrls if it exists and has items
   if (note.photoUrls && note.photoUrls.length > 0) {
     cleanNote.photoUrls = note.photoUrls;
@@ -356,12 +440,24 @@ export async function addGuitarNote(
       const run = await getRun(guitar.runId);
       const clientUid = guitar.clientUid;
       
+      // Get note type label for notifications
+      const noteTypeLabels: Record<string, string> = {
+        milestone: "Milestone",
+        quality_check: "Quality Check",
+        issue: "Issue",
+        status_change: "Status Change",
+        general: "General",
+        update: "Update",
+      };
+      const noteTypeLabel = noteTypeLabels[note.type || "update"] || "Update";
+      
       // Notify all staff about new note (only if visible to client or has photos)
       if (note.visibleToClient || (note.photoUrls && note.photoUrls.length > 0)) {
         notifyAllStaff({
           type: "guitar_note_added",
-          title: `New update: ${guitar.model}`,
-          message: `${note.authorName} added an update${note.photoUrls && note.photoUrls.length > 0 ? ` with ${note.photoUrls.length} photo(s)` : ""}`,
+          title: `New ${noteTypeLabel.toLowerCase()}: ${guitar.model}`,
+          message: `${note.authorName} added a ${noteTypeLabel.toLowerCase()}${note.photoUrls && note.photoUrls.length > 0 ? ` with ${note.photoUrls.length} photo(s)` : ""}`,
+          read: false,
           guitarId: guitarId,
           runId: guitar.runId,
           noteId: docRef.id,
@@ -371,6 +467,7 @@ export async function addGuitarNote(
             customerName: guitar.customerName,
             runName: run?.name,
             authorName: note.authorName,
+            noteType: note.type || "update",
           },
         }).catch((error) => {
           // Log error but don't throw - notifications are non-critical
@@ -382,8 +479,9 @@ export async function addGuitarNote(
       if (clientUid && note.visibleToClient) {
         notifyUser(clientUid, {
           type: "guitar_note_added",
-          title: `New update on ${guitar.model}`,
-          message: note.message || "A new update has been posted.",
+          title: `New ${noteTypeLabel.toLowerCase()} on ${guitar.model}`,
+          message: note.message || `A new ${noteTypeLabel.toLowerCase()} has been posted.`,
+          read: false,
           guitarId: guitarId,
           runId: guitar.runId,
           noteId: docRef.id,
@@ -392,6 +490,7 @@ export async function addGuitarNote(
             guitarFinish: guitar.finish,
             runName: run?.name,
             authorName: note.authorName,
+            noteType: note.type || "update",
           },
         }).catch((error) => {
           console.error("Failed to send client notification for note:", error);
@@ -417,13 +516,24 @@ export function subscribeClientProfile(
   }
 
   const profileRef = doc(db, "clients", clientUid);
-  return onSnapshot(profileRef, (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    profileRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        callback(null);
+        return;
+      }
+      callback({ uid: snapshot.id, ...snapshot.data() } as ClientProfile);
+    },
+    (error: any) => {
+      // Only log non-permission errors (permission errors are expected for staff accessing client data)
+      if (error?.code !== "permission-denied") {
+        console.error("Error subscribing to client profile:", error);
+      }
+      // Return null on error to prevent UI breaking
       callback(null);
-      return;
     }
-    callback({ uid: snapshot.id, ...snapshot.data() } as ClientProfile);
-  });
+  );
 }
 
 export async function updateClientProfile(
@@ -445,7 +555,8 @@ export async function updateClientProfile(
 
 export function subscribeClientInvoices(
   clientUid: string | null,
-  callback: (invoices: InvoiceRecord[]) => void
+  callback: (invoices: InvoiceRecord[]) => void,
+  maxInvoices: number = 100
 ): Unsubscribe | null {
   if (!clientUid) {
     callback([]);
@@ -453,15 +564,26 @@ export function subscribeClientInvoices(
   }
 
   const invoicesRef = collection(db, "clients", clientUid, "invoices");
-  const q = query(invoicesRef, orderBy("uploadedAt", "desc"));
+  const q = query(invoicesRef, orderBy("uploadedAt", "desc"), limit(maxInvoices));
 
-  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-    const invoices = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as InvoiceRecord[];
-    callback(invoices);
-  });
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const invoices = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as InvoiceRecord[];
+      callback(invoices);
+    },
+    (error: any) => {
+      // Only log non-permission errors (permission errors are expected for staff accessing client data)
+      if (error?.code !== "permission-denied") {
+        console.error("Error subscribing to invoices:", error);
+      }
+      // Return empty array on error to prevent UI breaking
+      callback([]);
+    }
+  );
 }
 
 export async function createInvoiceRecord(
@@ -535,6 +657,7 @@ export async function archiveRun(runId: string): Promise<void> {
     type: "run_archived",
     title: `Run Archived: ${run.name}`,
     message: `Run "${run.name}" has been archived`,
+    read: false,
     runId: runId,
     metadata: {
       runName: run.name,
@@ -568,6 +691,7 @@ export async function archiveGuitar(guitarId: string): Promise<void> {
     type: "guitar_archived",
     title: `Guitar Archived: ${guitar.model}`,
     message: `${guitar.model} - ${guitar.finish} (${guitar.orderNumber}) has been archived`,
+    read: false,
     guitarId: guitarId,
     runId: guitar.runId,
     metadata: {
@@ -604,13 +728,15 @@ export async function createNotification(
 
 export function subscribeNotifications(
   userId: string,
-  callback: (notifications: Notification[]) => void
+  callback: (notifications: Notification[]) => void,
+  maxNotifications: number = 50
 ): Unsubscribe {
   const notificationsRef = collection(db, "notifications");
   const q = query(
     notificationsRef,
     where("userId", "==", userId),
-    orderBy("createdAt", "desc")
+    orderBy("createdAt", "desc"),
+    limit(maxNotifications)
   );
   
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
@@ -752,4 +878,79 @@ export async function updateGuitar(
   if (updates.photoCount !== undefined) cleanUpdates.photoCount = updates.photoCount;
 
   await updateDoc(doc(db, "guitars", guitarId), cleanUpdates);
+}
+
+// App Settings
+const SETTINGS_DOC_ID = "app_settings";
+
+export async function getAppSettings(): Promise<AppSettings | null> {
+  const settingsDoc = await getDoc(doc(db, "settings", SETTINGS_DOC_ID));
+  if (!settingsDoc.exists()) return null;
+  return settingsDoc.data() as AppSettings;
+}
+
+export function subscribeAppSettings(
+  callback: (settings: AppSettings | null) => void
+): Unsubscribe {
+  const settingsRef = doc(db, "settings", SETTINGS_DOC_ID);
+  
+  return onSnapshot(settingsRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback(null);
+      return;
+    }
+    callback(snapshot.data() as AppSettings);
+  });
+}
+
+export async function updateAppSettings(
+  updates: Partial<AppSettings>,
+  updatedBy: string
+): Promise<void> {
+  const settingsRef = doc(db, "settings", SETTINGS_DOC_ID);
+  const existing = await getDoc(settingsRef);
+  
+  const now = Date.now();
+  const updateData = {
+    ...updates,
+    updatedAt: now,
+    updatedBy,
+  };
+  
+  if (existing.exists()) {
+    await updateDoc(settingsRef, updateData);
+  } else {
+    // Create default settings if they don't exist
+    const defaultSettings: AppSettings = {
+      branding: {
+        companyName: "Factory Standards",
+        primaryColor: "#F97316", // orange
+        secondaryColor: "#3B82F6", // blue
+        accentColor: "#10B981", // green
+      },
+      general: {
+        timezone: "Australia/Perth",
+      },
+      email: {},
+      notifications: {
+        emailNotificationsEnabled: true,
+        notifyOnNewGuitar: true,
+        notifyOnStageChange: true,
+        notifyOnNoteAdded: true,
+        notifyOnInvoiceCreated: true,
+        notifyOnPaymentReceived: true,
+      },
+      system: {
+        maintenanceMode: false,
+        allowClientRegistration: false,
+        defaultClientRole: "client",
+        sessionTimeout: 60,
+        maxFileUploadSize: 10,
+      },
+      updatedAt: now,
+      updatedBy,
+      ...updateData,
+    };
+    await setDoc(settingsRef, defaultSettings);
+  }
 }

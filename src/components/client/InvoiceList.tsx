@@ -103,9 +103,19 @@ export function InvoiceList({
                       href={invoice.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 underline"
                     >
-                      Download Invoice
+                      📄 Download Invoice
+                    </a>
+                  )}
+                  {invoice.paymentLink && (
+                    <a
+                      href={invoice.paymentLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-green-600 hover:text-green-700 bg-green-50 px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-100"
+                    >
+                      💳 Pay Now
                     </a>
                   )}
                   {canManage && onRecordPayment && (

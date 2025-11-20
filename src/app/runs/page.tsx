@@ -7,7 +7,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useRuns } from "@/hooks/useRuns";
 import { archiveRun, unarchiveRun } from "@/lib/firestore";
-import { Plus, Archive, ArchiveRestore } from "lucide-react";
+import { EditRunModal } from "@/components/runs/EditRunModal";
+import { Plus, Archive, ArchiveRestore, Edit, Image as ImageIcon } from "lucide-react";
+import type { Run } from "@/types/guitars";
 
 export default function RunsPage() {
   const { currentUser, userRole, loading } = useAuth();
@@ -16,6 +18,7 @@ export default function RunsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [archiving, setArchiving] = useState<string | null>(null);
+  const [editingRun, setEditingRun] = useState<Run | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -97,96 +100,143 @@ export default function RunsPage() {
             .map((run) => (
             <div
               key={run.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow relative"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative"
             >
-              <Link
-                href={`/runs/${run.id}/board`}
-                className="block"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-xl font-semibold">{run.name}</h3>
-                  <div className="flex items-center gap-2">
-                    {run.archived && (
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                        Archived
+              {/* Thumbnail */}
+              {run.thumbnailUrl ? (
+                <Link
+                  href={`/runs/${run.id}/board`}
+                  className="block w-full h-48 bg-gray-100 overflow-hidden"
+                >
+                  <img
+                    src={run.thumbnailUrl}
+                    alt={run.name}
+                    className="w-full h-full object-cover"
+                  />
+                </Link>
+              ) : (
+                <Link
+                  href={`/runs/${run.id}/board`}
+                  className="block w-full h-48 bg-gray-100 flex items-center justify-center"
+                >
+                  <ImageIcon className="w-12 h-12 text-gray-400" />
+                </Link>
+              )}
+
+              <div className="p-6">
+                <Link
+                  href={`/runs/${run.id}/board`}
+                  className="block"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <h3 className="text-xl font-semibold">{run.name}</h3>
+                    <div className="flex items-center gap-2">
+                      {run.archived && (
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          Archived
+                        </span>
+                      )}
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          run.isActive
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {run.isActive ? "Active" : "Inactive"}
                       </span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500 space-y-1">
+                    <p>Factory: {run.factory}</p>
+                    <p>
+                      Started: {new Date(run.startsAt).toLocaleDateString()}
+                    </p>
+                    {run.endsAt && (
+                      <p>Ended: {new Date(run.endsAt).toLocaleDateString()}</p>
                     )}
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        run.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {run.isActive ? "Active" : "Inactive"}
+                    {run.archivedAt && (
+                      <p className="text-gray-400">
+                        Archived: {new Date(run.archivedAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <span className="text-sm text-blue-600 hover:text-blue-700">
+                      View Board →
                     </span>
                   </div>
-                </div>
-                <div className="text-sm text-gray-500 space-y-1">
-                  <p>Factory: {run.factory}</p>
-                  <p>
-                    Started: {new Date(run.startsAt).toLocaleDateString()}
-                  </p>
-                  {run.endsAt && (
-                    <p>Ended: {new Date(run.endsAt).toLocaleDateString()}</p>
-                  )}
-                  {run.archivedAt && (
-                    <p className="text-gray-400">
-                      Archived: {new Date(run.archivedAt).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <span className="text-sm text-blue-600 hover:text-blue-700">
-                    View Board →
-                  </span>
-                </div>
-              </Link>
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (archiving === run.id) return;
-                    setArchiving(run.id);
-                    try {
-                      if (run.archived) {
-                        await unarchiveRun(run.id);
-                      } else {
-                        await archiveRun(run.id);
+                </Link>
+                <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingRun(run);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded text-sm font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (archiving === run.id) return;
+                      setArchiving(run.id);
+                      try {
+                        if (run.archived) {
+                          await unarchiveRun(run.id);
+                        } else {
+                          await archiveRun(run.id);
+                        }
+                      } catch (error) {
+                        console.error("Error archiving run:", error);
+                        alert("Failed to archive run. Please try again.");
+                      } finally {
+                        setArchiving(null);
                       }
-                    } catch (error) {
-                      console.error("Error archiving run:", error);
-                      alert("Failed to archive run. Please try again.");
-                    } finally {
-                      setArchiving(null);
-                    }
-                  }}
-                  disabled={archiving === run.id}
-                  className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                    run.archived
-                      ? "bg-green-50 text-green-700 hover:bg-green-100"
-                      : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-                  } disabled:opacity-50`}
-                >
-                  {archiving === run.id ? (
-                    "Processing..."
-                  ) : run.archived ? (
-                    <>
-                      <ArchiveRestore className="w-4 h-4" />
-                      Unarchive
-                    </>
-                  ) : (
-                    <>
-                      <Archive className="w-4 h-4" />
-                      Archive
-                    </>
-                  )}
-                </button>
+                    }}
+                    disabled={archiving === run.id}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      run.archived
+                        ? "bg-green-50 text-green-700 hover:bg-green-100"
+                        : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+                    } disabled:opacity-50`}
+                  >
+                    {archiving === run.id ? (
+                      "Processing..."
+                    ) : run.archived ? (
+                      <>
+                        <ArchiveRestore className="w-4 h-4" />
+                        Unarchive
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="w-4 h-4" />
+                        Archive
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Edit Run Modal */}
+      {editingRun && (
+        <EditRunModal
+          run={editingRun}
+          isOpen={!!editingRun}
+          onClose={() => setEditingRun(null)}
+          onSuccess={() => {
+            setEditingRun(null);
+            // Runs will automatically refresh via subscription
+          }}
+        />
       )}
       </div>
     </AppLayout>

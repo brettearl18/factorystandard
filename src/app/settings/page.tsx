@@ -18,6 +18,7 @@ import {
   X,
   Edit,
   Link as LinkIcon,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import type { GuitarBuild } from "@/types/guitars";
 
@@ -133,8 +134,25 @@ export default function SettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
-          <p className="text-gray-600">Manage clients and invitations</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+              <p className="text-gray-600">Manage clients and invitations</p>
+            </div>
+            {(userRole === "admin" || userRole === "staff") && (
+              <Link
+                href="/settings/admin"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  userRole === "admin"
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                <SettingsIcon className="w-5 h-5" />
+                Admin Settings
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Stats Cards */}

@@ -40,6 +40,32 @@ export async function uploadInvoiceFile(
   return getDownloadURL(storageRef);
 }
 
+export async function uploadRunThumbnail(
+  runId: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `runs/${runId}/thumbnail/${filename}`);
+  
+  await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(storageRef);
+  return downloadURL;
+}
+
+export async function uploadBrandingAsset(
+  assetType: "logo" | "favicon",
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `branding/${assetType}/${filename}`);
+  
+  await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(storageRef);
+  return downloadURL;
+}
+
 /**
  * Converts a Google Drive share link to a direct image URL
  * Supports formats like:
