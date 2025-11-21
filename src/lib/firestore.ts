@@ -949,7 +949,6 @@ export async function updateAppSettings(
       },
       updatedAt: now,
       updatedBy,
-      ...updateData,
     };
     await setDoc(settingsRef, defaultSettings);
   }
