@@ -354,16 +354,16 @@ export default function ClientsPage() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Clients</h1>
-              <p className="text-gray-600">
+              <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">Clients</h1>
+              <p className="text-gray-500 text-lg">
                 Find clients and view their build progress
               </p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-medium"
             >
               <UserPlus className="w-5 h-5" />
               Add Client
@@ -373,61 +373,61 @@ export default function ClientsPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl shadow-sm border border-blue-200/50 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 mb-1">Total Clients</p>
-                <p className="text-3xl font-bold text-gray-900">{clients.length}</p>
+                <p className="text-sm font-medium text-blue-700/80 mb-2 uppercase tracking-wide">Total Clients</p>
+                <p className="text-4xl font-bold text-blue-900">{clients.length}</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
+              <div className="p-4 bg-white/60 rounded-xl backdrop-blur-sm">
+                <Users className="w-7 h-7 text-blue-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100/50 rounded-2xl shadow-sm border border-green-200/50 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 mb-1">Active Builds</p>
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-sm font-medium text-green-700/80 mb-2 uppercase tracking-wide">Active Builds</p>
+                <p className="text-4xl font-bold text-green-900">
                   {allGuitars.filter((g) => !g.archived).length}
                 </p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Guitar className="w-6 h-6 text-green-600" />
+              <div className="p-4 bg-white/60 rounded-xl backdrop-blur-sm">
+                <Guitar className="w-7 h-7 text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl shadow-sm border border-purple-200/50 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500 mb-1">Total Guitars</p>
-                <p className="text-3xl font-bold text-gray-900">{allGuitars.length}</p>
+                <p className="text-sm font-medium text-purple-700/80 mb-2 uppercase tracking-wide">Total Guitars</p>
+                <p className="text-4xl font-bold text-purple-900">{allGuitars.length}</p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Guitar className="w-6 h-6 text-purple-600" />
+              <div className="p-4 bg-white/60 rounded-xl backdrop-blur-sm">
+                <Guitar className="w-7 h-7 text-purple-600" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Search and View Toggle */}
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search by name, email, phone, or address..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm hover:shadow-md text-gray-900 placeholder-gray-400"
             />
           </div>
-          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-1.5 border border-gray-200">
             <button
               onClick={() => setViewMode("table")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 viewMode === "table"
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
@@ -437,7 +437,7 @@ export default function ClientsPage() {
             </button>
             <button
               onClick={() => setViewMode("cards")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 viewMode === "cards"
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
@@ -450,13 +450,13 @@ export default function ClientsPage() {
 
         {/* Clients List */}
         {viewMode === "table" ? (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
                   <tr>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("client")}
                     >
                       <div className="flex items-center gap-2">
@@ -465,7 +465,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("email")}
                     >
                       <div className="flex items-center gap-2">
@@ -474,7 +474,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("phone")}
                     >
                       <div className="flex items-center gap-2">
@@ -483,7 +483,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("model")}
                     >
                       <div className="flex items-center gap-2">
@@ -492,7 +492,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("finish")}
                     >
                       <div className="flex items-center gap-2">
@@ -501,7 +501,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("orderNumber")}
                     >
                       <div className="flex items-center gap-2">
@@ -510,7 +510,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("run")}
                     >
                       <div className="flex items-center gap-2">
@@ -519,7 +519,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("stage")}
                     >
                       <div className="flex items-center gap-2">
@@ -528,7 +528,7 @@ export default function ClientsPage() {
                       </div>
                     </th>
                     <th
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100/80 select-none transition-colors"
                       onClick={() => handleSort("status")}
                     >
                       <div className="flex items-center gap-2">
@@ -538,73 +538,79 @@ export default function ClientsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAndSortedGuitars.map((guitar) => (
-                      <tr
-                        key={guitar.id}
-                        className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => router.push(`/settings/clients/${guitar.clientUid}`)}
-                      >
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900">
-                              {guitar.client?.displayName || "No Name"}
-                            </span>
-                            {guitar.client?.emailVerified ? (
-                              <CheckCircle className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <X className="w-4 h-4 text-yellow-600" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                          {guitar.client?.email || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                          {guitar.client?.profile?.phone || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {guitar.model || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                          {guitar.finish || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">
-                          {guitar.orderNumber || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                          {guitar.runName || "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {guitar.currentStage ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {guitar.currentStage.label}
-                            </span>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredAndSortedGuitars.map((guitar, index) => (
+                    <tr
+                      key={guitar.id}
+                      className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent cursor-pointer transition-all group"
+                      onClick={() => router.push(`/settings/clients/${guitar.clientUid}`)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
+                            {guitar.client?.displayName || "No Name"}
+                          </span>
+                          {guitar.client?.emailVerified ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
                           ) : (
-                            <span className="text-sm text-gray-400">-</span>
+                            <X className="w-4 h-4 text-amber-500" />
                           )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {guitar.archived ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              Archived
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {guitar.client?.email || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {guitar.client?.profile?.phone || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {guitar.model || <span className="text-gray-400">-</span>}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {guitar.finish || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded">
+                          {guitar.orderNumber || <span className="text-gray-400">-</span>}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {guitar.runName || <span className="text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {guitar.currentStage ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 border border-blue-200/50">
+                            {guitar.currentStage.label}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {guitar.archived ? (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                            Archived
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-100 to-emerald-50 text-green-700 border border-green-200/50">
+                            Active
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               {filteredAndSortedGuitars.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No guitars found</p>
+                <div className="text-center py-16 text-gray-400">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                    <Users className="w-8 h-8 opacity-50" />
+                  </div>
+                  <p className="text-lg font-medium mb-1">No guitars found</p>
                   {searchTerm && (
-                    <p className="text-sm mt-2">Try a different search term</p>
+                    <p className="text-sm text-gray-500">Try a different search term</p>
                   )}
                 </div>
               )}
