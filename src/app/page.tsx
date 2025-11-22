@@ -17,6 +17,11 @@ export default function Home() {
 
     // If user is logged in, redirect based on role
     if (currentUser) {
+      if (userRole === "factory") {
+        router.push("/factory");
+        return;
+      }
+
       if (userRole === "staff" || userRole === "admin") {
         router.push("/dashboard");
         return;

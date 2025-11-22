@@ -51,6 +51,15 @@ export function Sidebar() {
     },
   ];
 
+  // Factory worker navigation (simplified mobile portal)
+  const factoryNavItems = [
+    {
+      label: "Factory Portal",
+      href: "/factory",
+      icon: Package,
+    },
+  ];
+
   // Client navigation
   const clientNavItems = [
     {
@@ -65,14 +74,24 @@ export function Sidebar() {
     },
   ];
 
-  const navItems = userRole === "client" ? clientNavItems : staffNavItems;
+  const navItems = userRole === "client" 
+    ? clientNavItems 
+    : userRole === "factory"
+    ? factoryNavItems
+    : staffNavItems;
 
   const SidebarContent = () => (
     <>
       {/* Logo/Brand */}
       <div className="p-6 border-b border-slate bg-card">
         <Link
-          href={userRole === "client" ? "/my-guitars" : "/dashboard"}
+          href={
+            userRole === "client" 
+              ? "/my-guitars" 
+              : userRole === "factory"
+              ? "/factory"
+              : "/dashboard"
+          }
           className="flex items-center gap-3"
         >
           {branding.companyLogo ? (

@@ -34,10 +34,27 @@ export function GuitarNoteDrawer({
 
   if (!isOpen) return null;
 
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setPhotos(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files);
+      setPhotos((prev) => [...prev, ...newFiles]);
+      
+      // Create previews for new files
+      newFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPhotoPreviews((prev) => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAddDriveLink = () => {
@@ -118,6 +135,7 @@ export function GuitarNoteDrawer({
       setNoteType("update");
       setVisibleToClient(true);
       setPhotos([]);
+      setPhotoPreviews([]);
       setPhotoUrls([]);
       setDriveLinkInput("");
       onClose(true);
@@ -222,10 +240,32 @@ export function GuitarNoteDrawer({
               onChange={handleFileChange}
               className="w-full p-2 border rounded-md mb-2"
             />
-            {(photos.length > 0 || photoUrls.length > 0) && (
-              <p className="text-xs text-gray-500 mt-1 mb-2">
-                {photos.length + photoUrls.length} photo{(photos.length + photoUrls.length) !== 1 ? "s" : ""} selected
-              </p>
+            {(photoPreviews.length > 0 || photoUrls.length > 0) && (
+              <div className="mt-2 space-y-2">
+                <p className="text-xs text-gray-500">
+                  {photoPreviews.length + photoUrls.length} photo{(photoPreviews.length + photoUrls.length) !== 1 ? "s" : ""} selected
+                </p>
+                {photoPreviews.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {photoPreviews.map((preview, index) => (
+                      <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             
             {/* Google Drive Link Input */}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateRun } from "@/lib/firestore";
-import { uploadRunThumbnail } from "@/lib/storage";
+import { uploadRunThumbnail, deleteRunThumbnail } from "@/lib/storage";
 import type { Run } from "@/types/guitars";
 
 interface EditRunModalProps {
@@ -61,6 +61,9 @@ export function EditRunModal({
   };
 
   const handleRemoveThumbnail = () => {
+    if (!confirm("Are you sure you want to remove this thumbnail? The image will be permanently deleted from storage.")) {
+      return;
+    }
     setThumbnailFile(null);
     setThumbnailPreview(null);
   };
@@ -77,9 +80,20 @@ export function EditRunModal({
 
       // Upload new thumbnail if one was selected
       if (thumbnailFile) {
+        // Delete old thumbnail if it exists
+        if (run.thumbnailUrl) {
+          await deleteRunThumbnail(run.id, run.thumbnailUrl).catch((error) => {
+            console.error("Error deleting old thumbnail:", error);
+            // Continue even if deletion fails
+          });
+        }
         thumbnailUrl = await uploadRunThumbnail(run.id, thumbnailFile);
       } else if (!thumbnailPreview && run.thumbnailUrl) {
-        // If thumbnail was removed, set to undefined
+        // If thumbnail was removed, delete from storage and set to undefined
+        await deleteRunThumbnail(run.id, run.thumbnailUrl).catch((error) => {
+          console.error("Error deleting thumbnail:", error);
+          // Continue even if deletion fails
+        });
         thumbnailUrl = undefined;
       }
 

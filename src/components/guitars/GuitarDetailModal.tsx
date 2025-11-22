@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff } from "lucide-react";
-import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar } from "@/lib/firestore";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2 } from "lucide-react";
+import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { isGoogleDriveLink } from "@/lib/storage";
+import { isGoogleDriveLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
 
@@ -30,8 +30,60 @@ export function GuitarDetailModal({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [clientViewMode, setClientViewMode] = useState(false);
+  const [deletingImage, setDeletingImage] = useState<string | null>(null);
   const { userRole } = useAuth();
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
+
+  const handleDeleteReferenceImage = async (imageUrl: string, index: number) => {
+    if (!confirm("Are you sure you want to delete this reference image?")) return;
+    
+    setDeletingImage(imageUrl);
+    try {
+      // Delete from storage if it's a Firebase Storage URL
+      if (!isGoogleDriveLink(imageUrl)) {
+        await deleteGuitarReferenceImage(guitar.id, imageUrl);
+      }
+      
+      // Remove from guitar's referenceImages array
+      const updatedImages = guitar.referenceImages?.filter((_, i) => i !== index) || [];
+      await updateGuitar(guitar.id, {
+        referenceImages: updatedImages.length > 0 ? updatedImages : undefined,
+        coverPhotoUrl: updatedImages[0] || undefined,
+      });
+    } catch (error) {
+      console.error("Error deleting reference image:", error);
+      alert("Failed to delete image. Please try again.");
+    } finally {
+      setDeletingImage(null);
+    }
+  };
+
+  const handleDeleteNotePhoto = async (noteId: string, imageUrl: string, photoIndex: number) => {
+    if (!confirm("Are you sure you want to delete this photo from the note?")) return;
+    
+    setDeletingImage(imageUrl);
+    try {
+      // Find the note to get current photoUrls
+      const note = notes.find((n) => n.id === noteId);
+      if (!note || !note.photoUrls) return;
+      
+      // Delete from storage if it's a Firebase Storage URL
+      if (!isGoogleDriveLink(imageUrl)) {
+        await deleteGuitarNotePhoto(guitar.id, note.stageId, imageUrl);
+      }
+      
+      // Remove from note's photoUrls array
+      const updatedPhotoUrls = note.photoUrls.filter((_, i) => i !== photoIndex);
+      await updateGuitarNote(guitar.id, noteId, {
+        photoUrls: updatedPhotoUrls.length > 0 ? updatedPhotoUrls : undefined,
+      });
+    } catch (error) {
+      console.error("Error deleting note photo:", error);
+      alert("Failed to delete photo. Please try again.");
+    } finally {
+      setDeletingImage(null);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -566,13 +618,27 @@ export function GuitarDetailModal({
                           );
                         }
                         return (
-                          <img
-                            key={idx}
-                            src={url}
-                            alt={`Reference ${idx + 1}`}
-                            className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => setSelectedImage(url)}
-                          />
+                          <div key={idx} className="relative group">
+                            <img
+                              src={url}
+                              alt={`Reference ${idx + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setSelectedImage(url)}
+                            />
+                            {isAdminViewing && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteReferenceImage(url, idx);
+                                }}
+                                disabled={deletingImage === url}
+                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
+                                title="Delete image"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -705,13 +771,27 @@ export function GuitarDetailModal({
                                     );
                                   }
                                   return (
-                                    <img
-                                      key={idx}
-                                      src={url}
-                                      alt={`Note photo ${idx + 1}`}
-                                      className="w-full h-20 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
-                                      onClick={() => setSelectedImage(url)}
-                                    />
+                                    <div key={idx} className="relative group">
+                                      <img
+                                        src={url}
+                                        alt={`Note photo ${idx + 1}`}
+                                        className="w-full h-20 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => setSelectedImage(url)}
+                                      />
+                                      {isAdminViewing && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteNotePhoto(note.id, url, idx);
+                                          }}
+                                          disabled={deletingImage === url}
+                                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
+                                          title="Delete photo"
+                                        >
+                                          <Trash2 className="w-2.5 h-2.5" />
+                                        </button>
+                                      )}
+                                    </div>
                                   );
                                 })}
                               </div>

@@ -543,6 +543,21 @@ export async function addGuitarNote(
   return docRef.id;
 }
 
+export async function updateGuitarNote(
+  guitarId: string,
+  noteId: string,
+  updates: { photoUrls?: string[] }
+): Promise<void> {
+  const noteRef = doc(db, "guitars", guitarId, "notes", noteId);
+  const cleanUpdates: any = {};
+  
+  if (updates.photoUrls !== undefined) {
+    cleanUpdates.photoUrls = updates.photoUrls.length > 0 ? updates.photoUrls : null;
+  }
+  
+  await updateDoc(noteRef, cleanUpdates);
+}
+
 // Client profile & billing
 export function subscribeClientProfile(
   clientUid: string | null,
@@ -857,7 +872,13 @@ export async function notifyAllStaff(
     });
     
     await batch.commit();
-  } catch (error) {
+  } catch (error: any) {
+    // If error is permission-denied (e.g., factory worker calling), just log and continue
+    // Factory workers don't need to notify staff - they ARE the staff on the factory floor
+    if (error?.code === "permission-denied" || error?.message?.includes("Only staff")) {
+      console.log("Skipping staff notifications (factory worker or insufficient permissions)");
+      return;
+    }
     console.error("Error notifying staff:", error);
     // Fallback: create notification for current user if available
     // This is a graceful degradation

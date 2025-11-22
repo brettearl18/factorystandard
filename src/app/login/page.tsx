@@ -18,7 +18,7 @@ function LoginForm() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [loginType, setLoginType] = useState<"client" | "admin" | null>(null);
-  const { signIn } = useAuth();
+  const { signIn, currentUser, userRole, loading: authLoading } = useAuth();
   const branding = useBranding();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,8 +38,11 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      // The home page will handle redirect based on role
-      router.push("/");
+      // Redirect to home - it will handle role-based routing
+      // Small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push("/");
+      }, 300);
     } catch (err: any) {
       // Provide user-friendly error messages
       let errorMessage = "Failed to sign in";

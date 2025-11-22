@@ -15,14 +15,14 @@ export const listUsers = functions.https.onCall(async (data, context) => {
     );
   }
 
-  // Check if user is staff/admin
+  // Check if user is staff/admin/factory
   const userRecord = await admin.auth().getUser(context.auth.uid);
   const userRole = userRecord.customClaims?.role;
 
-  if (userRole !== "staff" && userRole !== "admin") {
+  if (userRole !== "staff" && userRole !== "admin" && userRole !== "factory") {
     throw new functions.https.HttpsError(
       "permission-denied",
-      "Only staff and admins can list users"
+      "Only staff, admins, and factory workers can list users"
     );
   }
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Upload, Image as ImageIcon, Search, Check, UserPlus, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateGuitar, subscribeRunStages } from "@/lib/firestore";
-import { uploadReferenceImage } from "@/lib/storage";
+import { uploadReferenceImage, deleteGuitarReferenceImage, isGoogleDriveLink } from "@/lib/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { GuitarBuild, GuitarSpecs, RunStage } from "@/types/guitars";
 import { BODY_WOOD_OPTIONS, TOP_WOOD_OPTIONS, NECK_WOOD_OPTIONS, FRETBOARD_WOOD_OPTIONS, ORMSBY_PICKUP_MODELS, PICKUP_NECK_OPTIONS, PICKUP_BRIDGE_OPTIONS, PICKUP_CONFIGURATION_OPTIONS, CONTROLS_OPTIONS, SWITCH_OPTIONS, BRIDGE_OPTIONS, TUNER_OPTIONS, NUT_OPTIONS, PICKGUARD_OPTIONS, STRING_COUNT_OPTIONS, STRING_GAUGE_OPTIONS, SCALE_LENGTH_OPTIONS, ACTION_OPTIONS, FINISH_TYPE_OPTIONS, BINDING_OPTIONS, INLAY_STYLE_OPTIONS, FRET_COUNT_OPTIONS, NECK_PROFILE_OPTIONS, RADIUS_OPTIONS } from "@/constants/guitarSpecs";
@@ -44,6 +44,7 @@ export function EditGuitarModal({
   const [existingReferenceImages, setExistingReferenceImages] = useState<string[]>(
     guitar.referenceImages || []
   );
+  const [removedReferenceImages, setRemovedReferenceImages] = useState<string[]>([]); // Track removed images for deletion
   const [newReferenceImages, setNewReferenceImages] = useState<File[]>([]);
   const [newReferenceImageUrls, setNewReferenceImageUrls] = useState<string[]>([]); // For Google Drive links
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -83,6 +84,7 @@ export function EditGuitarModal({
       setStageId(guitar.stageId);
       setSpecs(guitar.specs || {});
       setExistingReferenceImages(guitar.referenceImages || []);
+      setRemovedReferenceImages([]);
       setNewReferenceImages([]);
       setNewReferenceImageUrls([]);
       setDriveLinkInput("");
@@ -99,7 +101,16 @@ export function EditGuitarModal({
   };
 
   const removeExistingImage = (index: number) => {
+    if (!confirm("Are you sure you want to delete this reference image? This action cannot be undone.")) {
+      return;
+    }
+    
+    const imageToRemove = existingReferenceImages[index];
     setExistingReferenceImages((prev) => prev.filter((_, i) => i !== index));
+    // Track removed images for deletion from storage
+    if (imageToRemove && !isGoogleDriveLink(imageToRemove)) {
+      setRemovedReferenceImages((prev) => [...prev, imageToRemove]);
+    }
   };
 
   const removeNewImage = (index: number) => {
@@ -227,6 +238,18 @@ export function EditGuitarModal({
     setUploadingImages(true);
 
     try {
+      // Delete removed images from storage (non-blocking)
+      if (removedReferenceImages.length > 0) {
+        Promise.all(
+          removedReferenceImages.map((url) =>
+            deleteGuitarReferenceImage(guitar.id, url).catch((error) => {
+              console.error("Error deleting image:", error);
+              // Continue even if deletion fails
+            })
+          )
+        );
+      }
+
       // Upload new reference images
       let uploadedUrls: string[] = [];
       if (newReferenceImages.length > 0) {

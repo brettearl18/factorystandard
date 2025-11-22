@@ -31,9 +31,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(user);
       
       if (user) {
-        const token = await user.getIdTokenResult();
-        const role = token.claims.role as UserRole | undefined;
-        setUserRole(role || null);
+        // Force refresh token to get latest custom claims
+        try {
+          const token = await user.getIdTokenResult(true); // Force refresh
+          const role = token.claims.role as UserRole | undefined;
+          setUserRole(role || null);
+        } catch (error) {
+          console.error("Error getting user role:", error);
+          // Fallback: try without forcing refresh
+          try {
+            const token = await user.getIdTokenResult();
+            const role = token.claims.role as UserRole | undefined;
+            setUserRole(role || null);
+          } catch (e) {
+            setUserRole(null);
+          }
+        }
       } else {
         setUserRole(null);
       }

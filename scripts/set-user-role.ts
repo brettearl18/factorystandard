@@ -33,7 +33,7 @@ if (!admin.apps.length) {
   }
 }
 
-async function setUserRole(email: string, role: "staff" | "client" | "admin") {
+async function setUserRole(email: string, role: "staff" | "client" | "admin" | "factory") {
   try {
     const user = await admin.auth().getUserByEmail(email);
     
@@ -58,8 +58,8 @@ if (!email || !role) {
   process.exit(1);
 }
 
-if (!["staff", "client", "admin"].includes(role)) {
-  console.error(`Invalid role: ${role}. Must be one of: staff, client, admin`);
+if (!["staff", "client", "admin", "factory"].includes(role)) {
+  console.error(`Invalid role: ${role}. Must be one of: staff, client, admin, factory`);
   process.exit(1);
 }
 

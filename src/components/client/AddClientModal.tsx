@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { X, Eye, EyeOff, Plus, Trash2, Copy, Check } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useRuns } from "@/hooks/useRuns";
 import { subscribeRunStages, createGuitar as createGuitarRecord } from "@/lib/firestore";
@@ -28,6 +28,14 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmailTemplate, setShowEmailTemplate] = useState(false);
+  const [createdClientInfo, setCreatedClientInfo] = useState<{ 
+    email: string; 
+    password: string; 
+    name: string;
+    guitarsCreated: number;
+  } | null>(null);
+  const [emailCopied, setEmailCopied] = useState(false);
   
   // Guitar creation
   const [createGuitar, setCreateGuitar] = useState(false);
@@ -100,6 +108,67 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
     setPassword(password);
   };
 
+  const getSiteUrl = () => {
+    if (typeof window !== "undefined") {
+      return window.location.origin;
+    }
+    return "https://factorystandards.com"; // Fallback
+  };
+
+  const generateEmailTemplate = () => {
+    if (!createdClientInfo) return "";
+    
+    const siteUrl = getSiteUrl();
+    const loginUrl = `${siteUrl}/login`;
+    
+    return `Subject: Your Factory Standards Account
+
+Hi ${createdClientInfo.name},
+
+Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+
+Login Details:
+Email: ${createdClientInfo.email}
+Password: ${createdClientInfo.password}
+
+Login Link: ${loginUrl}
+
+Please change your password after your first login for security.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Factory Standards Team`;
+  };
+
+  const handleCopyEmail = async () => {
+    const emailText = generateEmailTemplate();
+    try {
+      await navigator.clipboard.writeText(emailText);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      // Fallback: select text
+      const textarea = document.createElement("textarea");
+      textarea.value = emailText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    }
+  };
+
+  const handleCloseEmailTemplate = () => {
+    setShowEmailTemplate(false);
+    setCreatedClientInfo(null);
+    setEmailCopied(false);
+    onSuccess?.();
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -168,19 +237,23 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
         }
       }
 
-      // Success!
-      alert(`Client created successfully!\n\nEmail: ${email}\nPassword: ${password}\n\n${createGuitar && guitars.length > 0 ? `${guitars.length} guitar(s) created.` : "No guitars created."}\n\nPlease share these credentials with the client.`);
+      // Success! Show email template modal
+      const guitarsCreated = createGuitar && guitars.length > 0 ? guitars.length : 0;
+      setCreatedClientInfo({ 
+        email: email.trim(), 
+        password, 
+        name: name.trim(),
+        guitarsCreated 
+      });
+      setShowEmailTemplate(true);
       
-      // Reset form
+      // Reset form (but keep modal open to show email template)
       setEmail("");
       setName("");
       setPassword("");
       setCreateGuitar(false);
       setGuitars([{ runId: "", stageId: "", model: "", finish: "", orderNumber: "" }]);
       setError(null);
-      
-      onSuccess?.();
-      onClose();
     } catch (error: any) {
       console.error("Error creating client:", error);
       setError(error.message || "Failed to create client. Please try again.");
@@ -441,6 +514,89 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
           </div>
         </form>
       </div>
+
+      {/* Email Template Modal */}
+      {showEmailTemplate && createdClientInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Client Created Successfully</h2>
+              <button
+                onClick={handleCloseEmailTemplate}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800 font-medium">
+                    ✓ Client account created successfully!
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Template (Copy & Paste)
+                    </label>
+                    <button
+                      onClick={handleCopyEmail}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      {emailCopied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy Email
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={generateEmailTemplate()}
+                    className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Click the text above to select all, or use the "Copy Email" button.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Next Steps:</strong>
+                  </p>
+                  <ol className="text-sm text-blue-700 mt-2 list-decimal list-inside space-y-1">
+                    <li>Copy the email template above</li>
+                    <li>Paste it into your email client</li>
+                    <li>Send it to {createdClientInfo.email}</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                onClick={handleCloseEmailTemplate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

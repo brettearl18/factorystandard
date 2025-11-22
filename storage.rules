@@ -1,10 +1,10 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Helper function to check if user is staff/admin
+    // Helper function to check if user is staff/admin/factory
     function isStaff() {
       return request.auth != null &&
-        (request.auth.token.role == "staff" || request.auth.token.role == "admin");
+        (request.auth.token.role == "staff" || request.auth.token.role == "admin" || request.auth.token.role == "factory");
     }
 
     // Helper function to check if user is client
