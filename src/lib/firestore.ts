@@ -122,13 +122,23 @@ export function subscribeRunStages(
   const stagesRef = collection(db, "runs", runId, "stages");
   const q = query(stagesRef, orderBy("order", "asc"));
   
-  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-    const stages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as RunStage[];
-    callback(stages);
-  });
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const stages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as RunStage[];
+      callback(stages);
+    },
+    (error: any) => {
+      // Suppress permission errors - they're handled by redirecting users
+      if (error?.code !== "permission-denied") {
+        console.error("Error subscribing to run stages:", error);
+      }
+      callback([]);
+    }
+  );
 }
 
 // Guitar queries
@@ -241,9 +251,17 @@ export function subscribeClientGuitars(
 }
 
 export async function getGuitar(guitarId: string): Promise<GuitarBuild | null> {
-  const guitarDoc = await getDoc(doc(db, "guitars", guitarId));
-  if (!guitarDoc.exists()) return null;
-  return { id: guitarDoc.id, ...guitarDoc.data() } as GuitarBuild;
+  try {
+    const guitarDoc = await getDoc(doc(db, "guitars", guitarId));
+    if (!guitarDoc.exists()) return null;
+    return { id: guitarDoc.id, ...guitarDoc.data() } as GuitarBuild;
+  } catch (error: any) {
+    // If permission denied, return null (caller will handle redirect)
+    if (error?.code === "permission-denied") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function subscribeGuitar(
@@ -252,13 +270,23 @@ export function subscribeGuitar(
 ): Unsubscribe {
   const guitarRef = doc(db, "guitars", guitarId);
   
-  return onSnapshot(guitarRef, (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    guitarRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        callback(null);
+        return;
+      }
+      callback({ id: snapshot.id, ...snapshot.data() } as GuitarBuild);
+    },
+    (error: any) => {
+      // Suppress permission errors - they're handled by redirecting users
+      if (error?.code !== "permission-denied") {
+        console.error("Error subscribing to guitar:", error);
+      }
       callback(null);
-      return;
     }
-    callback({ id: snapshot.id, ...snapshot.data() } as GuitarBuild);
-  });
+  );
 }
 
 export async function updateGuitarStage(
@@ -394,13 +422,23 @@ export function subscribeGuitarNotes(
     }
   }
   
-  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-    const notes = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as GuitarNote[];
-    callback(notes);
-  });
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const notes = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as GuitarNote[];
+      callback(notes);
+    },
+    (error: any) => {
+      // Suppress permission errors - they're handled by redirecting users
+      if (error?.code !== "permission-denied") {
+        console.error("Error subscribing to guitar notes:", error);
+      }
+      callback([]);
+    }
+  );
 }
 
 export async function addGuitarNote(

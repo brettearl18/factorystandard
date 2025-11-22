@@ -15,7 +15,7 @@ export function useBranding() {
   useEffect(() => {
     const unsubscribe = subscribeAppSettings((settings) => {
       if (settings?.branding) {
-        setBranding(settings.branding);
+        setBranding({ ...defaultBranding, ...settings.branding });
       } else {
         setBranding(defaultBranding);
       }

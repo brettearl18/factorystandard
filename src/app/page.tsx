@@ -4,10 +4,12 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranding } from "@/hooks/useBranding";
 import { Guitar, User, Shield, ArrowRight, Factory } from "lucide-react";
 
 export default function Home() {
   const { currentUser, userRole, loading, signOut } = useAuth();
+  const branding = useBranding();
   const router = useRouter();
 
   useEffect(() => {
@@ -88,12 +90,23 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
-            <div className="bg-blue-600 p-4 rounded-2xl shadow-lg">
-              <Guitar className="w-12 h-12 text-white" />
-            </div>
+            {branding && branding.companyLogo ? (
+              <img
+                src={branding.companyLogo}
+                alt={branding.companyName || "Factory Standards"}
+                className="h-20 w-auto object-contain"
+              />
+            ) : (
+              <div 
+                className="p-4 rounded-2xl shadow-lg"
+                style={{ backgroundColor: branding?.primaryColor || "#3B82F6" }}
+              >
+                <Guitar className="w-12 h-12 text-white" />
+              </div>
+            )}
           </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Ormsby Factory Standards
+            {branding?.companyName || "Ormsby Factory Standards"}
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Track your guitar build progress and stay updated on every stage of production

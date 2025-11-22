@@ -14,6 +14,7 @@ import {
   X,
   LogOut,
   Settings,
+  Users,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -39,9 +40,9 @@ export function Sidebar() {
       icon: Package,
     },
     {
-      label: "Create Run",
-      href: "/runs/new",
-      icon: Plus,
+      label: "Clients",
+      href: "/clients",
+      icon: Users,
     },
     {
       label: "Settings",

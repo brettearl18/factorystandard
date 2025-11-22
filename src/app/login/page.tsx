@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranding } from "@/hooks/useBranding";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Guitar, Mail, Lock, ArrowRight, AlertCircle, CheckCircle, User, Shield, ArrowLeft } from "lucide-react";
@@ -18,6 +19,7 @@ function LoginForm() {
   const [resetLoading, setResetLoading] = useState(false);
   const [loginType, setLoginType] = useState<"client" | "admin" | null>(null);
   const { signIn } = useAuth();
+  const branding = useBranding();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -107,16 +109,35 @@ function LoginForm() {
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to home
           </Link>
-          <div className="flex justify-center mb-4">
-            <div className={`p-3 rounded-full ${
-              loginType === "admin" ? "bg-purple-100" : "bg-blue-100"
-            }`}>
-              {loginType === "admin" ? (
-                <Shield className="w-8 h-8 text-purple-600" />
-              ) : (
-                <Guitar className="w-8 h-8 text-blue-600" />
-              )}
-            </div>
+          <div className="flex flex-col items-center mb-4">
+            {branding && branding.companyLogo ? (
+              <>
+                <img
+                  src={branding.companyLogo}
+                  alt={branding.companyName || "Factory Standards"}
+                  className="h-16 w-auto object-contain mb-3"
+                />
+                {branding.companyName && (
+                  <h2 className="text-xl font-semibold text-gray-700 mb-2">{branding.companyName}</h2>
+                )}
+              </>
+            ) : (
+              <div 
+                className={`p-3 rounded-full ${
+                  loginType === "admin" ? "bg-purple-100" : "bg-blue-100"
+                }`}
+                style={!loginType && branding?.primaryColor ? { backgroundColor: `${branding.primaryColor}20` } : {}}
+              >
+                {loginType === "admin" ? (
+                  <Shield className="w-8 h-8 text-purple-600" />
+                ) : (
+                  <Guitar 
+                    className="w-8 h-8" 
+                    style={branding?.primaryColor ? { color: branding.primaryColor } : { color: "#3B82F6" }}
+                  />
+                )}
+              </div>
+            )}
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
           <p className="text-gray-600 text-sm">

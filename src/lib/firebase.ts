@@ -1,5 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore, setLogLevel } from "firebase/firestore";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAuth, Auth } from "firebase/auth";
 
@@ -23,6 +23,20 @@ if (getApps().length === 0) {
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
 export const auth: Auth = getAuth(app);
+
+// Suppress permission-denied errors in console (they're handled gracefully)
+if (typeof window !== "undefined") {
+  // Only suppress in browser, not during SSR
+  const originalError = console.error;
+  console.error = (...args: any[]) => {
+    // Filter out Firebase permission-denied errors
+    const errorString = args.join(" ");
+    if (errorString.includes("permission-denied") && errorString.includes("@firebase/firestore")) {
+      return; // Suppress this error
+    }
+    originalError.apply(console, args);
+  };
+}
 
 export default app;
 

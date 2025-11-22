@@ -66,9 +66,10 @@ service cloud.firestore {
       }
     }
 
-    // App Settings - staff/admin can read and write
+    // App Settings - public read (for branding on login page), staff/admin can write
     match /settings/{settingsId} {
-      allow read, write: if request.auth != null && (request.auth.token.role == "admin" || request.auth.token.role == "staff");
+      allow read: if true; // Public read for branding on login page
+      allow write: if request.auth != null && (request.auth.token.role == "admin" || request.auth.token.role == "staff");
     }
   }
 }

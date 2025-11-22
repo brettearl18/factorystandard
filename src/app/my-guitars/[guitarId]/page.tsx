@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages } from "@/lib/firestore";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices } from "@/lib/firestore";
 import { isGoogleDriveLink } from "@/lib/storage";
 import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
-import { useClientInvoices } from "@/hooks/useClientInvoices";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 
 const formatCurrency = (amount: number, currency: string = "AUD") =>
@@ -35,10 +34,8 @@ export default function GuitarDetailPage({
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [clientViewMode, setClientViewMode] = useState(false);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
-  const canViewInvoices = userRole === "client" || (isAdminViewing && clientViewMode && guitar?.clientUid);
-  const invoiceOwnerUid = canViewInvoices ? (userRole === "client" ? currentUser?.uid : guitar?.clientUid) || null : null;
-  const invoices = useClientInvoices(invoiceOwnerUid);
 
   useEffect(() => {
     if (authLoading) return;
@@ -65,57 +62,60 @@ export default function GuitarDetailPage({
 
     let currentRunId: string | null = null;
 
-    // Subscribe to guitar updates in real-time
-    unsubscribeGuitar = subscribeGuitar(guitarId, (guitarData) => {
-      if (!guitarData) {
-        setLoading(false);
-        return;
-      }
-
-      // For clients, verify they own this guitar
-      // Staff/admin can view any guitar
-      if (userRole === "client" && guitarData.clientUid !== currentUser.uid) {
-        router.push("/my-guitars");
-        return;
-      }
-
-      setGuitar(guitarData);
-      setLoading(false);
-
-      // If runId changed, resubscribe to stages
-      if (guitarData.runId !== currentRunId) {
-        currentRunId = guitarData.runId;
-        
-        // Unsubscribe from old stages if any
-        if (unsubscribeStages) {
-          unsubscribeStages();
-        }
-
-        // Subscribe to stages for the guitar's current run
-        unsubscribeStages = subscribeRunStages(guitarData.runId, (stages) => {
-          const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-          setAllStages(sortedStages);
-        });
-      }
-    });
-
-    // Load initial guitar and set up subscriptions
+    // Load initial guitar first to verify ownership before subscribing
     const loadInitialData = async () => {
       try {
-        // First get the guitar to know which run it belongs to
+        // First get the guitar to know which run it belongs to and verify ownership
         const initialGuitar = await getGuitar(guitarId);
         if (!initialGuitar) {
           setLoading(false);
           return;
         }
 
-        // For clients, verify they own this guitar
-        if (userRole === "client" && initialGuitar.clientUid !== currentUser.uid) {
-          router.push("/my-guitars");
-          return;
+        // For clients, verify they own this guitar BEFORE subscribing
+        if (userRole === "client") {
+          if (!initialGuitar.clientUid || initialGuitar.clientUid !== currentUser.uid) {
+            router.push("/my-guitars");
+            setLoading(false);
+            return;
+          }
         }
 
+        // Now that ownership is verified, set guitar and subscribe
+        setGuitar(initialGuitar);
+        setLoading(false);
         currentRunId = initialGuitar.runId;
+
+        // Subscribe to guitar updates in real-time (only after ownership verified)
+        unsubscribeGuitar = subscribeGuitar(guitarId, (guitarData) => {
+          if (!guitarData) {
+            return;
+          }
+
+          // For clients, verify they still own this guitar
+          if (userRole === "client" && guitarData.clientUid !== currentUser.uid) {
+            router.push("/my-guitars");
+            return;
+          }
+
+          setGuitar(guitarData);
+
+          // If runId changed, resubscribe to stages
+          if (guitarData.runId !== currentRunId) {
+            currentRunId = guitarData.runId;
+            
+            // Unsubscribe from old stages if any
+            if (unsubscribeStages) {
+              unsubscribeStages();
+            }
+
+            // Subscribe to stages for the guitar's current run
+            unsubscribeStages = subscribeRunStages(guitarData.runId, (stages) => {
+              const sortedStages = [...stages].sort((a, b) => a.order - b.order);
+              setAllStages(sortedStages);
+            });
+          }
+        });
 
         // Subscribe to stages for this run
         unsubscribeStages = subscribeRunStages(initialGuitar.runId, (stages) => {
@@ -131,8 +131,13 @@ export default function GuitarDetailPage({
           // If staff/admin in normal mode, get all notes
           setNotes(allNotes);
         }, shouldFilterClientOnly);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error loading initial data:", error);
+        // If it's a permission error for clients, redirect them
+        if (userRole === "client" && error?.code === "permission-denied") {
+          router.push("/my-guitars");
+        }
+        setLoading(false);
       }
     };
 
@@ -144,6 +149,25 @@ export default function GuitarDetailPage({
       if (unsubscribeNotes) unsubscribeNotes();
     };
   }, [guitarId, currentUser, userRole, router, clientViewMode]);
+
+  // Subscribe to invoices only for clients and only after guitar is loaded
+  useEffect(() => {
+    if (!currentUser || !guitar) return;
+    
+    // Only subscribe if user is a client and owns this guitar
+    if (userRole === "client" && guitar.clientUid === currentUser.uid) {
+      const unsubscribeInvoices = subscribeClientInvoices(currentUser.uid, (invoiceRecords) => {
+        setInvoices(invoiceRecords);
+      });
+      
+      return () => {
+        if (unsubscribeInvoices) unsubscribeInvoices();
+      };
+    } else {
+      // Clear invoices for non-clients or clients viewing other guitars
+      setInvoices([]);
+    }
+  }, [currentUser, userRole, guitar]);
 
   // Update stage state when guitar or stages change
   // This must be before any early returns to follow Rules of Hooks
@@ -173,9 +197,10 @@ export default function GuitarDetailPage({
   }
 
   const clientStatus = stage?.clientStatusLabel || "In Progress";
-  const sortedInvoices = [...invoices].sort(
+  const canViewInvoices = userRole === "client" && guitar?.clientUid === currentUser?.uid;
+  const sortedInvoices = canViewInvoices ? [...invoices].sort(
     (a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0)
-  );
+  ) : [];
   const outstandingInvoices = sortedInvoices.filter((invoice) => invoice.status !== "paid");
   const totalOutstanding = outstandingInvoices.reduce((sum, invoice) => {
     const payments = invoice.payments || [];
@@ -524,7 +549,7 @@ export default function GuitarDetailPage({
             )}
 
             {/* Invoices */}
-            {canViewInvoices && invoiceOwnerUid && (
+            {canViewInvoices && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>

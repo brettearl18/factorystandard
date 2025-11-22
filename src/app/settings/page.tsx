@@ -21,6 +21,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import type { GuitarBuild } from "@/types/guitars";
+import { AddClientModal } from "@/components/client/AddClientModal";
 
 interface ClientUser {
   uid: string;
@@ -205,7 +206,7 @@ export default function SettingsPage() {
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
               <UserPlus className="w-5 h-5" />
-              Invite Client
+              Add Client
             </button>
           </div>
 
@@ -304,9 +305,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Invite Client Modal */}
+      {/* Add Client Modal */}
       {showInviteModal && (
-        <InviteClientModal
+        <AddClientModal
           isOpen={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           onSuccess={() => {
@@ -333,126 +334,6 @@ export default function SettingsPage() {
         />
       )}
     </AppLayout>
-  );
-}
-
-// Invite Client Modal Component
-interface InviteClientModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
-}
-
-function InviteClientModal({ isOpen, onClose, onSuccess }: InviteClientModalProps) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const functions = getFunctions();
-      const createUser = httpsCallable(functions, "createUser");
-      const result = await createUser({
-        email: email.trim(),
-        displayName: name.trim() || undefined,
-        role: "client",
-      });
-
-      const data = result.data as any;
-      if (data.success) {
-        // Generate password reset link (user will receive email)
-        alert(`Client created successfully! UID: ${data.uid}\n\nThey will receive a password reset email to set their password.`);
-        setEmail("");
-        setName("");
-        onSuccess?.();
-      } else {
-        setError(data.message || "Failed to create client");
-      }
-    } catch (error: any) {
-      console.error("Error creating client:", error);
-      setError(error.message || "Failed to create client");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Invite New Client</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address *
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border rounded-md"
-              required
-              placeholder="client@example.com"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              They will receive a password reset email to set their password
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Display Name (Optional)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-2 border rounded-md"
-              placeholder="John Doe"
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded-md hover:bg-gray-50"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Creating..." : "Invite Client"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 
