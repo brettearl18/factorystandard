@@ -348,7 +348,7 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
                           value={guitar.stageId}
                           onChange={(e) => handleGuitarChange(index, "stageId", e.target.value)}
                           className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          required={createGuitar && guitar.runId}
+                          required={!!(createGuitar && guitar.runId)}
                           disabled={isSubmitting || !guitar.runId}
                         >
                           <option value="">Select stage...</option>

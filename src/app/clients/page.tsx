@@ -103,7 +103,9 @@ export default function ClientsPage() {
                   });
                   // Give it a moment to load, then resolve
                   setTimeout(() => {
-                    unsubscribe();
+                    if (unsubscribe) {
+                      unsubscribe();
+                    }
                     resolve();
                   }, 500);
                 });
@@ -114,7 +116,7 @@ export default function ClientsPage() {
             })
           );
           
-          setClients(clientsWithProfiles);
+          setClients(clientsWithProfiles.map(client => ({ ...client, guitars: [] })));
         }
       } catch (error) {
         console.error("Error loading clients:", error);
