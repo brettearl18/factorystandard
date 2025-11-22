@@ -40,6 +40,11 @@ export function Sidebar() {
       icon: Package,
     },
     {
+      label: "Guitars",
+      href: "/guitars",
+      icon: Guitar,
+    },
+    {
       label: "Clients",
       href: "/clients",
       icon: Users,
