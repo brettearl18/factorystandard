@@ -34,6 +34,8 @@ export function EditGuitarModal({
   const [model, setModel] = useState(guitar.model);
   const [finish, setFinish] = useState(guitar.finish);
   const [serial, setSerial] = useState(guitar.serial || "");
+  const [price, setPrice] = useState(guitar.price?.toString() || "");
+  const [currency, setCurrency] = useState(guitar.currency || "AUD");
   const [clientUid, setClientUid] = useState(guitar.clientUid || "");
   const [stageId, setStageId] = useState(guitar.stageId);
 
@@ -80,6 +82,8 @@ export function EditGuitarModal({
       setModel(guitar.model);
       setFinish(guitar.finish);
       setSerial(guitar.serial || "");
+      setPrice(guitar.price?.toString() || "");
+      setCurrency(guitar.currency || "AUD");
       setClientUid(guitar.clientUid || "");
       setStageId(guitar.stageId);
       setSpecs(guitar.specs || {});
@@ -270,6 +274,8 @@ export function EditGuitarModal({
         model,
         finish,
         serial: serial || undefined,
+        price: price ? parseFloat(price) : undefined,
+        currency: currency || undefined,
         clientUid: clientUid.trim() || undefined,
         stageId,
         specs: Object.keys(specs).length > 0 ? specs : undefined,
@@ -508,6 +514,34 @@ export function EditGuitarModal({
                     onChange={(e) => setSerial(e.target.value)}
                     className="w-full p-2 border rounded-md"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Currency
+                  </label>
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="AUD">AUD</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

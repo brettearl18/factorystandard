@@ -22,6 +22,11 @@ export default function Home() {
         return;
       }
 
+      if (userRole === "accounting") {
+        router.push("/accounting");
+        return;
+      }
+
       if (userRole === "staff" || userRole === "admin") {
         router.push("/dashboard");
         return;

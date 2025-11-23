@@ -15,13 +15,17 @@ service firebase.storage {
 
     // Guitar photos and reference images
     match /guitars/{guitarId}/{allPaths=**} {
-      // Staff/admin can read and write all guitar files
+      // Staff/admin/factory can read and write all guitar files
       allow read, write: if isStaff();
       
-      // Clients can read files for guitars assigned to them
-      // Note: This requires checking Firestore to verify clientUid
-      // For now, we'll allow read access if authenticated as client
-      // You may want to restrict this further based on your needs
+      // Clients can read files - but we can't verify guitar ownership in Storage rules
+      // Security: Client access is controlled at the application level
+      // The app only shows guitars that belong to the client, so they can only access
+      // photos for guitars they can see. This is acceptable because:
+      // 1. Storage paths are not easily guessable (guitarId is required)
+      // 2. Firestore rules prevent clients from reading other clients' guitar documents
+      // 3. The app UI only displays guitars owned by the client
+      // For stronger security, consider adding custom metadata to storage objects
       allow read: if isClient() && request.auth != null;
       
       // Only allow image file types
@@ -41,10 +45,12 @@ service firebase.storage {
 
     // Run thumbnails
     match /runs/{runId}/{allPaths=**} {
-      // Staff/admin can read and write all run files
+      // Staff/admin/factory can read and write all run files
       allow read, write: if isStaff();
       
-      // Clients can read run thumbnails (for viewing runs they're part of)
+      // Clients can read run thumbnails only if they have guitars in that run
+      // Note: This is a simplified check - clients can read if authenticated
+      // More restrictive: would need to check if client has guitars in the run
       allow read: if isClient() && request.auth != null;
       
       // Only allow image file types

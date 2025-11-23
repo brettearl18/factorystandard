@@ -1,98 +1,57 @@
-#!/usr/bin/env node
-
 /**
- * Script to update a user's password in Firebase Auth
+ * Script to update a user's password
  * 
  * Usage:
- *   npx tsx scripts/update-password.ts <uid> <newPassword>
- *   npx tsx scripts/update-password.ts <email> <newPassword>
+ *   npx ts-node scripts/update-password.ts <email> <newPassword>
  */
 
 import * as admin from "firebase-admin";
 import * as path from "path";
-import * as fs from "fs";
 
-// Get service account key path from environment or use default
-const serviceAccountPath =
-  process.env.SERVICE_ACCOUNT_KEY_PATH ||
-  path.resolve(process.cwd(), "service-account-key.json");
-
-if (!fs.existsSync(serviceAccountPath)) {
-  console.error(
-    `Error: Service account key not found at ${serviceAccountPath}`
-  );
-  console.error(
-    "Please set SERVICE_ACCOUNT_KEY_PATH environment variable or place service-account-key.json in the project root."
-  );
-  process.exit(1);
-}
-
-const serviceAccount = JSON.parse(
-  fs.readFileSync(serviceAccountPath, "utf8")
-);
-
-// Initialize Firebase Admin if not already initialized
+// Initialize Firebase Admin
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+  const serviceAccountPath = path.resolve(__dirname, "../service-account-key.json");
+  
+  try {
+    const serviceAccount = require(serviceAccountPath);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log("✅ Firebase Admin initialized");
+  } catch (error: any) {
+    console.error(`❌ Failed to load service account: ${error.message}`);
+    process.exit(1);
+  }
 }
 
-async function updatePassword(identifier: string, newPassword: string) {
+async function updatePassword(email: string, newPassword: string) {
   try {
-    let user: admin.auth.UserRecord;
-
-    // Check if identifier is an email or UID
-    if (identifier.includes("@")) {
-      // It's an email
-      user = await admin.auth().getUserByEmail(identifier);
-    } else {
-      // It's a UID
-      user = await admin.auth().getUser(identifier);
-    }
-
-    // Update the password
+    const user = await admin.auth().getUserByEmail(email);
+    
     await admin.auth().updateUser(user.uid, {
       password: newPassword,
     });
-
-    console.log(`✅ Password updated successfully!`);
-    console.log(`   User: ${user.email} (${user.uid})`);
+    
+    console.log(`✅ Password updated successfully for ${email}`);
     console.log(`   New password: ${newPassword}`);
-    console.log(`\n⚠️  The user will need to sign out and sign back in for the change to take effect.`);
   } catch (error: any) {
-    console.error("❌ Error updating password:", error.message);
-    if (error.code === "auth/user-not-found") {
-      console.error(`   User not found: ${identifier}`);
-    }
+    console.error(`❌ Error updating password: ${error.message}`);
     process.exit(1);
   }
 }
 
 // Get command line arguments
-const args = process.argv.slice(2);
+const email = process.argv[2];
+const password = process.argv[3];
 
-if (args.length !== 2) {
-  console.error("Usage: npx tsx scripts/update-password.ts <uid|email> <newPassword>");
-  console.error("\nExample:");
-  console.error('  npx tsx scripts/update-password.ts "user@example.com" "NewPassword123!"');
-  console.error('  npx tsx scripts/update-password.ts "LNndBSmb4Kbstbv7VKJvojlD0ve2" "NewPassword123!"');
+if (!email || !password) {
+  console.error("Usage: npx ts-node scripts/update-password.ts <email> <newPassword>");
   process.exit(1);
 }
 
-const [identifier, newPassword] = args;
-
-if (!newPassword || newPassword.length < 6) {
-  console.error("❌ Error: Password must be at least 6 characters long");
-  process.exit(1);
-}
-
-updatePassword(identifier, newPassword)
-  .then(() => {
-    process.exit(0);
-  })
+updatePassword(email, password)
+  .then(() => process.exit(0))
   .catch((error) => {
-    console.error("❌ Unexpected error:", error);
+    console.error(error);
     process.exit(1);
   });
-

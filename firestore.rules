@@ -3,7 +3,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isStaff() {
       return request.auth != null &&
-        (request.auth.token.role == "staff" || request.auth.token.role == "admin" || request.auth.token.role == "factory");
+        (request.auth.token.role == "staff" || request.auth.token.role == "admin" || request.auth.token.role == "factory" || request.auth.token.role == "accounting");
+    }
+
+    function isAccounting() {
+      return request.auth != null &&
+        (request.auth.token.role == "accounting" || request.auth.token.role == "admin");
     }
 
     function isClient() {
@@ -30,6 +35,8 @@ service cloud.firestore {
       allow read: if isClient() &&
                     resource.data.clientUid != null &&
                     resource.data.clientUid == request.auth.uid;
+      // Accounting can read guitars to manage invoices
+      allow read: if isAccounting();
       
       match /notes/{noteId} {
         allow read, write: if isStaff();
@@ -59,11 +66,22 @@ service cloud.firestore {
     match /clients/{clientId} {
       allow read, write: if isStaff();
       allow read, update: if isClient() && request.auth.uid == clientId;
+      // Accounting can read client profiles to get names/emails for invoices
+      allow read: if isAccounting();
 
       match /invoices/{invoiceId} {
         allow read: if isStaff() || (isClient() && request.auth.uid == clientId);
         allow write: if isStaff();
+        // Accounting can read and write invoices for payment recording
+        allow read, write: if isAccounting();
       }
+    }
+
+    // Collection group query for invoices (used by accounting dashboard)
+    // This allows accounting users to query all invoices across all clients
+    match /{path=**}/invoices/{invoiceId} {
+      allow read: if isAccounting();
+      allow write: if isAccounting();
     }
 
     // App Settings - public read (for branding on login page), staff/admin can write

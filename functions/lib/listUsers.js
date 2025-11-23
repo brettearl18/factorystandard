@@ -13,7 +13,7 @@ exports.listUsers = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
     }
-    // Check if user is staff/admin
+    // Check if user is staff/admin/factory
     const userRecord = await admin.auth().getUser(context.auth.uid);
     const userRole = userRecord.customClaims?.role;
     if (userRole !== "staff" && userRole !== "admin") {

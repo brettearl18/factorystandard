@@ -15,6 +15,7 @@ import {
   LogOut,
   Settings,
   Users,
+  DollarSign,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -79,10 +80,21 @@ export function Sidebar() {
     },
   ];
 
+  // Accounting navigation
+  const accountingNavItems = [
+    {
+      label: "Accounting",
+      href: "/accounting",
+      icon: DollarSign,
+    },
+  ];
+
   const navItems = userRole === "client" 
     ? clientNavItems 
     : userRole === "factory"
     ? factoryNavItems
+    : userRole === "accounting"
+    ? accountingNavItems
     : staffNavItems;
 
   const SidebarContent = () => (
@@ -95,6 +107,8 @@ export function Sidebar() {
               ? "/my-guitars" 
               : userRole === "factory"
               ? "/factory"
+              : userRole === "accounting"
+              ? "/accounting"
               : "/dashboard"
           }
           className="flex items-center gap-3"

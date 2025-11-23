@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listUsers = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarStageChange = void 0;
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.listUsers = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarStageChange = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
@@ -41,4 +41,13 @@ Object.defineProperty(exports, "createUser", { enumerable: true, get: function (
 // Export the listUsers function
 var listUsers_1 = require("./listUsers");
 Object.defineProperty(exports, "listUsers", { enumerable: true, get: function () { return listUsers_1.listUsers; } });
+// Export the backupFirestore function
+var backupFirestore_1 = require("./backupFirestore");
+Object.defineProperty(exports, "backupFirestore", { enumerable: true, get: function () { return backupFirestore_1.backupFirestore; } });
+// Export the restoreFirestore function
+var restoreFirestore_1 = require("./restoreFirestore");
+Object.defineProperty(exports, "restoreFirestore", { enumerable: true, get: function () { return restoreFirestore_1.restoreFirestore; } });
+// Export the listBackups function
+var listBackups_1 = require("./listBackups");
+Object.defineProperty(exports, "listBackups", { enumerable: true, get: function () { return listBackups_1.listBackups; } });
 //# sourceMappingURL=index.js.map

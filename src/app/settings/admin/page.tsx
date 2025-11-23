@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { subscribeAppSettings, updateAppSettings } from "@/lib/firestore";
 import { uploadBrandingAsset } from "@/lib/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import type { AppSettings, BrandingSettings, GeneralSettings, EmailSettings, NotificationSettings, SystemSettings } from "@/types/settings";
 import {
   Palette,
@@ -18,6 +19,10 @@ import {
   Image as ImageIcon,
   Save,
   Loader,
+  Database,
+  Download,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 
 type TabType = "branding" | "general" | "email" | "notifications" | "system";
@@ -1050,11 +1055,126 @@ function SystemSection({
   onSave: (data: SystemSettings) => void;
   isSaving: boolean;
 }) {
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState(settings);
+  const [backups, setBackups] = useState<Array<{ name: string; path: string; created?: string }>>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<string>("");
 
   useEffect(() => {
     setFormData(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadBackups();
+    }
+  }, [currentUser]);
+
+  const loadBackups = async () => {
+    if (!currentUser) return;
+    
+    setLoadingBackups(true);
+    setBackupMessage(null);
+    try {
+      const functions = getFunctions();
+      const listBackups = httpsCallable(functions, "listBackups");
+      const result = await listBackups();
+      const data = result.data as any;
+
+      if (data.success) {
+        setBackups(data.backups || []);
+      } else {
+        throw new Error(data.error || "Failed to load backups");
+      }
+    } catch (error: any) {
+      console.error("Error loading backups:", error);
+      const errorMessage = error.message || error.code || "Failed to load backups. Please check your connection and try again.";
+      setBackupMessage(`❌ ${errorMessage}`);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    if (!currentUser) return;
+    
+    const confirmed = window.confirm(
+      "Are you sure you want to create a backup? This will export all Firestore data to Cloud Storage."
+    );
+    
+    if (!confirmed) return;
+
+    setBackingUp(true);
+    setBackupMessage(null);
+    
+    try {
+      const functions = getFunctions();
+      const backupFirestore = httpsCallable(functions, "backupFirestore");
+      const result = await backupFirestore();
+      const data = result.data as any;
+      
+      if (data.success) {
+        setBackupMessage(`✅ Backup initiated successfully! Output: ${data.outputUri}`);
+        // Reload backups after a short delay
+        setTimeout(() => {
+          loadBackups();
+        }, 2000);
+      } else {
+        throw new Error(data.error || "Backup failed");
+      }
+    } catch (error: any) {
+      console.error("Error creating backup:", error);
+      const errorMessage = error.message || error.code || "Failed to create backup. Please check your connection and try again.";
+      setBackupMessage(`❌ ${errorMessage}`);
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!selectedBackup) {
+      alert("Please select a backup to restore from");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `⚠️ WARNING: This will OVERWRITE your current database with data from:\n\n${selectedBackup}\n\nThis action cannot be undone. Are you absolutely sure?`
+    );
+    
+    if (!confirmed) return;
+
+    const doubleConfirm = window.confirm(
+      "This is your last chance. Type 'RESTORE' in the next prompt to confirm."
+    );
+    
+    if (!doubleConfirm) return;
+
+    setRestoring(true);
+    setBackupMessage(null);
+    
+    try {
+      const functions = getFunctions();
+      const restoreFirestore = httpsCallable(functions, "restoreFirestore");
+      const result = await restoreFirestore({ inputUriPrefix: selectedBackup });
+      const data = result.data as any;
+      
+      if (data.success) {
+        setBackupMessage(`✅ Restore initiated successfully! Operation: ${data.operationName}\n\n⚠️ The restore is in progress. This may take several minutes.`);
+      } else {
+        throw new Error(data.error || "Restore failed");
+      }
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      const errorMessage = error.message || error.code || "Failed to restore backup. Please check your connection and try again.";
+      setBackupMessage(`❌ ${errorMessage}`);
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1158,6 +1278,125 @@ function SystemSection({
         <p className="text-xs text-gray-500 mt-1">
           Maximum file size for uploads (1-100 MB)
         </p>
+      </div>
+
+      {/* Backup & Restore Section */}
+      <div className="border-t border-gray-200 pt-6 mt-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Database Backup & Restore
+          </h3>
+          <p className="text-sm text-gray-600">
+            Create manual backups or restore from a previous backup. Automated weekly backups run every Sunday at 2 AM.
+          </p>
+        </div>
+
+        {/* Backup Message */}
+        {backupMessage && (
+          <div
+            className={`mb-4 p-3 rounded-lg text-sm ${
+              backupMessage.includes("❌") || backupMessage.includes("Failed")
+                ? "bg-red-50 text-red-700 border border-red-200"
+                : "bg-green-50 text-green-700 border border-green-200"
+            }`}
+          >
+            <pre className="whitespace-pre-wrap font-sans">{backupMessage}</pre>
+          </div>
+        )}
+
+        {/* Backup Button */}
+        <div className="mb-4">
+          <button
+            onClick={handleBackup}
+            disabled={backingUp || restoring}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {backingUp ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                Creating Backup...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Create Backup Now
+              </>
+            )}
+          </button>
+          <p className="text-xs text-gray-500 mt-1">
+            Creates a new backup of all Firestore data
+          </p>
+        </div>
+
+        {/* Restore Section */}
+        <div className="border border-gray-200 rounded-lg p-4 bg-yellow-50">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-semibold text-yellow-900">Restore from Backup</h4>
+              <p className="text-xs text-yellow-700 mt-1">
+                ⚠️ This will overwrite your current database. Use with extreme caution!
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Backup to Restore
+              </label>
+              {loadingBackups ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Loading backups...
+                </div>
+              ) : backups.length === 0 ? (
+                <p className="text-sm text-gray-500">No backups found. Create a backup first.</p>
+              ) : (
+                <select
+                  value={selectedBackup}
+                  onChange={(e) => setSelectedBackup(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  disabled={restoring}
+                >
+                  <option value="">-- Select a backup --</option>
+                  {backups.map((backup) => (
+                    <option key={backup.path} value={backup.path}>
+                      {backup.name} {backup.created ? `(${backup.created})` : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <button
+              onClick={handleRestore}
+              disabled={!selectedBackup || restoring || loadingBackups}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {restoring ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Restoring...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Restore from Selected Backup
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={loadBackups}
+              disabled={loadingBackups}
+              className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+            >
+              {loadingBackups ? "Refreshing..." : "Refresh Backup List"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Save Button */}

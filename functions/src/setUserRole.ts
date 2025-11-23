@@ -36,10 +36,10 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
     );
   }
 
-  if (!["staff", "client", "admin", "factory"].includes(role)) {
+  if (!["staff", "client", "admin", "factory", "accounting"].includes(role)) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "Role must be one of: staff, client, admin, factory"
+      "Role must be one of: staff, client, admin, factory, accounting"
     );
   }
 

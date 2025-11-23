@@ -33,7 +33,7 @@ if (!admin.apps.length) {
   }
 }
 
-async function setUserRole(email: string, role: "staff" | "client" | "admin" | "factory") {
+async function setUserRole(email: string, role: "staff" | "client" | "admin" | "factory" | "accounting") {
   try {
     const user = await admin.auth().getUserByEmail(email);
     
@@ -50,16 +50,16 @@ async function setUserRole(email: string, role: "staff" | "client" | "admin" | "
 
 // Get command line arguments
 const email = process.argv[2];
-const role = process.argv[3] as "staff" | "client" | "admin";
+const role = process.argv[3] as "staff" | "client" | "admin" | "factory" | "accounting";
 
 if (!email || !role) {
   console.error("Usage: npx ts-node scripts/set-user-role.ts <email> <role>");
-  console.error("Roles: staff, client, admin");
+  console.error("Roles: staff, client, admin, factory, accounting");
   process.exit(1);
 }
 
-if (!["staff", "client", "admin", "factory"].includes(role)) {
-  console.error(`Invalid role: ${role}. Must be one of: staff, client, admin, factory`);
+if (!["staff", "client", "admin", "factory", "accounting"].includes(role)) {
+  console.error(`Invalid role: ${role}. Must be one of: staff, client, admin, factory, accounting`);
   process.exit(1);
 }
 

@@ -24,8 +24,8 @@ exports.setUserRole = functions.https.onCall(async (data, context) => {
     if (!email || !role) {
         throw new functions.https.HttpsError("invalid-argument", "Email and role are required");
     }
-    if (!["staff", "client", "admin"].includes(role)) {
-        throw new functions.https.HttpsError("invalid-argument", "Role must be one of: staff, client, admin");
+    if (!["staff", "client", "admin", "factory", "accounting"].includes(role)) {
+        throw new functions.https.HttpsError("invalid-argument", "Role must be one of: staff, client, admin, factory, accounting");
     }
     try {
         const targetUser = await admin.auth().getUserByEmail(email);

@@ -1,4 +1,4 @@
-export type UserRole = "staff" | "client" | "admin" | "factory";
+export type UserRole = "staff" | "client" | "admin" | "factory" | "accounting";
 
 export interface Run {
   id: string;
@@ -92,6 +92,9 @@ export interface GuitarBuild {
   photoCount?: number;
   archived?: boolean;     // true if archived (soft delete)
   archivedAt?: number;    // timestamp when archived
+  price?: number;         // Total price/value of the guitar
+  currency?: string;      // Currency for price (defaults to AUD)
+  invoiceTriggerStageId?: string; // Stage ID that triggers invoice creation
 }
 
 export type NoteType = 
@@ -156,6 +159,8 @@ export interface InvoiceRecord {
   uploadedAt: number;
   uploadedBy: string;
   payments?: InvoicePayment[];
+  guitarId?: string;     // Link to guitar if invoice is for a specific guitar
+  triggeredByStageId?: string; // Stage ID that triggered this invoice
 }
 
 export interface Notification {

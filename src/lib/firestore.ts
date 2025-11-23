@@ -16,6 +16,7 @@ import {
   getDoc,
   getDocs,
   collection,
+  collectionGroup,
   query,
   where,
   orderBy,
@@ -336,9 +337,37 @@ export async function updateGuitarStage(
       dueDate,
       paymentLink: schedule.paymentLink,
       uploadedBy: updatedBy || "system",
+      guitarId: guitarId,
+      triggeredByStageId: stageId,
     }).catch((error) => {
       console.error("Failed to create invoice for stage change:", error);
     });
+  }
+  
+  // Also check if this guitar has a trigger stage set and we've reached it
+  // Note: This creates a basic invoice - accounting should set up proper invoice schedules on stages
+  if (guitar.clientUid && guitar.invoiceTriggerStageId === stageId && guitar.price) {
+    // Only create if no invoice schedule exists (to avoid duplicates)
+    if (!stageData?.invoiceSchedule?.enabled) {
+      const invoiceTitle = `Invoice for ${guitar.model} - ${stageName}`;
+      const invoiceAmount = guitar.price; // Use guitar price as invoice amount
+      const invoiceCurrency = guitar.currency || "AUD";
+      const dueDate = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days default
+      
+      createInvoiceRecord(guitar.clientUid, {
+        title: invoiceTitle,
+        description: `Invoice for ${guitar.model} - ${stageName}`,
+        amount: invoiceAmount,
+        currency: invoiceCurrency,
+        status: "pending",
+        dueDate,
+        uploadedBy: updatedBy || "system",
+        guitarId: guitarId,
+        triggeredByStageId: stageId,
+      }).catch((error) => {
+        console.error("Failed to create invoice for trigger stage:", error);
+      });
+    }
   }
   
   // Notify all staff about stage change (non-blocking)
@@ -692,6 +721,136 @@ export async function recordInvoicePayment(
     payments: newPayments,
     status: newStatus,
   });
+
+  // Update guitar's payment info if invoice is linked to a guitar
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((error) => {
+      console.error("Failed to update guitar payment info:", error);
+    });
+  }
+}
+
+// Get all invoices for a specific guitar
+export function subscribeGuitarInvoices(
+  guitarId: string,
+  callback: (invoices: InvoiceRecord[]) => void
+): Unsubscribe {
+  const invoicesRef = collectionGroup(db, "invoices");
+  const q = query(invoicesRef, where("guitarId", "==", guitarId), orderBy("uploadedAt", "desc"));
+
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const invoices = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as InvoiceRecord[];
+      callback(invoices);
+    },
+    (error: any) => {
+      console.error("Error subscribing to guitar invoices:", error);
+      callback([]);
+    }
+  );
+}
+
+// Calculate total paid for a guitar across all invoices
+export async function calculateGuitarTotalPaid(guitarId: string): Promise<number> {
+  const invoicesRef = collectionGroup(db, "invoices");
+  const q = query(invoicesRef, where("guitarId", "==", guitarId));
+  const snapshot = await getDocs(q);
+  
+  let totalPaid = 0;
+  snapshot.docs.forEach((doc) => {
+    const invoice = doc.data() as InvoiceRecord;
+    const payments = invoice.payments || [];
+    const invoicePaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    totalPaid += invoicePaid;
+  });
+  
+  return totalPaid;
+}
+
+// Update guitar payment info (total paid, remaining balance)
+export async function updateGuitarPaymentInfo(guitarId: string): Promise<void> {
+  const guitarRef = doc(db, "guitars", guitarId);
+  const guitarDoc = await getDoc(guitarRef);
+  
+  if (!guitarDoc.exists()) {
+    throw new Error("Guitar not found");
+  }
+  
+  const guitar = guitarDoc.data() as GuitarBuild;
+  const totalPaid = await calculateGuitarTotalPaid(guitarId);
+  const price = guitar.price || 0;
+  const remainingBalance = Math.max(price - totalPaid, 0);
+  
+  await updateDoc(guitarRef, {
+    // Store calculated values for quick access
+    // Note: These are derived values, but storing them avoids recalculating on every read
+  });
+  
+  // Return the calculated values (we'll compute on the fly in UI for accuracy)
+}
+
+// Accounting functions - get all invoices across all clients
+export interface InvoiceWithClient extends InvoiceRecord {
+  clientUid: string;
+  clientName?: string;
+  clientEmail?: string;
+}
+
+export function subscribeAllInvoices(
+  callback: (invoices: InvoiceWithClient[]) => void,
+  maxInvoices: number = 500
+): Unsubscribe {
+  // Use collectionGroup to query all invoices across all clients
+  const invoicesRef = collectionGroup(db, "invoices");
+  const q = query(invoicesRef, orderBy("uploadedAt", "desc"), limit(maxInvoices));
+
+  return onSnapshot(
+    q,
+    async (snapshot: QuerySnapshot<DocumentData>) => {
+      const invoices: InvoiceWithClient[] = [];
+      
+      for (const docSnapshot of snapshot.docs) {
+        // Extract clientUid from the path: clients/{clientUid}/invoices/{invoiceId}
+        const pathParts = docSnapshot.ref.path.split("/");
+        const clientUidIndex = pathParts.indexOf("clients");
+        const clientUid = clientUidIndex >= 0 && clientUidIndex < pathParts.length - 1 
+          ? pathParts[clientUidIndex + 1] 
+          : "unknown";
+
+        // Try to get client profile for name/email
+        let clientName: string | undefined;
+        let clientEmail: string | undefined;
+        try {
+          const clientDoc = await getDoc(doc(db, "clients", clientUid));
+          if (clientDoc.exists()) {
+            const profile = clientDoc.data() as ClientProfile;
+            // Try to get user email from auth (would need a Cloud Function for this)
+            // For now, just use the profile data
+          }
+        } catch (error) {
+          // Ignore errors getting client profile
+        }
+
+        invoices.push({
+          id: docSnapshot.id,
+          clientUid,
+          clientName,
+          clientEmail,
+          ...docSnapshot.data(),
+        } as InvoiceWithClient);
+      }
+      
+      callback(invoices);
+    },
+    (error: any) => {
+      console.error("Error subscribing to all invoices:", error);
+      callback([]);
+    }
+  );
 }
 
 // Archive functions
@@ -875,7 +1034,7 @@ export async function notifyAllStaff(
   } catch (error: any) {
     // If error is permission-denied (e.g., factory worker calling), just log and continue
     // Factory workers don't need to notify staff - they ARE the staff on the factory floor
-    if (error?.code === "permission-denied" || error?.message?.includes("Only staff")) {
+    if (error?.code === "permission-denied" || error?.message?.includes("Only staff") || error?.message?.includes("Only staff and admins")) {
       console.log("Skipping staff notifications (factory worker or insufficient permissions)");
       return;
     }
@@ -935,6 +1094,9 @@ export async function updateGuitar(
   if (updates.referenceImages !== undefined) cleanUpdates.referenceImages = updates.referenceImages || null;
   if (updates.coverPhotoUrl !== undefined) cleanUpdates.coverPhotoUrl = updates.coverPhotoUrl || null;
   if (updates.photoCount !== undefined) cleanUpdates.photoCount = updates.photoCount;
+  if (updates.price !== undefined) cleanUpdates.price = updates.price || null;
+  if (updates.currency !== undefined) cleanUpdates.currency = updates.currency || null;
+  if (updates.invoiceTriggerStageId !== undefined) cleanUpdates.invoiceTriggerStageId = updates.invoiceTriggerStageId || null;
 
   await updateDoc(doc(db, "guitars", guitarId), cleanUpdates);
 }

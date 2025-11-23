@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2 } from "lucide-react";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign } from "lucide-react";
 import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
+import { GuitarInvoiceManager } from "./GuitarInvoiceManager";
 import { useAuth } from "@/contexts/AuthContext";
 import { isGoogleDriveLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -301,6 +302,17 @@ export function GuitarDetailModal({
                         {new Date(guitar.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
+                    {guitar.price !== undefined && guitar.price > 0 && (
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <span className="text-gray-500 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4" />
+                          Price
+                        </span>
+                        <span className="font-semibold text-gray-900">
+                          {guitar.currency || "AUD"} ${guitar.price.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                     {stage && (
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Current Stage</span>
@@ -802,6 +814,18 @@ export function GuitarDetailModal({
                     </div>
                   )}
                 </div>
+
+                {/* Invoice Manager - Only for Accounting Users */}
+                {userRole === "accounting" && (
+                  <div className="mt-6">
+                    <GuitarInvoiceManager
+                      guitar={guitar}
+                      onUpdate={() => {
+                        // Refresh guitar data if needed
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
