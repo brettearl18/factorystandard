@@ -30,8 +30,8 @@ export default function GuitarsPage() {
       return;
     }
 
-    // Only staff, admin, and factory can access
-    if (userRole !== "staff" && userRole !== "admin" && userRole !== "factory") {
+    // Only staff, admin, factory, and accounting can access
+    if (userRole !== "staff" && userRole !== "admin" && userRole !== "factory" && userRole !== "accounting") {
       router.push("/");
       return;
     }
@@ -39,7 +39,7 @@ export default function GuitarsPage() {
 
   // Load all guitars
   useEffect(() => {
-    if (!currentUser || (userRole !== "staff" && userRole !== "admin" && userRole !== "factory")) return;
+    if (!currentUser || (userRole !== "staff" && userRole !== "admin" && userRole !== "factory" && userRole !== "accounting")) return;
 
     const guitarsRef = collection(db, "guitars");
     const q = query(guitarsRef, orderBy("createdAt", "desc"));
@@ -127,7 +127,7 @@ export default function GuitarsPage() {
     );
   }
 
-  if (!currentUser || (userRole !== "staff" && userRole !== "admin" && userRole !== "factory")) {
+  if (!currentUser || (userRole !== "staff" && userRole !== "admin" && userRole !== "factory" && userRole !== "accounting")) {
     return null;
   }
 
@@ -219,7 +219,14 @@ export default function GuitarsPage() {
               return (
                 <button
                   key={guitar.id}
-                  onClick={() => setSelectedGuitar(guitar)}
+                  onClick={() => {
+                    // For accounting users, navigate to full-page view
+                    if (userRole === "accounting") {
+                      router.push(`/guitars/${guitar.id}`);
+                    } else {
+                      setSelectedGuitar(guitar);
+                    }
+                  }}
                   className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow text-left"
                 >
                   {/* Guitar Image */}
@@ -327,7 +334,14 @@ export default function GuitarsPage() {
                     return (
                       <tr
                         key={guitar.id}
-                        onClick={() => setSelectedGuitar(guitar)}
+                        onClick={() => {
+                          // For accounting users, navigate to full-page view
+                          if (userRole === "accounting") {
+                            router.push(`/guitars/${guitar.id}`);
+                          } else {
+                            setSelectedGuitar(guitar);
+                          }
+                        }}
                         className="hover:bg-gray-50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 whitespace-nowrap">

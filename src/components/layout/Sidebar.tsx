@@ -16,6 +16,8 @@ import {
   Settings,
   Users,
   DollarSign,
+  UserPlus,
+  Shield,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -87,6 +89,11 @@ export function Sidebar() {
       href: "/accounting",
       icon: DollarSign,
     },
+    {
+      label: "Guitars",
+      href: "/guitars",
+      icon: Guitar,
+    },
   ];
 
   const navItems = userRole === "client" 
@@ -135,7 +142,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2 bg-card">
+      <nav className="flex-1 p-4 space-y-2 bg-card overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -155,6 +162,37 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Admin Section - Only for Admin/Staff */}
+        {(userRole === "admin" || userRole === "staff") && (
+          <div className="mt-4 pt-4 border-t border-slate">
+            <p className="text-xs text-textMuted uppercase tracking-[0.2em] mb-2 px-4">Admin</p>
+            <Link
+              href="/admin/create-user"
+              onClick={() => setIsMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
+                isActive("/admin/create-user")
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "text-textMuted hover:bg-slate/40 border-transparent"
+              }`}
+            >
+              <UserPlus className="w-5 h-5" />
+              <span>Create User</span>
+            </Link>
+            <Link
+              href="/admin/set-role"
+              onClick={() => setIsMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
+                isActive("/admin/set-role")
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "text-textMuted hover:bg-slate/40 border-transparent"
+              }`}
+            >
+              <Shield className="w-5 h-5" />
+              <span>Set Role</span>
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* User Info & Sign Out */}
