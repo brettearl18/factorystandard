@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, DollarSign, Calendar, FileText, X, AlertCircle } from "lucide-react";
-import { subscribeGuitarInvoices, createInvoiceRecord, calculateGuitarTotalPaid, subscribeGuitar, subscribeRunStages } from "@/lib/firestore";
+import { Plus, DollarSign, Calendar, FileText, X, AlertCircle, CheckSquare, Square, Edit2, Save } from "lucide-react";
+import { subscribeGuitarInvoices, createInvoiceRecord, calculateGuitarTotalPaid, subscribeGuitar, subscribeRunStages, updateGuitar } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import type { InvoiceRecord, GuitarBuild, RunStage } from "@/types/guitars";
 
@@ -18,6 +18,10 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
   const [showAddModal, setShowAddModal] = useState(false);
   const [stages, setStages] = useState<RunStage[]>([]);
   const [totalPaid, setTotalPaid] = useState(0);
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editPrice, setEditPrice] = useState("");
+  const [editCurrency, setEditCurrency] = useState("AUD");
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
 
   useEffect(() => {
     if (!guitar.id) return;
@@ -50,6 +54,40 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
   const currency = guitar.currency || "AUD";
   const remainingBalance = Math.max(price - totalPaid, 0);
 
+  // Initialize edit price when guitar changes
+  useEffect(() => {
+    if (guitar.price !== undefined) {
+      setEditPrice(guitar.price.toString());
+    }
+    setEditCurrency(guitar.currency || "AUD");
+  }, [guitar.price, guitar.currency]);
+
+  const handleSavePrice = async () => {
+    if (!guitar.id) return;
+    
+    setIsSavingPrice(true);
+    try {
+      const priceValue = editPrice ? parseFloat(editPrice) : undefined;
+      await updateGuitar(guitar.id, {
+        price: priceValue,
+        currency: editCurrency || undefined,
+      });
+      setIsEditingPrice(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error("Failed to update guitar price:", error);
+      alert("Failed to update guitar price. Please try again.");
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
+  const handleCancelEditPrice = () => {
+    setEditPrice(guitar.price?.toString() || "");
+    setEditCurrency(guitar.currency || "AUD");
+    setIsEditingPrice(false);
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -60,32 +98,86 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Invoices & Payments</h2>
-          <p className="text-sm text-gray-500">Manage invoices for this guitar</p>
-        </div>
-        {guitar.clientUid && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Invoice
-          </button>
-        )}
-      </div>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Invoices & Payments</h2>
+              <p className="text-sm text-gray-500">Manage invoice reminders for this guitar</p>
+            </div>
+            {guitar.clientUid && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Invoice Reminder
+              </button>
+            )}
+          </div>
 
       {/* Financial Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Guitar Price</span>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-600">Guitar Price</span>
+            </div>
+            {!isEditingPrice && (
+              <button
+                onClick={() => setIsEditingPrice(true)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Edit price"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {currency} ${price.toLocaleString()}
-          </p>
+          {isEditingPrice ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <select
+                  value={editCurrency}
+                  onChange={(e) => setEditCurrency(e.target.value)}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="AUD">AUD</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                </select>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 px-2 py-1 text-lg font-bold border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSavePrice}
+                  disabled={isSavingPrice}
+                  className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" />
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEditPrice}
+                  disabled={isSavingPrice}
+                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-2xl font-bold text-gray-900">
+              {currency} ${price.toLocaleString()}
+            </p>
+          )}
         </div>
         <div className="bg-green-50 rounded-lg p-4 border border-green-200">
           <div className="flex items-center gap-2 mb-1">
@@ -171,7 +263,12 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
                       )}
                       {invoice.triggeredByStageId && (
                         <p className="text-xs text-blue-600 mt-1">
-                          Auto-created from stage
+                          Will be created when guitar reaches trigger stage
+                        </p>
+                      )}
+                      {!invoice.downloadUrl && !invoice.paymentLink && (
+                        <p className="text-xs text-gray-500 mt-1 italic">
+                          Payment link or PDF can be added later
                         </p>
                       )}
                     </div>
@@ -212,6 +309,8 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
                       <p className="font-semibold">
                         {invoice.dueDate
                           ? new Date(invoice.dueDate).toLocaleDateString()
+                          : invoice.triggeredByStageId
+                          ? `Pending (${invoice.dueDaysAfterTrigger || "X"} days after trigger)`
                           : "N/A"}
                       </p>
                     </div>
@@ -279,11 +378,35 @@ function AddInvoiceModal({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(guitar.currency || "AUD");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDaysAfterTrigger, setDueDaysAfterTrigger] = useState("30");
   const [paymentLink, setPaymentLink] = useState("");
   const [triggerStageId, setTriggerStageId] = useState("");
+  const [isFinalBalance, setIsFinalBalance] = useState(false);
+  const [remainingBalance, setRemainingBalance] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Calculate remaining balance when modal opens
+  useEffect(() => {
+    if (!isOpen || !guitar.id) return;
+
+    const unsubscribe = subscribeGuitarInvoices(guitar.id, (invoices) => {
+      const price = guitar.price || 0;
+      const totalPaid = invoices.reduce((sum, inv) => {
+        const payments = inv.payments || [];
+        return sum + payments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
+      }, 0);
+      const remaining = Math.max(price - totalPaid, 0);
+      setRemainingBalance(remaining);
+      
+      // If final balance is checked, update amount
+      if (isFinalBalance) {
+        setAmount(remaining.toFixed(2));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isOpen, guitar.id, guitar.price, isFinalBalance]);
 
   if (!isOpen || !guitar.clientUid) return null;
 
@@ -298,28 +421,56 @@ function AddInvoiceModal({
         throw new Error("Amount must be a positive number");
       }
 
-      const dueDateValue = dueDate ? new Date(dueDate).getTime() : undefined;
-
-      await createInvoiceRecord(guitar.clientUid!, {
-        title: title.trim() || `Invoice for ${guitar.model}`,
+      // Calculate due date: if trigger stage is set, due date will be calculated when stage is reached
+      // For now, if no trigger stage, we'll set a default due date (30 days from now)
+      const dueDays = triggerStageId && dueDaysAfterTrigger 
+        ? parseInt(dueDaysAfterTrigger) 
+        : parseInt(dueDaysAfterTrigger) || 30;
+      
+      // Build invoice data object, only including fields that are defined
+      const invoiceData: any = {
+        title: title.trim() || `Invoice Reminder for ${guitar.model}`,
         description: description.trim() || undefined,
         amount: amountValue,
         currency: currency,
         status: "pending",
-        dueDate: dueDateValue,
-        paymentLink: paymentLink.trim() || undefined,
         uploadedBy: currentUser?.uid || "accounting",
         guitarId: guitar.id,
-        triggeredByStageId: triggerStageId || undefined,
+      };
+
+      // Only add dueDate if it's not a trigger-based invoice
+      if (!triggerStageId) {
+        invoiceData.dueDate = Date.now() + (dueDays * 24 * 60 * 60 * 1000);
+      }
+
+      // Add trigger-related fields if trigger stage is set
+      if (triggerStageId) {
+        invoiceData.triggeredByStageId = triggerStageId;
+        invoiceData.dueDaysAfterTrigger = dueDays;
+      }
+
+      // Add optional fields only if they have values
+      if (paymentLink.trim()) {
+        invoiceData.paymentLink = paymentLink.trim();
+      }
+
+      // Remove undefined values to avoid Firestore errors
+      Object.keys(invoiceData).forEach(key => {
+        if (invoiceData[key] === undefined) {
+          delete invoiceData[key];
+        }
       });
+
+      await createInvoiceRecord(guitar.clientUid!, invoiceData);
 
       // Reset form
       setTitle("");
       setDescription("");
       setAmount("");
-      setDueDate("");
+      setDueDaysAfterTrigger("30");
       setPaymentLink("");
       setTriggerStageId("");
+      setIsFinalBalance(false);
 
       onSuccess();
     } catch (err: any) {
@@ -335,7 +486,7 @@ function AddInvoiceModal({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Add Invoice</h2>
+            <h2 className="text-xl font-bold text-gray-900">Add Invoice Reminder</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
@@ -380,10 +531,19 @@ function AddInvoiceModal({
                   type="number"
                   step="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setIsFinalBalance(false); // Uncheck if manually edited
+                  }}
+                  disabled={isFinalBalance}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {isFinalBalance && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Auto-calculated: {currency} ${remainingBalance.toLocaleString()} remaining
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -402,16 +562,72 @@ function AddInvoiceModal({
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Due Date
-              </label>
+            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                type="checkbox"
+                id="finalBalance"
+                checked={isFinalBalance}
+                onChange={(e) => {
+                  setIsFinalBalance(e.target.checked);
+                  if (e.target.checked) {
+                    setAmount(remainingBalance.toFixed(2));
+                  }
+                }}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
+              <label htmlFor="finalBalance" className="flex-1 cursor-pointer">
+                <span className="text-sm font-medium text-gray-900 block">
+                  Final Balance Invoice
+                </span>
+                <span className="text-xs text-gray-600 block mt-1">
+                  Automatically calculate amount as remaining balance (Guitar Price - Total Paid). 
+                  This will be the final invoice covering whatever is left to pay.
+                </span>
+                {isFinalBalance && remainingBalance > 0 && (
+                  <span className="text-xs text-blue-700 block mt-1 font-semibold">
+                    Amount will be set to {currency} ${remainingBalance.toLocaleString()}
+                  </span>
+                )}
+                {isFinalBalance && remainingBalance <= 0 && (
+                  <span className="text-xs text-red-600 block mt-1 font-semibold">
+                    No remaining balance - guitar is fully paid
+                  </span>
+                )}
+              </label>
+            </div>
+
+            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="finalBalance"
+                checked={isFinalBalance}
+                onChange={(e) => {
+                  setIsFinalBalance(e.target.checked);
+                  if (e.target.checked) {
+                    setAmount(remainingBalance.toFixed(2));
+                  }
+                }}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="finalBalance" className="flex-1 cursor-pointer">
+                <span className="text-sm font-medium text-gray-900 block">
+                  Final Balance Invoice
+                </span>
+                <span className="text-xs text-gray-600 block mt-1">
+                  Automatically calculate amount as remaining balance (Guitar Price - Total Paid). 
+                  This will be the final invoice covering whatever is left to pay.
+                </span>
+                {isFinalBalance && remainingBalance > 0 && (
+                  <span className="text-xs text-blue-700 block mt-1 font-semibold">
+                    Amount will be set to {currency} ${remainingBalance.toLocaleString()}
+                  </span>
+                )}
+                {isFinalBalance && remainingBalance <= 0 && (
+                  <span className="text-xs text-red-600 block mt-1 font-semibold">
+                    No remaining balance - guitar is fully paid
+                  </span>
+                )}
+              </label>
             </div>
 
             <div>
@@ -444,9 +660,44 @@ function AddInvoiceModal({
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                If set, this invoice will be created when the guitar reaches this stage
+                If set, this invoice reminder will be created when the guitar reaches this stage. You can add payment link or upload PDF later.
               </p>
             </div>
+
+            {triggerStageId ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Due Days After Trigger Stage *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={dueDaysAfterTrigger}
+                  onChange={(e) => setDueDaysAfterTrigger(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Invoice will be due {dueDaysAfterTrigger || "X"} days after the guitar reaches the trigger stage
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Due Days
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={dueDaysAfterTrigger}
+                  onChange={(e) => setDueDaysAfterTrigger(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Invoice will be due {dueDaysAfterTrigger || "X"} days from now
+                </p>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

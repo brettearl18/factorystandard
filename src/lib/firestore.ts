@@ -344,30 +344,38 @@ export async function updateGuitarStage(
     });
   }
   
-  // Also check if this guitar has a trigger stage set and we've reached it
-  // Note: This creates a basic invoice - accounting should set up proper invoice schedules on stages
-  if (guitar.clientUid && guitar.invoiceTriggerStageId === stageId && guitar.price) {
-    // Only create if no invoice schedule exists (to avoid duplicates)
-    if (!stageData?.invoiceSchedule?.enabled) {
-      const invoiceTitle = `Invoice for ${guitar.model} - ${stageName}`;
-      const invoiceAmount = guitar.price; // Use guitar price as invoice amount
-      const invoiceCurrency = guitar.currency || "AUD";
-      const dueDate = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days default
-      
-      createInvoiceRecord(guitar.clientUid, {
-        title: invoiceTitle,
-        description: `Invoice for ${guitar.model} - ${stageName}`,
-        amount: invoiceAmount,
-        currency: invoiceCurrency,
-        status: "pending",
-        dueDate,
-        uploadedBy: updatedBy || "system",
-        guitarId: guitarId,
-        triggeredByStageId: stageId,
-      }).catch((error) => {
-        console.error("Failed to create invoice for trigger stage:", error);
+  // Also check if there are any pending invoices with this trigger stage
+  // When stage is reached, calculate due date based on dueDaysAfterTrigger
+  if (guitar.clientUid) {
+    // Query for invoices with this trigger stage that don't have a due date yet
+    const invoicesRef = collectionGroup(db, "invoices");
+    const q = query(
+      invoicesRef, 
+      where("guitarId", "==", guitarId),
+      where("triggeredByStageId", "==", stageId)
+    );
+    
+    getDocs(q).then((snapshot) => {
+      snapshot.docs.forEach(async (doc) => {
+        const invoice = doc.data() as any;
+        // If invoice has dueDaysAfterTrigger but no dueDate, calculate it now
+        if (invoice.dueDaysAfterTrigger && !invoice.dueDate) {
+          const dueDate = Date.now() + (invoice.dueDaysAfterTrigger * 24 * 60 * 60 * 1000);
+          const pathParts = doc.ref.path.split("/");
+          const clientUidIndex = pathParts.indexOf("clients");
+          const clientUid = clientUidIndex >= 0 && clientUidIndex < pathParts.length - 1 
+            ? pathParts[clientUidIndex + 1] 
+            : null;
+          
+          if (clientUid) {
+            const invoiceRef = doc(db, "clients", clientUid, "invoices", doc.id);
+            await updateDoc(invoiceRef, { dueDate });
+          }
+        }
       });
-    }
+    }).catch((error) => {
+      console.error("Failed to update invoice due dates:", error);
+    });
   }
   
   // Notify all staff about stage change (non-blocking)
@@ -675,18 +683,29 @@ export async function createInvoiceRecord(
   }
 ): Promise<string> {
   const invoicesRef = collection(db, "clients", clientUid, "invoices");
-  const docRef = await addDoc(invoicesRef, {
+  
+  // Build the document data, excluding undefined values
+  const invoiceData: any = {
     ...invoice,
     uploadedAt: Timestamp.now().toMillis(),
     payments: [],
+  };
+  
+  // Remove undefined values to avoid Firestore errors
+  Object.keys(invoiceData).forEach(key => {
+    if (invoiceData[key] === undefined) {
+      delete invoiceData[key];
+    }
   });
+  
+  const docRef = await addDoc(invoicesRef, invoiceData);
   return docRef.id;
 }
 
 export async function recordInvoicePayment(
   clientUid: string,
   invoiceId: string,
-  payment: Omit<InvoicePayment, "id" | "paidAt"> & { paidAt?: number }
+  payment: Omit<InvoicePayment, "id" | "paidAt"> & { paidAt?: number; receiptUrl?: string }
 ): Promise<void> {
   const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
   const snapshot = await getDoc(invoiceRef);

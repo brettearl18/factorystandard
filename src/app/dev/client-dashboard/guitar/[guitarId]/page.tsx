@@ -194,34 +194,87 @@ export default function DevGuitarDetailPage({
             {/* Build Timeline */}
             {allStages.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Build Timeline</h2>
-                <div className="space-y-4">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Build Timeline</h2>
+                  <div className="text-sm text-gray-500">
+                    {currentStageIndex + 1} of {allStages.length}
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${((currentStageIndex + 1) / allStages.length) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                    <span>{Math.round(((currentStageIndex + 1) / allStages.length) * 100)}% Complete</span>
+                    <span>{allStages.length - currentStageIndex - 1} stages remaining</span>
+                  </div>
+                </div>
+
+                <div className="space-y-0">
                   {allStages.map((s, index) => {
                     const isCompleted = index < currentStageIndex;
                     const isCurrent = index === currentStageIndex;
+                    const isFuture = currentStageIndex < index;
                     
                     return (
-                      <div key={s.id} className="flex items-start gap-4">
-                        <div className="flex flex-col items-center">
-                          {isCompleted ? (
-                            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                              <CheckCircle className="w-5 h-5 text-white" />
+                      <div key={s.id} className="relative">
+                        <div className="flex gap-4 pb-6 last:pb-0">
+                          {/* Timeline Indicator */}
+                          <div className="flex flex-col items-center flex-shrink-0">
+                            {isCompleted ? (
+                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                                <CheckCircle className="w-6 h-6 text-white" />
+                              </div>
+                            ) : isCurrent ? (
+                              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shadow-md ring-4 ring-blue-100">
+                                <div className="w-3 h-3 rounded-full bg-white" />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                                <Circle className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            {index < allStages.length - 1 && (
+                              <div
+                                className={`w-0.5 flex-1 mt-2 ${
+                                  isCompleted ? "bg-green-500" : "bg-gray-200"
+                                }`}
+                                style={{ minHeight: '24px' }}
+                              />
+                            )}
+                          </div>
+                          
+                          {/* Stage Content */}
+                          <div className="flex-1 pt-1">
+                            <div
+                              className={`font-semibold text-base ${
+                                isCurrent
+                                  ? "text-blue-600"
+                                  : isCompleted
+                                  ? "text-green-700"
+                                  : "text-gray-400"
+                              }`}
+                            >
+                              {s.clientStatusLabel || s.label}
                             </div>
-                          ) : isCurrent ? (
-                            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                              <Circle className="w-5 h-5 text-white fill-white" />
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 bg-gray-200 rounded-full" />
-                          )}
-                          {index < allStages.length - 1 && (
-                            <div className={`w-0.5 h-12 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
-                          )}
-                        </div>
-                        <div className="flex-1 pb-8">
-                          <h3 className={`font-semibold ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}`}>
-                            {s.clientStatusLabel || s.label}
-                          </h3>
+                            {isCurrent && (
+                              <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                Current Stage
+                              </div>
+                            )}
+                            {isCompleted && (
+                              <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                                <CheckCircle className="w-3 h-3" />
+                                Completed
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

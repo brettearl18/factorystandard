@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
+import { useClientInvoices } from "@/hooks/useClientInvoices";
 import { subscribeRunStages, subscribeGuitarNotes } from "@/lib/firestore";
+import { InvoiceList } from "@/components/client/InvoiceList";
 import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
 
@@ -18,6 +20,7 @@ export default function MyGuitarsPage() {
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
   const clientId = clientViewMode && viewingClientId ? viewingClientId : (userRole === "client" ? currentUser?.uid || null : null);
   const guitars = useClientGuitars(clientId);
+  const invoices = useClientInvoices(clientId);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
   const [recentNotes, setRecentNotes] = useState<Map<string, GuitarNote>>(new Map());
@@ -263,6 +266,16 @@ export default function MyGuitarsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Invoices Section */}
+            {invoices.length > 0 && (
+              <div className="mb-8">
+                <InvoiceList
+                  invoices={invoices}
+                  canManage={false}
+                />
+              </div>
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

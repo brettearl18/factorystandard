@@ -94,3 +94,4 @@ echo "   - Storage: ~\$0.02-0.10 per GB/month (Standard storage)"
 echo "   - With 12-week retention: ~12-60 GB stored = ~\$0.24-1.20/month"
 echo "   - Export operations: Free (included in Firestore pricing)"
 
+

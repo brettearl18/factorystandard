@@ -243,7 +243,7 @@ export default function GuitarDetailPage({
               <GuitarInvoiceManager
                 guitar={guitar}
                 onUpdate={() => {
-                  // Refresh guitar data if needed
+                  // Guitar data will refresh automatically via subscription
                 }}
               />
             )}

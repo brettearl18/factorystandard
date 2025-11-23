@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices } from "@/lib/firestore";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices } from "@/lib/firestore";
 import { isGoogleDriveLink } from "@/lib/storage";
+import { InvoiceList } from "@/components/client/InvoiceList";
+import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -35,6 +37,7 @@ export default function GuitarDetailPage({
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [clientViewMode, setClientViewMode] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
 
   useEffect(() => {
@@ -150,15 +153,42 @@ export default function GuitarDetailPage({
     };
   }, [guitarId, currentUser, userRole, router, clientViewMode]);
 
-  // Subscribe to invoices only for clients and only after guitar is loaded
+  // Subscribe to invoices - for clients viewing their own guitar, or staff/admin viewing client guitars
   useEffect(() => {
     if (!currentUser || !guitar) return;
     
-    // Only subscribe if user is a client and owns this guitar
-    if (userRole === "client" && guitar.clientUid === currentUser.uid) {
-      const unsubscribeInvoices = subscribeClientInvoices(currentUser.uid, (invoiceRecords) => {
-        setInvoices(invoiceRecords);
-      });
+    // For clients: subscribe to all their invoices
+    // For staff/admin: subscribe to client's invoices if viewing a client's guitar
+    const shouldLoadInvoices = 
+      (userRole === "client" && guitar.clientUid === currentUser.uid) ||
+      ((userRole === "staff" || userRole === "admin") && guitar.clientUid);
+    
+    if (shouldLoadInvoices && guitar.clientUid) {
+      // Try to get guitar-specific invoices first, fallback to all client invoices
+      let unsubscribeInvoices: (() => void) | undefined;
+      
+      // If guitar has invoices linked to it, use guitar-specific subscription
+      if (guitar.id) {
+        unsubscribeInvoices = subscribeGuitarInvoices(guitar.id, (guitarInvoices) => {
+          // If guitar has specific invoices, use those; otherwise get all client invoices
+          if (guitarInvoices.length > 0) {
+            setInvoices(guitarInvoices);
+          } else {
+            // Fallback to all client invoices
+            const unsubscribeClient = subscribeClientInvoices(guitar.clientUid, (clientInvoices) => {
+              setInvoices(clientInvoices);
+            });
+            return () => {
+              if (unsubscribeClient) unsubscribeClient();
+            };
+          }
+        });
+      } else {
+        // Fallback: subscribe to all client invoices
+        unsubscribeInvoices = subscribeClientInvoices(guitar.clientUid, (invoiceRecords) => {
+          setInvoices(invoiceRecords);
+        });
+      }
       
       return () => {
         if (unsubscribeInvoices) unsubscribeInvoices();
@@ -197,16 +227,16 @@ export default function GuitarDetailPage({
   }
 
   const clientStatus = stage?.clientStatusLabel || "In Progress";
-  const canViewInvoices = userRole === "client" && guitar?.clientUid === currentUser?.uid;
-  const sortedInvoices = canViewInvoices ? [...invoices].sort(
-    (a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0)
-  ) : [];
-  const outstandingInvoices = sortedInvoices.filter((invoice) => invoice.status !== "paid");
-  const totalOutstanding = outstandingInvoices.reduce((sum, invoice) => {
-    const payments = invoice.payments || [];
-    const paid = payments.reduce((acc, payment) => acc + (payment.amount || 0), 0);
-    return sum + Math.max(invoice.amount - paid, 0);
-  }, 0);
+  
+  // Determine if invoices should be shown (clients viewing their own guitar, or staff/admin viewing client guitars)
+  const canViewInvoices = 
+    (userRole === "client" && guitar?.clientUid === currentUser?.uid) ||
+    ((userRole === "staff" || userRole === "admin") && guitar?.clientUid);
+  
+  // Filter invoices to only show those related to this guitar (if guitarId is set)
+  const filteredInvoices = guitar?.id 
+    ? invoices.filter(inv => !inv.guitarId || inv.guitarId === guitar.id)
+    : invoices;
   
   // Collect all photos
   const allPhotos: string[] = [];
@@ -372,58 +402,100 @@ export default function GuitarDetailPage({
             {/* Progress Timeline */}
             {allStages.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-bold mb-4">Build Timeline</h2>
-                <div className="space-y-4">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900">Build Timeline</h2>
+                  <div className="text-sm text-gray-500">
+                    {currentStageIndex + 1} of {allStages.length}
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${((currentStageIndex + 1) / allStages.length) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                    <span>{Math.round(((currentStageIndex + 1) / allStages.length) * 100)}% Complete</span>
+                    <span>{allStages.length - currentStageIndex - 1} stages remaining</span>
+                  </div>
+                </div>
+
+                <div className="space-y-0">
                   {allStages.map((s, index) => {
                     const isCurrent = s.id === guitar.stageId;
                     const isPast = currentStageIndex > index;
+                    const isFuture = currentStageIndex < index;
                     const clientLabel = s.clientStatusLabel || s.label;
                     
                     return (
-                      <div key={s.id} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          {isPast ? (
-                            <CheckCircle className="w-6 h-6 text-green-500" />
-                          ) : isCurrent ? (
-                            <div className="w-6 h-6 rounded-full border-2 border-blue-500 bg-blue-100" />
-                          ) : (
-                            <Circle className="w-6 h-6 text-gray-300" />
-                          )}
-                          {index < allStages.length - 1 && (
-                            <div
-                              className={`w-0.5 h-8 mt-1 ${
-                                isPast ? "bg-green-500" : "bg-gray-200"
-                              }`}
-                            />
-                          )}
-                        </div>
-                        <div className="flex-1 pb-4">
-                          <div
-                            className={`font-semibold ${
-                              isCurrent
-                                ? "text-blue-600"
-                                : isPast
-                                ? "text-green-600"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            {clientLabel}
+                      <div key={s.id} className="relative">
+                        <div className="flex gap-4 pb-6 last:pb-0">
+                          {/* Timeline Indicator */}
+                          <div className="flex flex-col items-center flex-shrink-0">
+                            {isPast ? (
+                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                                <CheckCircle className="w-6 h-6 text-white" />
+                              </div>
+                            ) : isCurrent ? (
+                              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shadow-md ring-4 ring-blue-100">
+                                <div className="w-3 h-3 rounded-full bg-white" />
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-gray-100 border-2 border-gray-300 flex items-center justify-center">
+                                <Circle className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            {index < allStages.length - 1 && (
+                              <div
+                                className={`w-0.5 flex-1 mt-2 ${
+                                  isPast ? "bg-green-500" : "bg-gray-200"
+                                }`}
+                                style={{ minHeight: '24px' }}
+                              />
+                            )}
                           </div>
-                          {/* Show actual stage label as subtitle if it's different from clientStatusLabel */}
-                          {s.clientStatusLabel && s.clientStatusLabel !== s.label && (
-                            <div className={`text-sm mt-1 ${
-                              isCurrent
-                                ? "text-blue-500"
-                                : isPast
-                                ? "text-green-500"
-                                : "text-gray-500"
-                            }`}>
-                              {s.label}
+                          
+                          {/* Stage Content */}
+                          <div className="flex-1 pt-1">
+                            <div
+                              className={`font-semibold text-base ${
+                                isCurrent
+                                  ? "text-blue-600"
+                                  : isPast
+                                  ? "text-green-700"
+                                  : "text-gray-400"
+                              }`}
+                            >
+                              {clientLabel}
                             </div>
-                          )}
-                          {isCurrent && (
-                            <div className="text-xs text-gray-500 mt-1">Current Stage</div>
-                          )}
+                            {/* Show actual stage label as subtitle if it's different from clientStatusLabel */}
+                            {s.clientStatusLabel && s.clientStatusLabel !== s.label && (
+                              <div className={`text-sm mt-0.5 ${
+                                isCurrent
+                                  ? "text-blue-500"
+                                  : isPast
+                                  ? "text-green-600"
+                                  : "text-gray-500"
+                              }`}>
+                                {s.label}
+                              </div>
+                            )}
+                            {isCurrent && (
+                              <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                Current Stage
+                              </div>
+                            )}
+                            {isPast && (
+                              <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                                <CheckCircle className="w-3 h-3" />
+                                Completed
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -548,122 +620,23 @@ export default function GuitarDetailPage({
               </div>
             )}
 
-            {/* Invoices */}
+            {/* Invoices Panel */}
             {canViewInvoices && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold">Invoices</h3>
-                    <p className="text-sm text-gray-500">
-                      Track payments for this build.
-                    </p>
-                  </div>
-                  {totalOutstanding > 0 && (
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 uppercase">Outstanding</p>
-                      <p className="text-sm font-semibold text-red-600">
-                        {formatCurrency(totalOutstanding)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {sortedInvoices.length === 0 ? (
-                  <div className="text-center text-gray-500 text-sm py-6 border border-dashed rounded-lg">
-                    No invoices yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {sortedInvoices.slice(0, 3).map((invoice) => {
-                      const payments = invoice.payments || [];
-                      const paidAmount = payments.reduce(
-                        (sum, payment) => sum + (payment.amount || 0),
-                        0
-                      );
-                      const outstanding = Math.max(invoice.amount - paidAmount, 0);
-
-                      return (
-                        <div key={invoice.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-gray-900">{invoice.title}</p>
-                              <p className="text-xs text-gray-500">
-                                Due{" "}
-                                {invoice.dueDate
-                                  ? new Date(invoice.dueDate).toLocaleDateString()
-                                  : "TBC"}
-                              </p>
-                            </div>
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-semibold ${
-                                invoice.status === "paid"
-                                  ? "bg-green-100 text-green-700"
-                                  : invoice.status === "overdue"
-                                  ? "bg-red-100 text-red-700"
-                                  : invoice.status === "partial"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {invoice.status.toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="mt-3 text-sm text-gray-600">
-                            <div className="flex items-center justify-between">
-                              <span>Amount:</span>
-                              <span className="font-semibold">
-                                {formatCurrency(invoice.amount, invoice.currency)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>Paid:</span>
-                              <span>{formatCurrency(paidAmount, invoice.currency)}</span>
-                            </div>
-                            {outstanding > 0 && (
-                              <div className="flex items-center justify-between text-red-600">
-                                <span>Outstanding:</span>
-                                <span className="font-semibold">
-                                  {formatCurrency(outstanding, invoice.currency)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="mt-3 flex items-center gap-3">
-                            {invoice.downloadUrl && (
-                              <a
-                                href={invoice.downloadUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
-                              >
-                                <Download className="w-4 h-4" />
-                                Download
-                              </a>
-                            )}
-                            {invoice.paymentLink && (
-                              <a
-                                href={invoice.paymentLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-green-600 hover:text-green-700 bg-green-50 px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-100"
-                              >
-                                💳 Pay Now
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <>
+                <InvoiceList
+                  invoices={filteredInvoices}
+                  canManage={userRole === "staff" || userRole === "admin"}
+                  onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
+                />
+                {currentUser && guitar?.clientUid && (
+                  <RecordPaymentModal
+                    clientUid={guitar.clientUid}
+                    invoice={paymentInvoice}
+                    isOpen={Boolean(paymentInvoice)}
+                    onClose={() => setPaymentInvoice(null)}
+                  />
                 )}
-
-                <Link
-                  href="/my/settings"
-                  className="mt-4 inline-flex items-center justify-center w-full text-sm font-semibold text-blue-600 hover:text-blue-700"
-                >
-                  View all invoices →
-                </Link>
-              </div>
+              </>
             )}
 
             {/* Build Specifications */}

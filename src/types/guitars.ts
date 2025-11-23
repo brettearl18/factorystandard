@@ -144,6 +144,7 @@ export interface InvoicePayment {
   note?: string;
   paidAt: number;
   recordedBy: string;
+  receiptUrl?: string; // Screenshot/receipt image URL
 }
 
 export interface InvoiceRecord {
@@ -154,6 +155,7 @@ export interface InvoiceRecord {
   currency: string;
   status: "pending" | "paid" | "overdue" | "partial";
   dueDate?: number;
+  dueDaysAfterTrigger?: number; // Days after trigger stage to set due date
   downloadUrl?: string;
   paymentLink?: string; // URL for payment (e.g., Stripe, PayPal, bank transfer link)
   uploadedAt: number;

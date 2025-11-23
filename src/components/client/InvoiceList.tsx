@@ -28,7 +28,7 @@ export function InvoiceList({
           <h2 className="text-xl font-bold text-gray-900">Invoices & Payments</h2>
           <p className="text-sm text-gray-500">View your invoices and payment history.</p>
         </div>
-        {canManage && (
+        {canManage && onUploadInvoice && (
           <button
             onClick={onUploadInvoice}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -118,10 +118,10 @@ export function InvoiceList({
                       💳 Pay Now
                     </a>
                   )}
-                  {canManage && onRecordPayment && (
+                  {onRecordPayment && (
                     <button
                       onClick={() => onRecordPayment(invoice)}
-                      className="text-sm font-semibold text-gray-700 hover:text-gray-900"
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 hover:bg-blue-100"
                     >
                       Record Payment
                     </button>
@@ -137,10 +137,22 @@ export function InvoiceList({
                           key={payment.id}
                           className="flex items-center justify-between text-sm text-gray-600"
                         >
-                          <span>
-                            {new Date(payment.paidAt).toLocaleDateString()} —{" "}
-                            {payment.method || "Payment"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {new Date(payment.paidAt).toLocaleDateString()} —{" "}
+                              {payment.method || "Payment"}
+                            </span>
+                            {payment.receiptUrl && (
+                              <a
+                                href={payment.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-700 underline text-xs"
+                              >
+                                View Receipt
+                              </a>
+                            )}
+                          </div>
                           <span className="font-semibold">
                             {formatCurrency(payment.amount, payment.currency)}
                           </span>

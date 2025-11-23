@@ -47,6 +47,19 @@ export async function uploadInvoiceFile(
   return getDownloadURL(storageRef);
 }
 
+export async function uploadPaymentReceipt(
+  clientUid: string,
+  invoiceId: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `invoices/${clientUid}/${invoiceId}/receipts/${filename}`);
+
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
 export async function uploadRunThumbnail(
   runId: string,
   file: File
