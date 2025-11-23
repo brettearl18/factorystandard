@@ -41,6 +41,9 @@ export { lookupUserByEmail } from "./lookupUser";
 // Export the createUser function
 export { createUser } from "./createUser";
 
+// Export the resetUserPassword function
+export { resetUserPassword } from "./resetUserPassword";
+
 // Export the listUsers function
 export { listUsers } from "./listUsers";
 

@@ -49,6 +49,23 @@ exports.createUser = functions.https.onCall(async (data, context) => {
         // Set role if provided (default to "client")
         const userRole = role || "client";
         await admin.auth().setCustomUserClaims(newUser.uid, { role: userRole });
+        // Store initial password and creation info in client profile (only if password was provided and role is client)
+        if (password && userRole === "client") {
+            try {
+                const db = admin.firestore();
+                const clientProfileRef = db.collection("clients").doc(newUser.uid);
+                await clientProfileRef.set({
+                    uid: newUser.uid,
+                    initialPassword: password, // Store password for staff/admin to retrieve
+                    accountCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    accountCreatedBy: context.auth.uid,
+                }, { merge: true }); // Use merge to not overwrite existing profile data
+            }
+            catch (profileError) {
+                // Log error but don't fail user creation
+                console.error("Failed to store initial password in profile:", profileError);
+            }
+        }
         // If no password was provided, generate password reset link
         // Note: Firebase Auth will automatically send password reset email if email provider is configured
         let resetLink = null;

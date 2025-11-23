@@ -134,6 +134,10 @@ export interface ClientProfile {
   notes?: string;
   updatedAt?: number;
   updatedBy?: string;
+  // Initial login credentials (stored when account is created)
+  initialPassword?: string; // Only visible to staff/admin
+  accountCreatedAt?: number; // Timestamp when account was created
+  accountCreatedBy?: string; // UID of staff/admin who created the account
 }
 
 export interface InvoicePayment {

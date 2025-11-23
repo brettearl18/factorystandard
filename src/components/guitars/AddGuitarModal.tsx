@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Upload, Image as ImageIcon, Search, Check, UserPlus, ExternalLink } from "lucide-react";
+import { X, Plus, Upload, Image as ImageIcon, Search, Check, UserPlus, ExternalLink, Eye, EyeOff, Copy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { createGuitar, getRun, subscribeRunStages } from "@/lib/firestore";
 import { uploadReferenceImage } from "@/lib/storage";
@@ -31,6 +31,8 @@ export function AddGuitarModal({
   // Form fields
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPassword, setCustomerPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [model, setModel] = useState("");
   const [finish, setFinish] = useState("");
@@ -56,6 +58,15 @@ export function AddGuitarModal({
     uid?: string;
     message?: string;
   } | null>(null);
+  
+  // Success modal for new client creation
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdClientInfo, setCreatedClientInfo] = useState<{
+    email: string;
+    password: string;
+    name: string;
+  } | null>(null);
+  const [emailCopied, setEmailCopied] = useState(false);
 
   // Load stages when modal opens
   useEffect(() => {
@@ -134,6 +145,16 @@ export function AddGuitarModal({
     }
   };
 
+  const generatePassword = () => {
+    // Generate a random 12-character password
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCustomerPassword(password);
+  };
+
   const handleCreateUser = async () => {
     if (!customerEmail.trim()) {
       alert("Please enter a customer email first");
@@ -145,11 +166,10 @@ export function AddGuitarModal({
       return;
     }
 
-    const confirmCreate = confirm(
-      `Create a new Firebase Auth user for ${customerEmail}? They will receive a password reset email to set their password.`
-    );
-
-    if (!confirmCreate) return;
+    if (!customerPassword.trim() || customerPassword.length < 6) {
+      alert("Please enter a password (minimum 6 characters) or generate one");
+      return;
+    }
 
     setCreatingUser(true);
     setLookupResult(null);
@@ -160,6 +180,7 @@ export function AddGuitarModal({
       const result = await createUser({
         email: customerEmail.trim(),
         displayName: customerName.trim(),
+        password: customerPassword.trim(),
         role: "client", // Default new users to client role
       });
       const data = result.data as any;
@@ -171,6 +192,14 @@ export function AddGuitarModal({
           uid: data.uid,
           message: "User created successfully!",
         });
+        // Store client info for success modal (will show after guitar is created)
+        setCreatedClientInfo({
+          email: customerEmail.trim(),
+          password: customerPassword,
+          name: customerName.trim(),
+        });
+        // Clear password from form (but keep in createdClientInfo)
+        setCustomerPassword("");
       } else {
         // User might already exist
         if (data.uid) {
@@ -238,19 +267,27 @@ export function AddGuitarModal({
       // Reset form
       setCustomerName("");
       setCustomerEmail("");
+      setCustomerPassword("");
       setOrderNumber("");
       setModel("");
       setFinish("");
       setSerial("");
       setClientUid("");
       setNoCustomer(false);
+      setLookupResult(null);
       setSpecs({});
       setReferenceImages([]);
       setReferenceImageUrls([]);
       setDriveLinkInput("");
 
-      onSuccess?.();
-      onClose();
+      // If we created a new client, show success modal with password
+      // Otherwise, just close and call success
+      if (createdClientInfo) {
+        setShowSuccessModal(true);
+      } else {
+        onSuccess?.();
+        onClose();
+      }
     } catch (error) {
       console.error("Error creating guitar:", error);
       alert("Failed to create guitar. Please try again.");
@@ -505,6 +542,11 @@ export function AddGuitarModal({
                   <span>No customer assigned yet</span>
                 </label>
               </div>
+              {!noCustomer && (
+                <p className="text-xs text-gray-500 mb-3">
+                  Enter customer details and click "Create User" to create a new client account, or use "Lookup" to find an existing user.
+                </p>
+              )}
               <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -517,7 +559,7 @@ export function AddGuitarModal({
                     className="w-full p-2 border rounded-md"
                     required={!noCustomer}
                     disabled={noCustomer}
-                    placeholder={noCustomer ? "Will be assigned later" : ""}
+                    placeholder={noCustomer ? "Will be assigned later" : "John Doe"}
                   />
                 </div>
                 <div>
@@ -535,7 +577,7 @@ export function AddGuitarModal({
                       className="flex-1 p-2 border rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required={!noCustomer}
                       disabled={noCustomer}
-                      placeholder={noCustomer ? "Will be assigned later" : ""}
+                      placeholder={noCustomer ? "Will be assigned later" : "client@example.com"}
                     />
                     <button
                       type="button"
@@ -555,25 +597,67 @@ export function AddGuitarModal({
                         </>
                       )}
                     </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateUser}
-                      disabled={noCustomer || lookingUpUser || creatingUser || !customerEmail.trim() || !customerName.trim()}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {creatingUser ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Creating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-4 h-4" />
-                          <span>Create User</span>
-                        </>
-                      )}
-                    </button>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password {!noCustomer && !lookupResult?.success && <span className="text-red-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={customerPassword}
+                      onChange={(e) => setCustomerPassword(e.target.value)}
+                      className="w-full p-2 border rounded-md pr-20 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      required={!noCustomer && !lookupResult?.success}
+                      disabled={noCustomer || !!lookupResult?.success}
+                      placeholder={noCustomer ? "Will be assigned later" : lookupResult?.success ? "User found - password not needed" : "Enter password (min 6 characters)"}
+                      minLength={6}
+                    />
+                    {!noCustomer && !lookupResult?.success && (
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="p-1 text-gray-500 hover:text-gray-700"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={generatePassword}
+                          className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          Generate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {!noCustomer && !lookupResult?.success && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Share this password with the client. They can change it after logging in.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleCreateUser}
+                    disabled={noCustomer || lookingUpUser || creatingUser || !customerEmail.trim() || !customerName.trim() || !customerPassword.trim() || customerPassword.length < 6}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {creatingUser ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Creating User...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Create User</span>
+                      </>
+                    )}
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1008,6 +1092,89 @@ export function AddGuitarModal({
           </div>
         </form>
       </div>
+
+      {/* Success Modal for New Client Creation */}
+      {showSuccessModal && createdClientInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Client Created Successfully</h2>
+              <button
+                onClick={handleCloseSuccessModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-800 font-medium">
+                    ✓ Client account and guitar created successfully!
+                  </p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Template (Copy & Paste)
+                    </label>
+                    <button
+                      onClick={handleCopyEmail}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      {emailCopied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy Email
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    value={generateEmailTemplate()}
+                    className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Click the text above to select all, or use the "Copy Email" button.
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Next Steps:</strong>
+                  </p>
+                  <ol className="text-sm text-blue-700 mt-2 list-decimal list-inside space-y-1">
+                    <li>Copy the email template above</li>
+                    <li>Paste it into your email client</li>
+                    <li>Send it to {createdClientInfo.email}</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                onClick={handleCloseSuccessModal}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

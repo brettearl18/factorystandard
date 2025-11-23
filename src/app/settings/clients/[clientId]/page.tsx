@@ -31,6 +31,10 @@ import {
   ArrowRight,
   ArrowLeft,
   User,
+  Mail,
+  Copy,
+  Check,
+  X,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -65,6 +69,10 @@ export default function ClientDashboardPage({
   const [loading, setLoading] = useState(true);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -234,6 +242,59 @@ export default function ClientDashboardPage({
     return updateClientProfile(clientId, updates, currentUser?.uid);
   };
 
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  const handleResetPassword = async () => {
+    if (!currentUser || !client) return;
+
+    const confirmReset = confirm(
+      `Generate a new password for ${client.email}? The old password will be replaced and you'll need to send the new password to the client.`
+    );
+
+    if (!confirmReset) return;
+
+    setIsResettingPassword(true);
+    try {
+      const functions = getFunctions();
+      const resetPassword = httpsCallable(functions, "resetUserPassword");
+      const newPasswordValue = generateRandomPassword();
+      
+      const result = await resetPassword({
+        uid: clientId,
+        newPassword: newPasswordValue,
+      });
+
+      const data = result.data as any;
+      if (data.success) {
+        // Update the client profile with the new password
+        await updateClientProfile(clientId, {
+          initialPassword: newPasswordValue,
+          accountCreatedBy: currentUser.uid,
+        }, currentUser.uid);
+
+        setNewPassword(newPasswordValue);
+        // Automatically open the credentials modal to show the new password
+        setShowCredentialsModal(true);
+        // Refresh the profile to get the updated password
+        // The subscription should handle this automatically
+      } else {
+        throw new Error(data.message || "Failed to reset password");
+      }
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      alert(`Failed to reset password: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -260,6 +321,62 @@ export default function ClientDashboardPage({
         </div>
 
         <div className="grid grid-cols-1 gap-6 mb-10">
+          {/* Client Information Card with Login Credentials */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Client Information</h2>
+                <p className="text-sm text-gray-500 mt-1">Account details and login credentials</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleResetPassword}
+                  disabled={isResettingPassword}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Reset password and generate new one"
+                >
+                  {isResettingPassword ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <span>Reset Password</span>
+                    </>
+                  )}
+                </button>
+                {(profile?.initialPassword || newPassword) && (
+                  <button
+                    onClick={() => setShowCredentialsModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                    title="View login credentials"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Resend Email
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Email:</span>
+                <span className="text-gray-900 font-medium">{client.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Display Name:</span>
+                <span className="text-gray-900 font-medium">{client.displayName || "Not set"}</span>
+              </div>
+              {profile?.accountCreatedAt && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Account Created:</span>
+                  <span className="text-gray-900">
+                    {new Date((profile.accountCreatedAt as any).seconds ? (profile.accountCreatedAt as any).seconds * 1000 : profile.accountCreatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
           <ClientContactCard profile={profile} onSave={handleSaveProfile} canEdit />
           <InvoiceList
             invoices={invoices}
@@ -508,8 +625,152 @@ export default function ClientDashboardPage({
           isOpen={Boolean(paymentInvoice)}
           onClose={() => setPaymentInvoice(null)}
         />
-      )}
-    </AppLayout>
-  );
-}
+        )}
+
+        {/* Login Credentials Modal */}
+        {showCredentialsModal && (profile?.initialPassword || newPassword) && client && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900">Client Login Credentials</h2>
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false);
+                    setEmailCopied(false);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <div className="space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800 font-medium">
+                      ⚠️ {newPassword ? "A new password has been generated. Send this to the client immediately." : "This password was set when the account was created. The client should change it after first login."}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Email Template (Copy & Paste)
+                      </label>
+                      <button
+                    onClick={async () => {
+                        const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://factorystandards.com";
+                        const loginUrl = `${siteUrl}/login`;
+                        const passwordToUse = newPassword || profile?.initialPassword || "";
+                        const emailText = `Subject: Your Factory Standards Account${newPassword ? " - Password Reset" : ""}
+
+Hi ${client.displayName || "Client"},
+
+${newPassword ? "Your password has been reset for Factory Standards." : "Your account has been created for Factory Standards."} You can now log in to track your guitar build progress.
+
+Login Details:
+Email: ${client.email}
+Password: ${passwordToUse}
+
+Login Link: ${loginUrl}
+
+Please change your password after your first login for security.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Factory Standards Team`;
+
+                        try {
+                          await navigator.clipboard.writeText(emailText);
+                          setEmailCopied(true);
+                          setTimeout(() => setEmailCopied(false), 2000);
+                        } catch (error) {
+                          console.error("Failed to copy:", error);
+                          const textarea = document.createElement("textarea");
+                          textarea.value = emailText;
+                          document.body.appendChild(textarea);
+                          textarea.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(textarea);
+                          setEmailCopied(true);
+                          setTimeout(() => setEmailCopied(false), 2000);
+                        }
+                      }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        {emailCopied ? (
+                          <>
+                            <Check className="w-4 h-4" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            Copy Email
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  <textarea
+                    readOnly
+                    value={`Subject: Your Factory Standards Account${newPassword ? " - Password Reset" : ""}
+
+Hi ${client.displayName || "Client"},
+
+${newPassword ? "Your password has been reset for Factory Standards." : "Your account has been created for Factory Standards."} You can now log in to track your guitar build progress.
+
+Login Details:
+Email: ${client.email}
+Password: ${newPassword || profile?.initialPassword || ""}
+
+Login Link: ${typeof window !== "undefined" ? window.location.origin : "https://factorystandards.com"}/login
+
+Please change your password after your first login for security.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Factory Standards Team`}
+                      className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Click the text above to select all, or use the "Copy Email" button.
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Next Steps:</strong>
+                    </p>
+                    <ol className="text-sm text-blue-700 mt-2 list-decimal list-inside space-y-1">
+                      <li>Copy the email template above</li>
+                      <li>Paste it into your email client</li>
+                      <li>Send it to {client.email}</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false);
+                    setEmailCopied(false);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </AppLayout>
+    );
+  }
 

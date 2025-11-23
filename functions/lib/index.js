@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.listUsers = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarStageChange = void 0;
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarStageChange = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
@@ -38,6 +38,9 @@ Object.defineProperty(exports, "lookupUserByEmail", { enumerable: true, get: fun
 // Export the createUser function
 var createUser_1 = require("./createUser");
 Object.defineProperty(exports, "createUser", { enumerable: true, get: function () { return createUser_1.createUser; } });
+// Export the resetUserPassword function
+var resetUserPassword_1 = require("./resetUserPassword");
+Object.defineProperty(exports, "resetUserPassword", { enumerable: true, get: function () { return resetUserPassword_1.resetUserPassword; } });
 // Export the listUsers function
 var listUsers_1 = require("./listUsers");
 Object.defineProperty(exports, "listUsers", { enumerable: true, get: function () { return listUsers_1.listUsers; } });
