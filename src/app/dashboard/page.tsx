@@ -172,6 +172,17 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto">
         {/* Branded Hero Section */}
         <div className="relative mb-10 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10 border border-primary/20 p-8 lg:p-12">
+          {/* Background Image with 30% opacity */}
+          {branding.backgroundImage && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{
+                backgroundImage: `url(${branding.backgroundImage})`,
+                opacity: 0.3,
+                zIndex: 0,
+              }}
+            />
+          )}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
           

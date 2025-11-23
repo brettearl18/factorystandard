@@ -262,6 +262,7 @@ function BrandingSection({
   const [formData, setFormData] = useState(settings);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
 
   useEffect(() => {
     setFormData(settings);
@@ -306,6 +307,27 @@ function BrandingSection({
       alert("Failed to upload favicon. Please try again.");
     } finally {
       setUploadingFavicon(false);
+    }
+  };
+
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
+      return;
+    }
+
+    setUploadingBackground(true);
+    try {
+      const url = await uploadBrandingAsset("background", file);
+      setFormData({ ...formData, backgroundImage: url });
+    } catch (error) {
+      console.error("Error uploading background image:", error);
+      alert("Failed to upload background image. Please try again.");
+    } finally {
+      setUploadingBackground(false);
     }
   };
 
@@ -506,6 +528,70 @@ function BrandingSection({
         </div>
       </div>
 
+      {/* Background Image */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Background Image (30% opacity)
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Upload a background image that will be displayed at 30% opacity on the dashboard for design purposes.
+        </p>
+        {formData.backgroundImage ? (
+          <div className="space-y-3">
+            <div className="relative w-full h-48 border border-gray-200 rounded-lg overflow-hidden">
+              <img
+                src={formData.backgroundImage}
+                alt="Background preview"
+                className="w-full h-full object-cover"
+                style={{ opacity: 0.3 }}
+              />
+              <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
+                <p className="text-sm text-gray-600 font-medium">30% Opacity Preview</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBackgroundUpload}
+                  className="hidden"
+                  disabled={uploadingBackground}
+                />
+                <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
+                  <Upload className="w-4 h-4" />
+                  {uploadingBackground ? "Uploading..." : "Replace"}
+                </span>
+              </label>
+              <button
+                onClick={() => setFormData({ ...formData, backgroundImage: undefined })}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+              >
+                <X className="w-4 h-4" />
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleBackgroundUpload}
+              className="hidden"
+              disabled={uploadingBackground}
+            />
+            <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-blue-400 hover:bg-blue-50 transition-colors">
+              <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
+              <p className="text-sm text-gray-600 font-medium">
+                {uploadingBackground ? "Uploading..." : "Click to upload background image"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">PNG, JPG, SVG up to 10MB</p>
+            </div>
+          </label>
+        )}
+      </div>
+
       {/* Footer Text */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -524,7 +610,7 @@ function BrandingSection({
       <div className="flex justify-end pt-4 border-t border-gray-200">
         <button
           onClick={() => onSave(formData)}
-          disabled={isSaving || uploadingLogo || uploadingFavicon}
+          disabled={isSaving || uploadingLogo || uploadingFavicon || uploadingBackground}
           className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? (

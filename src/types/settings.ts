@@ -2,6 +2,7 @@ export interface BrandingSettings {
   companyName: string;
   companyLogo?: string;
   favicon?: string;
+  backgroundImage?: string; // Background image URL for dashboard/design
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;

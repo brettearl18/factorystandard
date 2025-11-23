@@ -74,7 +74,7 @@ export async function uploadRunThumbnail(
 }
 
 export async function uploadBrandingAsset(
-  assetType: "logo" | "favicon",
+  assetType: "logo" | "favicon" | "background",
   file: File
 ): Promise<string> {
   const timestamp = Date.now();

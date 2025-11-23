@@ -67,14 +67,15 @@ service firebase.storage {
                      request.resource.contentType.matches('image/.*');
     }
 
-    // Branding assets (logos, favicons)
+    // Branding assets (logos, favicons, background images)
     match /branding/{assetType}/{allPaths=**} {
       // Everyone can read branding assets (for public display)
       allow read: if request.auth != null;
       
       // Only staff/admin can upload branding assets
+      // Background images can be larger (10MB), other assets limited to 5MB
       allow write: if isStaff() && 
-                     request.resource.size < 5 * 1024 * 1024 && // 5MB max
+                     request.resource.size < (assetType == "background" ? 10 * 1024 * 1024 : 5 * 1024 * 1024) &&
                      (request.resource.contentType.matches('image/.*') ||
                       request.resource.contentType.matches('image/x-icon') ||
                       request.resource.contentType == 'image/svg+xml');
