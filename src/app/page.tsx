@@ -8,7 +8,7 @@ import { useBranding } from "@/hooks/useBranding";
 import { Guitar, User, Shield, ArrowRight, Factory } from "lucide-react";
 
 export default function Home() {
-  const { currentUser, userRole, loading, signOut } = useAuth();
+  const { currentUser, userRole, loading, signOut, refreshToken } = useAuth();
   const branding = useBranding();
   const router = useRouter();
 
@@ -58,7 +58,7 @@ export default function Home() {
             don't have a role assigned yet.
           </p>
           <p className="text-sm text-gray-500 mb-6">
-            A role (staff, client, or admin) needs to be set using Firebase
+            A role (staff, client, admin, factory, or accounting) needs to be set using Firebase
             Admin SDK. See the{" "}
             <a
               href="/admin/set-role"
@@ -73,21 +73,33 @@ export default function Home() {
               Quick Setup:
             </p>
             <code className="block text-xs bg-blue-100 p-2 rounded mb-2">
-              npx ts-node scripts/set-user-role.ts {currentUser.email} staff
+              npx ts-node scripts/set-user-role.ts {currentUser.email} accounting
             </code>
             <p className="text-xs text-blue-700">
               Then sign out and sign back in for the role to take effect.
             </p>
           </div>
-          <button
-            onClick={async () => {
-              await signOut();
-              router.push("/");
-            }}
-            className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
-          >
-            Sign Out
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={async () => {
+                await refreshToken();
+                // Force a page reload to check role again
+                window.location.reload();
+              }}
+              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Refresh Role
+            </button>
+            <button
+              onClick={async () => {
+                await signOut();
+                router.push("/");
+              }}
+              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
     );
