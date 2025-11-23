@@ -35,6 +35,8 @@ import {
   Copy,
   Check,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -73,6 +75,10 @@ export default function ClientDashboardPage({
   const [emailCopied, setEmailCopied] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [customPassword, setCustomPassword] = useState("");
+  const [useCustomPassword, setUseCustomPassword] = useState(false);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -251,35 +257,40 @@ export default function ClientDashboardPage({
     return password;
   };
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = async (passwordToUse?: string) => {
     if (!currentUser || !client) return;
 
-    const confirmReset = confirm(
-      `Generate a new password for ${client.email}? The old password will be replaced and you'll need to send the new password to the client.`
-    );
+    const passwordValue = passwordToUse || generateRandomPassword();
 
-    if (!confirmReset) return;
+    if (!passwordValue || passwordValue.length < 6) {
+      alert("Password must be at least 6 characters long");
+      return;
+    }
 
     setIsResettingPassword(true);
     try {
       const functions = getFunctions();
       const resetPassword = httpsCallable(functions, "resetUserPassword");
-      const newPasswordValue = generateRandomPassword();
       
       const result = await resetPassword({
         uid: clientId,
-        newPassword: newPasswordValue,
+        newPassword: passwordValue,
       });
 
       const data = result.data as any;
       if (data.success) {
         // Update the client profile with the new password
         await updateClientProfile(clientId, {
-          initialPassword: newPasswordValue,
+          initialPassword: passwordValue,
           accountCreatedBy: currentUser.uid,
         }, currentUser.uid);
 
-        setNewPassword(newPasswordValue);
+        setNewPassword(passwordValue);
+        // Close the reset modal and open credentials modal
+        setShowResetPasswordModal(false);
+        setCustomPassword("");
+        setUseCustomPassword(false);
+        setShowPasswordInput(false);
         // Automatically open the credentials modal to show the new password
         setShowCredentialsModal(true);
         // Refresh the profile to get the updated password
@@ -330,21 +341,12 @@ export default function ClientDashboardPage({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleResetPassword}
+                  onClick={() => setShowResetPasswordModal(true)}
                   disabled={isResettingPassword}
                   className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Reset password and generate new one"
+                  title="Reset password"
                 >
-                  {isResettingPassword ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Resetting...
-                    </>
-                  ) : (
-                    <>
-                      <span>Reset Password</span>
-                    </>
-                  )}
+                  <span>Reset Password</span>
                 </button>
                 {(profile?.initialPassword || newPassword) && (
                   <button
@@ -625,9 +627,129 @@ export default function ClientDashboardPage({
           isOpen={Boolean(paymentInvoice)}
           onClose={() => setPaymentInvoice(null)}
         />
-        )}
+      )}
 
-        {/* Login Credentials Modal */}
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && client && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Reset Password</h2>
+              <button
+                onClick={() => {
+                  setShowResetPasswordModal(false);
+                  setCustomPassword("");
+                  setUseCustomPassword(false);
+                  setShowPasswordInput(false);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={isResettingPassword}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800 font-medium">
+                    ⚠️ This will replace the current password for {client.email}. Make sure to send the new password to the client.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={useCustomPassword}
+                      onChange={(e) => {
+                        setUseCustomPassword(e.target.checked);
+                        setShowPasswordInput(e.target.checked);
+                        if (!e.target.checked) {
+                          setCustomPassword("");
+                        }
+                      }}
+                      className="rounded"
+                      disabled={isResettingPassword}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Enter custom password
+                    </span>
+                  </label>
+
+                  {useCustomPassword ? (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <input
+                          type={showPasswordInput ? "text" : "password"}
+                          value={customPassword}
+                          onChange={(e) => setCustomPassword(e.target.value)}
+                          placeholder="Enter password (min 6 characters)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                          minLength={6}
+                          disabled={isResettingPassword}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordInput(!showPasswordInput)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
+                          disabled={isResettingPassword}
+                        >
+                          {showPasswordInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Password must be at least 6 characters long
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-800">
+                        A random 12-character password will be generated automatically.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowResetPasswordModal(false);
+                  setCustomPassword("");
+                  setUseCustomPassword(false);
+                  setShowPasswordInput(false);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={isResettingPassword}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleResetPassword(useCustomPassword ? customPassword : undefined)}
+                disabled={isResettingPassword || (useCustomPassword && (!customPassword || customPassword.length < 6))}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResettingPassword ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block mr-2" />
+                    Resetting...
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Login Credentials Modal */}
         {showCredentialsModal && (profile?.initialPassword || newPassword) && client && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
