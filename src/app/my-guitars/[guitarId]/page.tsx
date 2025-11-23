@@ -175,19 +175,20 @@ export default function GuitarDetailPage({
             setInvoices(guitarInvoices);
           } else {
             // Fallback to all client invoices
-            const unsubscribeClient = subscribeClientInvoices(guitar.clientUid, (clientInvoices) => {
+            const unsubscribeClient = subscribeClientInvoices(guitar.clientUid || null, (clientInvoices) => {
               setInvoices(clientInvoices);
             });
             return () => {
-              if (unsubscribeClient) unsubscribeClient();
+              unsubscribeClient?.();
             };
           }
         });
       } else {
         // Fallback: subscribe to all client invoices
-        unsubscribeInvoices = subscribeClientInvoices(guitar.clientUid, (invoiceRecords) => {
+        const unsubscribe = subscribeClientInvoices(guitar.clientUid || null, (invoiceRecords) => {
           setInvoices(invoiceRecords);
         });
+        unsubscribeInvoices = unsubscribe || undefined;
       }
       
       return () => {

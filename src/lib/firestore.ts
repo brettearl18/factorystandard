@@ -356,19 +356,19 @@ export async function updateGuitarStage(
     );
     
     getDocs(q).then((snapshot) => {
-      snapshot.docs.forEach(async (doc) => {
-        const invoice = doc.data() as any;
+      snapshot.docs.forEach(async (invoiceDoc) => {
+        const invoice = invoiceDoc.data() as any;
         // If invoice has dueDaysAfterTrigger but no dueDate, calculate it now
         if (invoice.dueDaysAfterTrigger && !invoice.dueDate) {
           const dueDate = Date.now() + (invoice.dueDaysAfterTrigger * 24 * 60 * 60 * 1000);
-          const pathParts = doc.ref.path.split("/");
+          const pathParts = invoiceDoc.ref.path.split("/");
           const clientUidIndex = pathParts.indexOf("clients");
           const clientUid = clientUidIndex >= 0 && clientUidIndex < pathParts.length - 1 
             ? pathParts[clientUidIndex + 1] 
             : null;
           
           if (clientUid) {
-            const invoiceRef = doc(db, "clients", clientUid, "invoices", doc.id);
+            const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceDoc.id);
             await updateDoc(invoiceRef, { dueDate });
           }
         }
