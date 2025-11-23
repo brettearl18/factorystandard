@@ -68,6 +68,67 @@ export function AddGuitarModal({
   } | null>(null);
   const [emailCopied, setEmailCopied] = useState(false);
 
+  const getSiteUrl = () => {
+    if (typeof window !== "undefined") {
+      return window.location.origin;
+    }
+    return "https://factorystandards.com"; // Fallback
+  };
+
+  const generateEmailTemplate = () => {
+    if (!createdClientInfo) return "";
+    
+    const siteUrl = getSiteUrl();
+    const loginUrl = `${siteUrl}/login`;
+    
+    return `Subject: Your Factory Standards Account
+
+Hi ${createdClientInfo.name},
+
+Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+
+Login Details:
+Email: ${createdClientInfo.email}
+Password: ${createdClientInfo.password}
+
+Login Link: ${loginUrl}
+
+Please change your password after your first login for security.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Factory Standards Team`;
+  };
+
+  const handleCopyEmail = async () => {
+    const emailText = generateEmailTemplate();
+    try {
+      await navigator.clipboard.writeText(emailText);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+      // Fallback: select text
+      const textarea = document.createElement("textarea");
+      textarea.value = emailText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    setCreatedClientInfo(null);
+    setEmailCopied(false);
+    onSuccess?.();
+    onClose();
+  };
+
   // Load stages when modal opens
   useEffect(() => {
     if (isOpen && runId) {
