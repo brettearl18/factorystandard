@@ -11,7 +11,8 @@ import { GuitarCard } from "./GuitarCard";
 import { GuitarNoteDrawer } from "@/components/guitars/GuitarNoteDrawer";
 import { GuitarDetailModal } from "@/components/guitars/GuitarDetailModal";
 import { AddGuitarModal } from "@/components/guitars/AddGuitarModal";
-import { ArrowLeft, Plus, DollarSign } from "lucide-react";
+import { RunUpdateModal } from "./RunUpdateModal";
+import { ArrowLeft, Plus, DollarSign, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import type { GuitarBuild, RunStage, Run } from "@/types/guitars";
 
@@ -30,6 +31,7 @@ export function RunBoard({ runId }: RunBoardProps) {
   const [selectedGuitar, setSelectedGuitar] = useState<GuitarBuild | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isAddGuitarModalOpen, setIsAddGuitarModalOpen] = useState(false);
+  const [isRunUpdateModalOpen, setIsRunUpdateModalOpen] = useState(false);
   const [run, setRun] = useState<Run | null>(null);
 
   useEffect(() => {
@@ -122,13 +124,23 @@ export function RunBoard({ runId }: RunBoardProps) {
                 {guitars.length} guitar{guitars.length !== 1 ? "s" : ""} in this run
               </p>
             </div>
-            <button
-              onClick={() => setIsAddGuitarModalOpen(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Add Guitar
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsRunUpdateModalOpen(true)}
+                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                title="Send update to all clients in this run"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Run Update
+              </button>
+              <button
+                onClick={() => setIsAddGuitarModalOpen(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add Guitar
+              </button>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -245,6 +257,15 @@ export function RunBoard({ runId }: RunBoardProps) {
           onSuccess={() => {
             // Guitar will appear automatically via subscription
           }}
+        />
+      )}
+
+      {isRunUpdateModalOpen && run && (
+        <RunUpdateModal
+          isOpen={isRunUpdateModalOpen}
+          onClose={() => setIsRunUpdateModalOpen(false)}
+          run={run}
+          clientCount={new Set(guitars.map((g) => g.clientUid).filter((uid): uid is string => !!uid)).size}
         />
       )}
     </div>

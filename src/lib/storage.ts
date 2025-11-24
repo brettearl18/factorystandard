@@ -86,6 +86,19 @@ export async function uploadBrandingAsset(
   return downloadURL;
 }
 
+export async function uploadRunUpdateImage(
+  runId: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `runs/${runId}/updates/${filename}`);
+  
+  await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(storageRef);
+  return downloadURL;
+}
+
 /**
  * Converts a Google Drive share link to a direct image URL
  * Supports formats like:

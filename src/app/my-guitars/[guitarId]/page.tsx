@@ -10,6 +10,7 @@ import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunS
 import { isGoogleDriveLink } from "@/lib/storage";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
+import { RunUpdatesList } from "@/components/runs/RunUpdatesList";
 import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -618,6 +619,20 @@ export default function GuitarDetailPage({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Run Updates Panel */}
+            {guitar && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Run Updates</h2>
+                </div>
+                <RunUpdatesList 
+                  runId={guitar.runId} 
+                  clientOnly={true}
+                  maxUpdates={5}
+                />
               </div>
             )}
 

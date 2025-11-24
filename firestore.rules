@@ -28,6 +28,15 @@ service cloud.firestore {
         // This is enforced because clients only get runIds from their own guitars
         allow read: if isClient();
       }
+
+      match /updates/{updateId} {
+        // Clients can read updates visible to them
+        allow read: if request.auth != null && 
+                       (isStaff() || 
+                        (isClient() && resource.data.visibleToClients == true));
+        // Only staff can create/update/delete updates
+        allow write: if isStaff();
+      }
     }
 
     match /guitars/{guitarId} {

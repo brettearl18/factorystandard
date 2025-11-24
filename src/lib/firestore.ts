@@ -42,6 +42,7 @@ import type {
   ClientProfile,
   InvoiceRecord,
   InvoicePayment,
+  RunUpdate,
 } from "@/types/guitars";
 import type { AppSettings } from "@/types/settings";
 
@@ -1072,6 +1073,106 @@ export async function notifyUser(
     ...notification,
     userId,
   });
+}
+
+// Run Updates functions
+export function subscribeRunUpdates(
+  runId: string,
+  callback: (updates: RunUpdate[]) => void,
+  clientOnly: boolean = false
+): Unsubscribe {
+  const updatesRef = collection(db, "runs", runId, "updates");
+  const q = clientOnly
+    ? query(updatesRef, where("visibleToClients", "==", true), orderBy("createdAt", "desc"))
+    : query(updatesRef, orderBy("createdAt", "desc"));
+  
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const updates = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as RunUpdate[];
+      callback(updates);
+    },
+    (error: any) => {
+      console.error("Error subscribing to run updates:", error);
+      callback([]);
+    }
+  );
+}
+
+export async function createRunUpdate(
+  runId: string,
+  update: Omit<RunUpdate, "id" | "createdAt">
+): Promise<string> {
+  const updatesRef = collection(db, "runs", runId, "updates");
+  const docRef = await addDoc(updatesRef, {
+    ...update,
+    createdAt: Timestamp.now().toMillis(),
+  });
+  
+  // Get all clients in this run (through their guitars)
+  const guitars = await new Promise<GuitarBuild[]>((resolve) => {
+    const unsubscribe = subscribeGuitarsForRun(runId, (guitars) => {
+      unsubscribe();
+      resolve(guitars);
+    });
+    // Timeout after 3 seconds
+    setTimeout(() => {
+      unsubscribe();
+      resolve([]);
+    }, 3000);
+  });
+  
+  // Get unique client UIDs
+  const clientUids = [...new Set(guitars.map((g) => g.clientUid).filter((uid): uid is string => !!uid))];
+  
+  // Notify all clients in the run if update is visible to them
+  if (update.visibleToClients && clientUids.length > 0) {
+    const run = await getRun(runId);
+    const batch = writeBatch(db);
+    const notificationsRef = collection(db, "notifications");
+    
+    clientUids.forEach((clientUid) => {
+      const notificationRef = doc(notificationsRef);
+      batch.set(notificationRef, {
+        type: "run_update",
+        title: update.title,
+        message: update.message,
+        read: false,
+        userId: clientUid,
+        runId: runId,
+        createdAt: Timestamp.now().toMillis(),
+        metadata: {
+          runName: run?.name,
+          authorName: update.authorName,
+        },
+      });
+    });
+    
+    await batch.commit().catch((error) => {
+      console.error("Failed to send notifications for run update:", error);
+    });
+  }
+  
+  // Also notify all staff about the update
+  const run = await getRun(runId);
+  notifyAllStaff({
+    type: "run_update",
+    title: `Run Update: ${update.title}`,
+    message: `${update.authorName} posted an update to ${run?.name || "the run"}`,
+    read: false,
+    runId: runId,
+    metadata: {
+      runName: run?.name,
+      authorName: update.authorName,
+    },
+  }).catch((error) => {
+    console.error("Failed to send staff notifications for run update:", error);
+  });
+  
+  return docRef.id;
 }
 
 export async function updateGuitarPhotoInfo(

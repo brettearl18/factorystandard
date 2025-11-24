@@ -51,19 +51,20 @@ service firebase.storage {
          request.resource.contentType.matches('image/.*'));
     }
 
-    // Run thumbnails
+    // Run thumbnails and update images
     match /runs/{runId}/{allPaths=**} {
       // Staff/admin/factory can read and write all run files
       allow read, write: if isStaff();
       
-      // Clients can read run thumbnails only if they have guitars in that run
+      // Clients can read run thumbnails and update images if they have guitars in that run
       // Note: This is a simplified check - clients can read if authenticated
       // More restrictive: would need to check if client has guitars in the run
       allow read: if isClient() && request.auth != null;
       
       // Only allow image file types
+      // Update images can be larger (up to 10MB per file, but we check total size in the app)
       allow write: if isStaff() && 
-                     request.resource.size < 10 * 1024 * 1024 && // 10MB max
+                     request.resource.size < 10 * 1024 * 1024 && // 10MB max per file
                      request.resource.contentType.matches('image/.*');
     }
 

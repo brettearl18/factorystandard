@@ -201,5 +201,18 @@ export type NotificationType =
   | "guitar_assigned"
   | "run_created"
   | "run_archived"
-  | "guitar_archived";
+  | "guitar_archived"
+  | "run_update";
+
+export interface RunUpdate {
+  id: string; // document id under runs/{runId}/updates
+  runId: string;
+  title: string;
+  message: string;
+  authorUid: string;
+  authorName: string;
+  createdAt: number;
+  visibleToClients: boolean; // if false, only staff can see
+  imageUrls?: string[]; // Optional images attached to the update
+}
 
