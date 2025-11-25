@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { subscribeAllInvoices, recordInvoicePayment, type InvoiceWithClient } from "@/lib/firestore";
+import { subscribeAllInvoices, recordInvoicePayment, approvePayment, type InvoiceWithClient } from "@/lib/firestore";
 import type { InvoiceRecord, InvoicePayment } from "@/types/guitars";
 import {
   DollarSign,
@@ -70,10 +70,17 @@ export default function AccountingPage() {
     let overdueCount = 0;
     let pendingCount = 0;
     let paidCount = 0;
+    let pendingPaymentCount = 0;
 
     invoices.forEach((invoice) => {
-      const totalPaidAmount = (invoice.payments || []).reduce((sum, p) => sum + p.amount, 0);
+      const payments = invoice.payments || [];
+      // Only count approved payments
+      const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+      const totalPaidAmount = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
       const outstanding = invoice.amount - totalPaidAmount;
+      // Count pending payments
+      const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
+      pendingPaymentCount += pendingPayments.length;
 
       if (invoice.status === "paid") {
         totalPaid += invoice.amount;
@@ -100,6 +107,7 @@ export default function AccountingPage() {
       pendingCount,
       paidCount,
       totalInvoices: invoices.length,
+      pendingPaymentCount,
     };
   }, [invoices]);
 
@@ -268,6 +276,17 @@ export default function AccountingPage() {
             <p className="text-2xl font-bold text-gray-900">{financialSummary.overdueCount}</p>
             <p className="text-xs text-gray-500 mt-1">Requires attention</p>
           </div>
+
+          {financialSummary.pendingPaymentCount > 0 && (
+            <div className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 p-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-yellow-800">Pending Payments</h3>
+                <AlertCircle className="w-5 h-5 text-yellow-600" />
+              </div>
+              <p className="text-2xl font-bold text-yellow-900">{financialSummary.pendingPaymentCount}</p>
+              <p className="text-xs text-yellow-700 mt-1">Awaiting approval</p>
+            </div>
+          )}
         </div>
 
         {/* Filters */}
@@ -377,9 +396,13 @@ export default function AccountingPage() {
                   </tr>
                 ) : (
                   filteredInvoices.map((invoice) => {
-                    const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + p.amount, 0);
+                    const payments = invoice.payments || [];
+                    // Only count approved payments
+                    const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+                    const totalPaid = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
                     const outstanding = invoice.amount - totalPaid;
                     const isOverdue = invoice.dueDate && invoice.dueDate < Date.now() && invoice.status !== "paid";
+                    const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
 
                     return (
                       <tr key={invoice.id} className="hover:bg-gray-50">
@@ -426,15 +449,28 @@ export default function AccountingPage() {
                           {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setShowPaymentModal(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
-                          >
-                            Record Payment
-                          </button>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => {
+                                setSelectedInvoice(invoice);
+                                setShowPaymentModal(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-900 font-medium text-left"
+                            >
+                              Record Payment
+                            </button>
+                            {pendingPayments.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setSelectedInvoice(invoice);
+                                  setShowPaymentModal(true);
+                                }}
+                                className="text-yellow-600 hover:text-yellow-900 font-medium text-left text-xs"
+                              >
+                                {pendingPayments.length} pending
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -478,9 +514,15 @@ function RecordPaymentModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { currentUser } = useAuth();
+  const [showPendingPayments, setShowPendingPayments] = useState(true);
+
   if (!isOpen) return null;
 
-  const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + p.amount, 0);
+  const payments = invoice.payments || [];
+  const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+  const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
   const outstanding = invoice.amount - totalPaid;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -492,8 +534,13 @@ function RecordPaymentModal({
       if (isNaN(amountValue) || amountValue <= 0) {
         throw new Error("Amount must be a positive number");
       }
-      if (amountValue > outstanding) {
-        throw new Error(`Amount cannot exceed outstanding balance of ${invoice.currency} ${outstanding.toLocaleString()}`);
+      // Include pending payments in outstanding calculation for accounting
+      const allPayments = (invoice.payments || []).filter(p => p.approvalStatus !== "rejected");
+      const totalWithPending = allPayments.reduce((sum, p) => sum + p.amount, 0);
+      const outstandingWithPending = invoice.amount - totalWithPending;
+      
+      if (amountValue > outstandingWithPending) {
+        throw new Error(`Amount cannot exceed outstanding balance of ${invoice.currency} ${outstandingWithPending.toLocaleString()}`);
       }
 
       await recordInvoicePayment(invoice.clientUid, invoice.id, {
@@ -540,7 +587,94 @@ function RecordPaymentModal({
               Paid: {invoice.currency} ${totalPaid.toLocaleString()} | 
               Outstanding: {invoice.currency} ${outstanding.toLocaleString()}
             </div>
+            {pendingPayments.length > 0 && (
+              <div className="mt-2 text-sm text-yellow-700 font-medium">
+                {pendingPayments.length} payment(s) awaiting approval
+              </div>
+            )}
           </div>
+
+          {/* Pending Payments Section */}
+          {pendingPayments.length > 0 && showPendingPayments && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-yellow-800">Pending Payments</h3>
+                <button
+                  onClick={() => setShowPendingPayments(false)}
+                  className="text-yellow-600 hover:text-yellow-800 text-xs"
+                >
+                  Hide
+                </button>
+              </div>
+              <div className="space-y-3">
+                {pendingPayments.map((payment) => (
+                  <div key={payment.id} className="bg-white p-3 rounded border border-yellow-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {invoice.currency} {payment.amount.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {new Date(payment.paidAt).toLocaleDateString()} — {payment.method || "Payment"}
+                        </div>
+                        {payment.note && (
+                          <div className="text-xs text-gray-500 mt-1">{payment.note}</div>
+                        )}
+                        {payment.receiptUrl && (
+                          <a
+                            href={payment.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-700 underline mt-1 inline-block"
+                          >
+                            View Receipt
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={async () => {
+                          if (!currentUser?.uid) return;
+                          try {
+                            await approvePayment(invoice.clientUid, invoice.id, payment.id, currentUser.uid, true);
+                          } catch (err: any) {
+                            setError(err?.message || "Failed to approve payment");
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!currentUser?.uid) return;
+                          const reason = prompt("Rejection reason (optional):");
+                          try {
+                            await approvePayment(invoice.clientUid, invoice.id, payment.id, currentUser.uid, false, reason || undefined);
+                          } catch (err: any) {
+                            setError(err?.message || "Failed to reject payment");
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pendingPayments.length > 0 && !showPendingPayments && (
+            <button
+              onClick={() => setShowPendingPayments(true)}
+              className="mb-4 w-full px-4 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg hover:bg-yellow-100 text-sm"
+            >
+              Show {pendingPayments.length} pending payment(s)
+            </button>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

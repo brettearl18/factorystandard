@@ -46,8 +46,11 @@ export function InvoiceList({
         <div className="space-y-4">
           {invoices.map((invoice) => {
             const payments = invoice.payments || [];
-            const paidAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+            // Only count approved payments (or payments without approvalStatus for backward compatibility)
+            const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+            const paidAmount = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
             const outstanding = Math.max(invoice.amount - paidAmount, 0);
+            const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
 
             return (
               <div key={invoice.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -128,11 +131,44 @@ export function InvoiceList({
                   )}
                 </div>
 
-                {payments.length > 0 && (
-                  <div className="mt-4 bg-white rounded border border-gray-200 p-3">
-                    <p className="text-sm font-semibold mb-2">Payments</p>
+                {pendingPayments.length > 0 && (
+                  <div className="mt-4 bg-yellow-50 rounded border border-yellow-200 p-3">
+                    <p className="text-sm font-semibold mb-2 text-yellow-800">Pending Approval</p>
                     <div className="space-y-2">
-                      {payments.map((payment) => (
+                      {pendingPayments.map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="flex items-center justify-between text-sm text-yellow-700"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {new Date(payment.paidAt).toLocaleDateString()} —{" "}
+                              {payment.method || "Payment"} (Awaiting approval)
+                            </span>
+                            {payment.receiptUrl && (
+                              <a
+                                href={payment.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-700 underline text-xs"
+                              >
+                                View Receipt
+                              </a>
+                            )}
+                          </div>
+                          <span className="font-semibold">
+                            {formatCurrency(payment.amount, payment.currency)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {approvedPayments.length > 0 && (
+                  <div className="mt-4 bg-white rounded border border-gray-200 p-3">
+                    <p className="text-sm font-semibold mb-2">Approved Payments</p>
+                    <div className="space-y-2">
+                      {approvedPayments.map((payment) => (
                         <div
                           key={payment.id}
                           className="flex items-center justify-between text-sm text-gray-600"

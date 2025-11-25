@@ -83,6 +83,11 @@ service cloud.firestore {
         allow write: if isStaff();
         // Accounting can read and write invoices for payment recording
         allow read, write: if isAccounting();
+        // Clients can update their own invoices to add pending payments
+        // Note: Application code validates that only pending payments with recordedBy="client" are added
+        allow update: if isClient() && request.auth.uid == clientId &&
+          // Only allow updating payments array and status (which is recalculated)
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['payments', 'status']);
       }
     }
 

@@ -47,6 +47,9 @@ export { resetUserPassword } from "./resetUserPassword";
 // Export the listUsers function
 export { listUsers } from "./listUsers";
 
+// Export the getUserInfo function
+export { getUserInfo } from "./getUserInfo";
+
 // Export the backupFirestore function
 export { backupFirestore } from "./backupFirestore";
 

@@ -149,6 +149,10 @@ export interface InvoicePayment {
   paidAt: number;
   recordedBy: string;
   receiptUrl?: string; // Screenshot/receipt image URL
+  approvalStatus?: "pending" | "approved" | "rejected"; // Approval status for client-recorded payments
+  approvedBy?: string; // UID of staff/accounting who approved/rejected
+  approvedAt?: number; // Timestamp when approved/rejected
+  rejectionReason?: string; // Reason if rejected
 }
 
 export interface InvoiceRecord {

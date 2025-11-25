@@ -122,3 +122,6 @@ echo "💡 To restore from backup:"
 echo "   gcloud firestore import gs://${BUCKET_NAME}/firestore-backups/YYYY-MM-DD --project=${PROJECT_ID}"
 
 
+
+
+

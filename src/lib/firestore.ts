@@ -720,15 +720,23 @@ export async function recordInvoicePayment(
       ? crypto.randomUUID()
       : Math.random().toString(36).substring(2, 10);
   const paidAt = payment.paidAt ?? Timestamp.now().toMillis();
+  
+  // Set approval status based on who recorded the payment
+  const approvalStatus = payment.recordedBy === "client" ? "pending" : "approved";
+  
   const paymentData: InvoicePayment = {
     id: paymentId,
     ...payment,
     paidAt,
+    approvalStatus,
   };
 
   const existingPayments = invoice.payments || [];
   const newPayments = [...existingPayments, paymentData];
-  const totalPaid = newPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  
+  // Only count approved payments when calculating totals
+  const approvedPayments = newPayments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
   let newStatus: InvoiceRecord["status"] = invoice.status;
   if (totalPaid >= invoice.amount) {
@@ -739,6 +747,80 @@ export async function recordInvoicePayment(
 
   await updateDoc(invoiceRef, {
     payments: newPayments,
+    status: newStatus,
+  });
+
+  // Notify accounting if client recorded a payment
+  if (payment.recordedBy === "client") {
+    notifyAllStaff({
+      type: "guitar_note_added", // Reusing this type for now
+      title: "Payment Recorded - Awaiting Approval",
+      message: `Client recorded a payment of ${payment.currency} ${payment.amount.toLocaleString()} for invoice: ${invoice.title}. Please review and approve.`,
+      read: false,
+      guitarId: invoice.guitarId,
+      metadata: {
+        customerName: invoice.title,
+      },
+    }).catch((error) => {
+      console.error("Failed to notify accounting about pending payment:", error);
+    });
+  }
+
+  // Update guitar's payment info if invoice is linked to a guitar
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((error) => {
+      console.error("Failed to update guitar payment info:", error);
+    });
+  }
+}
+
+// Approve or reject a pending payment
+export async function approvePayment(
+  clientUid: string,
+  invoiceId: string,
+  paymentId: string,
+  approvedBy: string,
+  approved: boolean,
+  rejectionReason?: string
+): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+
+  const invoice = snapshot.data() as InvoiceRecord;
+  const payments = invoice.payments || [];
+  const paymentIndex = payments.findIndex(p => p.id === paymentId);
+  
+  if (paymentIndex === -1) {
+    throw new Error("Payment not found");
+  }
+
+  const updatedPayments = [...payments];
+  updatedPayments[paymentIndex] = {
+    ...updatedPayments[paymentIndex],
+    approvalStatus: approved ? "approved" : "rejected",
+    approvedBy,
+    approvedAt: Timestamp.now().toMillis(),
+    ...(rejectionReason ? { rejectionReason } : {}),
+  };
+
+  // Recalculate totals based on approved payments
+  const approvedPayments = updatedPayments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  let newStatus: InvoiceRecord["status"] = invoice.status;
+  if (totalPaid >= invoice.amount) {
+    newStatus = "paid";
+  } else if (totalPaid > 0) {
+    newStatus = "partial";
+  } else {
+    newStatus = "pending";
+  }
+
+  await updateDoc(invoiceRef, {
+    payments: updatedPayments,
     status: newStatus,
   });
 
@@ -774,7 +856,7 @@ export function subscribeGuitarInvoices(
   );
 }
 
-// Calculate total paid for a guitar across all invoices
+// Calculate total paid for a guitar across all invoices (only approved payments)
 export async function calculateGuitarTotalPaid(guitarId: string): Promise<number> {
   const invoicesRef = collectionGroup(db, "invoices");
   const q = query(invoicesRef, where("guitarId", "==", guitarId));
@@ -784,7 +866,9 @@ export async function calculateGuitarTotalPaid(guitarId: string): Promise<number
   snapshot.docs.forEach((doc) => {
     const invoice = doc.data() as InvoiceRecord;
     const payments = invoice.payments || [];
-    const invoicePaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    // Only count approved payments (or payments without approvalStatus for backward compatibility)
+    const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+    const invoicePaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
     totalPaid += invoicePaid;
   });
   
@@ -841,18 +925,53 @@ export function subscribeAllInvoices(
           ? pathParts[clientUidIndex + 1] 
           : "unknown";
 
-        // Try to get client profile for name/email
+        // Try to get client name/email
         let clientName: string | undefined;
         let clientEmail: string | undefined;
+        
         try {
-          const clientDoc = await getDoc(doc(db, "clients", clientUid));
-          if (clientDoc.exists()) {
-            const profile = clientDoc.data() as ClientProfile;
-            // Try to get user email from auth (would need a Cloud Function for this)
-            // For now, just use the profile data
+          const invoiceData = docSnapshot.data() as InvoiceRecord;
+          
+          // First, try to get customer name from linked guitar (most reliable)
+          if (invoiceData.guitarId) {
+            try {
+              const guitarDoc = await getDoc(doc(db, "guitars", invoiceData.guitarId));
+              if (guitarDoc.exists()) {
+                const guitar = guitarDoc.data() as GuitarBuild;
+                if (guitar.customerName) {
+                  clientName = guitar.customerName;
+                }
+                if (guitar.customerEmail) {
+                  clientEmail = guitar.customerEmail;
+                }
+              }
+            } catch (error) {
+              // Ignore errors getting guitar
+            }
+          }
+          
+          // If we don't have a name yet, try to get user info from Firebase Auth via Cloud Function
+          if (!clientName || !clientEmail) {
+            try {
+              const { getFunctions, httpsCallable } = await import("firebase/functions");
+              const functions = getFunctions();
+              const getUserInfo = httpsCallable(functions, "getUserInfo");
+              const result = await getUserInfo({ uid: clientUid });
+              const userData = (result.data as any);
+              if (userData?.success) {
+                if (!clientName && userData.displayName) {
+                  clientName = userData.displayName;
+                }
+                if (!clientEmail && userData.email) {
+                  clientEmail = userData.email;
+                }
+              }
+            } catch (error) {
+              // Ignore errors - Cloud Function might not exist or user might not be found
+            }
           }
         } catch (error) {
-          // Ignore errors getting client profile
+          // Ignore errors getting client info
         }
 
         invoices.push({
