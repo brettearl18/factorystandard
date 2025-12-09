@@ -198,7 +198,23 @@ export default function MyGuitarsPage() {
           <p className="text-gray-600">Track the progress of your custom builds</p>
         </div>
 
-        {guitars.length === 0 ? (
+        {guitars.length === 0 && userRole === "client" ? (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Guitar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No guitars yet</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Get started by submitting your guitar specifications. Fill out the form to begin your custom build journey.
+            </p>
+            <Link
+              href="/onboard"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Guitar className="w-5 h-5" />
+              Submit Guitar Specifications
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
+        ) : guitars.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">

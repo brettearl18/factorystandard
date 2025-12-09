@@ -5,8 +5,12 @@ import {
   User,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
 } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth } from "@/lib/firebase";
 import type { UserRole } from "@/types/guitars";
 
@@ -15,6 +19,8 @@ interface AuthContextType {
   userRole: UserRole | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshToken: () => Promise<void>;
 }
@@ -61,6 +67,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
+  const signUp = async (email: string, password: string, displayName: string) => {
+    // Create the user account
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Update display name
+    if (userCredential.user && displayName) {
+      // Note: We'll set the role via Cloud Function after account creation
+      // For now, just create the account
+    }
+    
+    // Call Cloud Function to set client role
+    try {
+      const functions = getFunctions();
+      const setClientRole = httpsCallable(functions, "setClientRole");
+      await setClientRole({
+        uid: userCredential.user.uid,
+        displayName: displayName,
+      });
+      
+      // Refresh token to get the new role
+      await refreshToken();
+    } catch (error) {
+      console.error("Error setting client role:", error);
+      // Don't throw - user is created, role will be set on next login
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const userCredential = await signInWithPopup(auth, provider);
+    
+    // Call Cloud Function to set client role if user is new
+    try {
+      const functions = getFunctions();
+      const setClientRole = httpsCallable(functions, "setClientRole");
+      await setClientRole({
+        uid: userCredential.user.uid,
+        displayName: userCredential.user.displayName || undefined,
+      });
+      
+      // Refresh token to get the new role
+      await refreshToken();
+    } catch (error) {
+      console.error("Error setting client role:", error);
+      // Don't throw - user can sign in, role will be set on next login
+    }
+  };
+
   const signOut = async () => {
     await firebaseSignOut(auth);
   };
@@ -80,6 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userRole,
     loading,
     signIn,
+    signUp,
+    signInWithGoogle,
     signOut,
     refreshToken,
   };

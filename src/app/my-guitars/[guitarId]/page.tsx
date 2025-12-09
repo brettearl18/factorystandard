@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices } from "@/lib/firestore";
-import { isGoogleDriveLink } from "@/lib/storage";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages } from "@/lib/firestore";
+import { isGoogleDriveLink, uploadGuitarGalleryImage } from "@/lib/storage";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { RunUpdatesList } from "@/components/runs/RunUpdatesList";
-import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff, Upload, X, Loader2 } from "lucide-react";
 import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 
@@ -40,6 +40,12 @@ export default function GuitarDetailPage({
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
+  
+  // Gallery upload state (client only)
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [showGalleryUpload, setShowGalleryUpload] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -239,6 +245,55 @@ export default function GuitarDetailPage({
   const filteredInvoices = guitar?.id 
     ? invoices.filter(inv => !inv.guitarId || inv.guitarId === guitar.id)
     : invoices;
+  
+  // Handle gallery image selection
+  const handleGalleryImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setGalleryFiles((prev) => [...prev, ...files].slice(0, 10)); // Max 10 images
+      
+      // Create previews
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setGalleryPreviews((prev) => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleRemoveGalleryImage = (index: number) => {
+    setGalleryFiles((prev) => prev.filter((_, i) => i !== index));
+    setGalleryPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUploadGallery = async () => {
+    if (galleryFiles.length === 0 || !guitar || !currentUser) return;
+    
+    setUploadingGallery(true);
+    try {
+      // Upload all images
+      const uploadedUrls: string[] = [];
+      for (const file of galleryFiles) {
+        const url = await uploadGuitarGalleryImage(guitar.id, file);
+        uploadedUrls.push(url);
+      }
+      
+      // Add to guitar's referenceImages
+      await addGuitarGalleryImages(guitar.id, uploadedUrls);
+      
+      // Clear upload state
+      setGalleryFiles([]);
+      setGalleryPreviews([]);
+      setShowGalleryUpload(false);
+    } catch (error: any) {
+      console.error("Error uploading gallery images:", error);
+      alert(error.message || "Failed to upload images. Please try again.");
+    } finally {
+      setUploadingGallery(false);
+    }
+  };
   
   // Collect all photos
   const allPhotos: string[] = [];
@@ -805,9 +860,95 @@ export default function GuitarDetailPage({
             )}
 
             {/* Photo Gallery */}
-            {allPhotos.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-bold mb-4">All Photos ({allPhotos.length})</h3>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Photo Gallery ({allPhotos.length})</h3>
+                {userRole === "client" && !isAdminViewing && (
+                  <button
+                    onClick={() => setShowGalleryUpload(!showGalleryUpload)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {showGalleryUpload ? "Cancel" : "Add Photos"}
+                  </button>
+                )}
+              </div>
+
+              {/* Gallery Upload Form (Client Only) */}
+              {showGalleryUpload && userRole === "client" && !isAdminViewing && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload Images (Max 10)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleGalleryImageSelect}
+                    className="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-md file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100"
+                    disabled={uploadingGallery || galleryFiles.length >= 10}
+                  />
+                  {galleryPreviews.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                      {galleryPreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={preview}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-md border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(index)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            disabled={uploadingGallery}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={handleUploadGallery}
+                      disabled={uploadingGallery || galleryFiles.length === 0}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                    >
+                      {uploadingGallery ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload {galleryFiles.length} Image{galleryFiles.length !== 1 ? "s" : ""}
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowGalleryUpload(false);
+                        setGalleryFiles([]);
+                        setGalleryPreviews([]);
+                      }}
+                      disabled={uploadingGallery}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {allPhotos.length > 0 ? (
+                <>
                 <div className="grid grid-cols-2 gap-3">
                   {allPhotos.slice(0, 6).map((url, idx) => {
                     const isDriveLink = isGoogleDriveLink(url);
@@ -844,8 +985,17 @@ export default function GuitarDetailPage({
                     +{allPhotos.length - 6} more photos
                   </p>
                 )}
-              </div>
-            )}
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No photos yet</p>
+                  {userRole === "client" && !isAdminViewing && (
+                    <p className="text-xs mt-1">Click "Add Photos" above to upload images</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -46,16 +46,34 @@ service cloud.firestore {
                     resource.data.clientUid == request.auth.uid;
       // Accounting can read guitars to manage invoices
       allow read: if isAccounting();
+      // Allow clients to create guitars (for onboarding)
+      // Security: Only allow if clientUid matches the authenticated user
+      allow create: if isClient() &&
+                     request.resource.data.clientUid == request.auth.uid &&
+                     // Ensure required fields are present
+                     request.resource.data.runId != null &&
+                     request.resource.data.stageId != null &&
+                     request.resource.data.orderNumber != null &&
+                     request.resource.data.model != null &&
+                     request.resource.data.finish != null;
+      // Allow clients to update referenceImages on their own guitars (for gallery uploads)
+      allow update: if isClient() &&
+                     resource.data.clientUid != null &&
+                     resource.data.clientUid == request.auth.uid &&
+                     // Only allow updating referenceImages and updatedAt
+                     // Check that only allowed fields are being changed
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referenceImages', 'updatedAt']);
       
       match /notes/{noteId} {
         allow read, write: if isStaff();
         // Allow clients to read notes for their guitars that are visible to them
         // Note: Collection queries must filter by visibleToClient == true in the query
+        // Security: The get() call checks that the guitar belongs to the client
+        // This is safe because clients can only read guitars they own (enforced by parent rule)
         allow read: if isClient() &&
-          get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid != null &&
-          get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid ==
-            request.auth.uid &&
-          resource.data.visibleToClient == true;
+          resource.data.visibleToClient == true &&
+          exists(/databases/$(database)/documents/guitars/$(guitarId)) &&
+          get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid == request.auth.uid;
       }
     }
 
@@ -91,11 +109,21 @@ service cloud.firestore {
       }
     }
 
-    // Collection group query for invoices (used by accounting dashboard)
+    // Collection group query for invoices (used by accounting dashboard and guitar-specific queries)
     // This allows accounting users to query all invoices across all clients
+    // Also allows clients to read invoices for guitars they own
     match /{path=**}/invoices/{invoiceId} {
       allow read: if isAccounting();
       allow write: if isAccounting();
+      // Allow clients to read invoices for their own guitars
+      // Security: Check if the invoice's guitarId belongs to the client
+      allow read: if isClient() &&
+                     resource.data.guitarId != null &&
+                     exists(/databases/$(database)/documents/guitars/$(resource.data.guitarId)) &&
+                     get(/databases/$(database)/documents/guitars/$(resource.data.guitarId)).data.clientUid == request.auth.uid;
+      // Also allow clients to read invoices directly under their client profile
+      allow read: if isClient() && path.matches("clients/{clientId}/invoices/{invoiceId}") &&
+                     path.split("/")[1] == request.auth.uid;
     }
 
     // App Settings - public read (for branding on login page), staff/admin can write

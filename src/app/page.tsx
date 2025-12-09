@@ -138,26 +138,36 @@ export default function Home() {
         {/* Login Options */}
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8 mb-16">
           {/* Client Login */}
-          <Link
-            href="/login?role=client"
-            className="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-blue-500"
-          >
-            <div className="flex items-center justify-center mb-6">
-              <div className="bg-blue-100 group-hover:bg-blue-200 p-4 rounded-full transition-colors">
-                <User className="w-10 h-10 text-blue-600" />
+          <div className="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-blue-500 flex flex-col">
+            <Link
+              href="/login?role=client"
+              className="flex-1 flex flex-col"
+            >
+              <div className="flex items-center justify-center mb-6">
+                <div className="bg-blue-100 group-hover:bg-blue-200 p-4 rounded-full transition-colors">
+                  <User className="w-10 h-10 text-blue-600" />
+                </div>
               </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3 text-center">
+                Client Login
+              </h2>
+              <p className="text-gray-600 mb-6 text-center">
+                Access your guitar build updates, view progress, and see photos from the factory
+              </p>
+              <div className="flex items-center justify-center text-blue-600 font-medium group-hover:text-blue-700">
+                <span>Sign in as Client</span>
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+            <div className="text-center pt-3 border-t border-gray-200 mt-auto">
+              <Link
+                href="/signup"
+                className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+              >
+                New client? Sign up here →
+              </Link>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-3 text-center">
-              Client Login
-            </h2>
-            <p className="text-gray-600 mb-6 text-center">
-              Access your guitar build updates, view progress, and see photos from the factory
-            </p>
-            <div className="flex items-center justify-center text-blue-600 font-medium group-hover:text-blue-700">
-              <span>Sign in as Client</span>
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </Link>
+          </div>
 
           {/* Admin/Staff Login */}
           <Link

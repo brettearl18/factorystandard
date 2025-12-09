@@ -402,6 +402,11 @@ export const RADIUS_OPTIONS = [
   "Custom",
 ];
 
+export const HANDEDNESS_OPTIONS = [
+  "Right Handed",
+  "Left Handed",
+];
+
 // Placeholder arrays for other spec fields (to be populated later)
 export const FINISH_COLOR_OPTIONS: string[] = [];
 

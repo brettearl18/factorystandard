@@ -10,6 +10,32 @@ export interface Run {
   thumbnailUrl?: string; // thumbnail image for easy reference
   archived?: boolean;     // true if archived (soft delete)
   archivedAt?: number;    // timestamp when archived
+  specConstraints?: {     // Optional constraints for spec options allowed in this run
+    bodyWood?: string[];
+    topWood?: string[];
+    neckWood?: string[];
+    fretboardWood?: string[];
+    pickupNeck?: string[];
+    pickupBridge?: string[];
+    pickupConfiguration?: string[];
+    controls?: string[];
+    switch?: string[];
+    bridge?: string[];
+    tuners?: string[];
+    nut?: string[];
+    pickguard?: string[];
+    strings?: string[];
+    stringGauge?: string[];
+    scaleLength?: string[];
+    action?: string[];
+    finishType?: string[];
+    binding?: string[];
+    inlays?: string[];
+    frets?: string[];
+    neckProfile?: string[];
+    radius?: string[];
+    handedness?: string[];
+  };
 }
 
 export interface InvoiceSchedule {
@@ -70,6 +96,7 @@ export interface GuitarSpecs {
   frets?: string;
   neckProfile?: string;
   radius?: string;
+  handedness?: string; // "Left Handed" or "Right Handed"
   customNotes?: string;
 }
 
@@ -138,6 +165,8 @@ export interface ClientProfile {
   initialPassword?: string; // Only visible to staff/admin
   accountCreatedAt?: number; // Timestamp when account was created
   accountCreatedBy?: string; // UID of staff/admin who created the account
+  // Run assignments - clients can only see runs they're assigned to
+  assignedRunIds?: string[]; // Array of run IDs this client has access to
 }
 
 export interface InvoicePayment {

@@ -13,12 +13,48 @@ service firebase.storage {
         request.auth.token.role == "client";
     }
 
+    // Special match for temp color inspiration images (must come before general guitars match)
+    // Path: guitars/temp/color-inspiration/{filename}
+    match /guitars/temp/color-inspiration/{filename} {
+      // Allow read for authenticated clients
+      allow read: if request.auth != null && 
+                   (request.auth.token.role == "client" || 
+                    request.auth.token.role == "staff" || 
+                    request.auth.token.role == "admin");
+      
+      // Allow write for authenticated clients with file validation
+      allow write: if request.auth != null && 
+                    (request.auth.token.role == "client" || 
+                     request.auth.token.role == "staff" || 
+                     request.auth.token.role == "admin") &&
+                    request.resource.size < 10 * 1024 * 1024 && // 10MB max per image
+                    request.resource.contentType.matches('image/.*');
+    }
+
+    // Client gallery images - clients can upload to their own guitar's gallery
+    // Path: guitars/{guitarId}/gallery/{filename}
+    match /guitars/{guitarId}/gallery/{filename} {
+      // Allow read for authenticated users
+      allow read: if request.auth != null;
+      
+      // Allow write for clients (to their own guitars) and staff/admin
+      allow write: if request.auth != null && 
+                    (request.auth.token.role == "staff" || 
+                     request.auth.token.role == "admin" ||
+                     (request.auth.token.role == "client" && 
+                      // Note: We can't verify guitar ownership in storage rules,
+                      // but Firestore rules will prevent unauthorized updates
+                      request.resource.size < 10 * 1024 * 1024 && // 10MB max per image
+                      request.resource.contentType.matches('image/.*')));
+    }
+
     // Guitar photos and reference images
+    // Note: gallery/ and temp/ paths are handled by specific matches above
     match /guitars/{guitarId}/{allPaths=**} {
       // Staff/admin/factory can read and write all guitar files
       allow read, write: if isStaff();
       
-      // Clients can read files - but we can't verify guitar ownership in Storage rules
+      // Clients can read files for their own guitars (but not temp/gallery paths - handled above)
       // Security: Client access is controlled at the application level
       // The app only shows guitars that belong to the client, so they can only access
       // photos for guitars they can see. This is acceptable because:
@@ -26,10 +62,12 @@ service firebase.storage {
       // 2. Firestore rules prevent clients from reading other clients' guitar documents
       // 3. The app UI only displays guitars owned by the client
       // For stronger security, consider adding custom metadata to storage objects
-      allow read: if isClient() && request.auth != null;
+      allow read: if isClient() && request.auth != null && guitarId != "temp";
       
-      // Only allow image file types
+      // Only allow image file types for staff writes (non-temp/gallery paths)
       allow write: if isStaff() && 
+                     guitarId != "temp" &&
+                     !allPaths.matches("gallery/.*") && // Exclude gallery path
                      request.resource.size < 10 * 1024 * 1024 && // 10MB max
                      request.resource.contentType.matches('image/.*');
     }

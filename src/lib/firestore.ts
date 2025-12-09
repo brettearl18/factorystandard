@@ -143,6 +143,29 @@ export function subscribeRunStages(
   );
 }
 
+/**
+ * Get the first stage (order: 0) from a run
+ * This is typically "Design & Planning" stage
+ */
+export async function getFirstStage(runId: string): Promise<RunStage | null> {
+  const stagesRef = collection(db, "runs", runId, "stages");
+  const q = query(stagesRef, where("order", "==", 0), limit(1));
+  
+  try {
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    
+    const stageDoc = snapshot.docs[0];
+    return {
+      id: stageDoc.id,
+      ...stageDoc.data(),
+    } as RunStage;
+  } catch (error: any) {
+    console.error("Error getting first stage:", error);
+    return null;
+  }
+}
+
 // Guitar queries
 export function subscribeGuitarsForRun(
   runId: string,
@@ -195,7 +218,19 @@ export async function createGuitar(
   
   // Only add optional fields if they have values
   if (guitarData.serial) cleanData.serial = guitarData.serial;
-  if (guitarData.specs) cleanData.specs = guitarData.specs;
+  if (guitarData.specs) {
+    // Remove undefined values from specs - Firestore doesn't accept undefined
+    const cleanSpecs: any = {};
+    Object.entries(guitarData.specs).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanSpecs[key] = value;
+      }
+    });
+    // Only add specs if it has at least one property
+    if (Object.keys(cleanSpecs).length > 0) {
+      cleanData.specs = cleanSpecs;
+    }
+  }
   if (guitarData.referenceImages && guitarData.referenceImages.length > 0) {
     cleanData.referenceImages = guitarData.referenceImages;
   }
@@ -1311,6 +1346,31 @@ export async function updateGuitarPhotoInfo(
   await updateDoc(doc(db, "guitars", guitarId), updates);
 }
 
+/**
+ * Add gallery images to a guitar (client-submitted)
+ * This appends images to the existing referenceImages array
+ */
+export async function addGuitarGalleryImages(
+  guitarId: string,
+  imageUrls: string[]
+): Promise<void> {
+  const guitarRef = doc(db, "guitars", guitarId);
+  const guitarDoc = await getDoc(guitarRef);
+  
+  if (!guitarDoc.exists()) {
+    throw new Error("Guitar not found");
+  }
+  
+  const guitar = guitarDoc.data() as GuitarBuild;
+  const existingImages = guitar.referenceImages || [];
+  const updatedImages = [...existingImages, ...imageUrls];
+  
+  await updateDoc(guitarRef, {
+    referenceImages: updatedImages,
+    updatedAt: Timestamp.now().toMillis(),
+  });
+}
+
 export async function updateGuitar(
   guitarId: string,
   updates: Partial<Omit<GuitarBuild, "id" | "createdAt">>
@@ -1329,7 +1389,21 @@ export async function updateGuitar(
   if (updates.model !== undefined) cleanUpdates.model = updates.model;
   if (updates.finish !== undefined) cleanUpdates.finish = updates.finish;
   if (updates.serial !== undefined) cleanUpdates.serial = updates.serial || null;
-  if (updates.specs !== undefined) cleanUpdates.specs = updates.specs || null;
+  if (updates.specs !== undefined) {
+    if (updates.specs === null) {
+      cleanUpdates.specs = null;
+    } else {
+      // Remove undefined values from specs - Firestore doesn't accept undefined
+      const cleanSpecs: any = {};
+      Object.entries(updates.specs).forEach(([key, value]) => {
+        if (value !== undefined) {
+          cleanSpecs[key] = value;
+        }
+      });
+      // Only set specs if it has at least one property, otherwise set to null
+      cleanUpdates.specs = Object.keys(cleanSpecs).length > 0 ? cleanSpecs : null;
+    }
+  }
   if (updates.referenceImages !== undefined) cleanUpdates.referenceImages = updates.referenceImages || null;
   if (updates.coverPhotoUrl !== undefined) cleanUpdates.coverPhotoUrl = updates.coverPhotoUrl || null;
   if (updates.photoCount !== undefined) cleanUpdates.photoCount = updates.photoCount;

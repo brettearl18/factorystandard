@@ -50,6 +50,9 @@ export { listUsers } from "./listUsers";
 // Export the getUserInfo function
 export { getUserInfo } from "./getUserInfo";
 
+// Export the setClientRole function
+export { setClientRole } from "./setClientRole";
+
 // Export the backupFirestore function
 export { backupFirestore } from "./backupFirestore";
 

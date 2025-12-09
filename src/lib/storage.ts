@@ -99,6 +99,37 @@ export async function uploadRunUpdateImage(
   return downloadURL;
 }
 
+export async function uploadColorInspirationImage(
+  file: File,
+  tempId: string = "temp"
+): Promise<string> {
+  const timestamp = Date.now();
+  const filename = `${timestamp}_${file.name}`;
+  const storageRef = ref(storage, `guitars/${tempId}/color-inspiration/${filename}`);
+  
+  await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(storageRef);
+  return downloadURL;
+}
+
+/**
+ * Upload a gallery image for a guitar (client-submitted)
+ * Path: guitars/{guitarId}/gallery/{filename}
+ */
+export async function uploadGuitarGalleryImage(
+  guitarId: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 9);
+  const filename = `${timestamp}_${randomStr}_${file.name}`;
+  const storageRef = ref(storage, `guitars/${guitarId}/gallery/${filename}`);
+  
+  await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(storageRef);
+  return downloadURL;
+}
+
 /**
  * Converts a Google Drive share link to a direct image URL
  * Supports formats like:

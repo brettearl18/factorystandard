@@ -5,8 +5,33 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { createRun, createStage } from "@/lib/firestore";
-import { Plus, X, GripVertical, FileText, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
-import type { RunStage, InvoiceSchedule } from "@/types/guitars";
+import { Plus, X, GripVertical, FileText, DollarSign, ChevronDown, ChevronUp, Settings, CheckSquare } from "lucide-react";
+import type { RunStage, InvoiceSchedule, Run } from "@/types/guitars";
+import {
+  BODY_WOOD_OPTIONS,
+  TOP_WOOD_OPTIONS,
+  NECK_WOOD_OPTIONS,
+  FRETBOARD_WOOD_OPTIONS,
+  PICKUP_NECK_OPTIONS,
+  PICKUP_BRIDGE_OPTIONS,
+  PICKUP_CONFIGURATION_OPTIONS,
+  CONTROLS_OPTIONS,
+  SWITCH_OPTIONS,
+  BRIDGE_OPTIONS,
+  TUNER_OPTIONS,
+  NUT_OPTIONS,
+  PICKGUARD_OPTIONS,
+  STRING_COUNT_OPTIONS,
+  STRING_GAUGE_OPTIONS,
+  SCALE_LENGTH_OPTIONS,
+  ACTION_OPTIONS,
+  FINISH_TYPE_OPTIONS,
+  BINDING_OPTIONS,
+  INLAY_STYLE_OPTIONS,
+  FRET_COUNT_OPTIONS,
+  NECK_PROFILE_OPTIONS,
+  RADIUS_OPTIONS,
+} from "@/constants/guitarSpecs";
 
 // Standard template stages
 const STANDARD_STAGES: Omit<RunStage, "id">[] = [
@@ -92,6 +117,9 @@ export default function NewRunPage() {
   ]);
   const [expandedInvoiceSchedules, setExpandedInvoiceSchedules] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSpecConstraints, setShowSpecConstraints] = useState(false);
+  const [specConstraints, setSpecConstraints] = useState<Run["specConstraints"]>({});
+  const [expandedSpecCategories, setExpandedSpecCategories] = useState<Set<string>>(new Set());
 
   if (loading) {
     return (
@@ -181,6 +209,62 @@ export default function NewRunPage() {
     setStages(STANDARD_STAGES.map((stage, index) => ({ ...stage, order: index })));
   };
 
+  // Spec constraints handlers
+  const toggleSpecCategory = (category: string) => {
+    const newExpanded = new Set(expandedSpecCategories);
+    if (newExpanded.has(category)) {
+      newExpanded.delete(category);
+    } else {
+      newExpanded.add(category);
+    }
+    setExpandedSpecCategories(newExpanded);
+  };
+
+  const toggleSpecOption = (category: keyof NonNullable<Run["specConstraints"]>, option: string) => {
+    const current = specConstraints?.[category] || [];
+    const isSelected = current.includes(option);
+    
+    setSpecConstraints({
+      ...specConstraints,
+      [category]: isSelected
+        ? current.filter((o) => o !== option)
+        : [...current, option],
+    });
+  };
+
+  const addCustomSpecOption = (category: keyof NonNullable<Run["specConstraints"]>, customValue: string) => {
+    if (!customValue.trim()) return;
+    const current = specConstraints?.[category] || [];
+    if (current.includes(customValue.trim())) return; // Prevent duplicates
+    
+    setSpecConstraints({
+      ...specConstraints,
+      [category]: [...current, customValue.trim()],
+    });
+  };
+
+  const removeCustomSpecOption = (category: keyof NonNullable<Run["specConstraints"]>, option: string) => {
+    const current = specConstraints?.[category] || [];
+    setSpecConstraints({
+      ...specConstraints,
+      [category]: current.filter((o) => o !== option),
+    });
+  };
+
+  const selectAllOptions = (category: keyof NonNullable<Run["specConstraints"]>, allOptions: string[]) => {
+    setSpecConstraints({
+      ...specConstraints,
+      [category]: allOptions,
+    });
+  };
+
+  const deselectAllOptions = (category: keyof NonNullable<Run["specConstraints"]>) => {
+    setSpecConstraints({
+      ...specConstraints,
+      [category]: [],
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!runName.trim() || stages.length === 0) return;
@@ -188,12 +272,23 @@ export default function NewRunPage() {
     setIsSubmitting(true);
 
     try {
+      // Clean up empty constraint arrays
+      const cleanedConstraints: Run["specConstraints"] = {};
+      if (specConstraints) {
+        Object.entries(specConstraints).forEach(([key, value]) => {
+          if (value && value.length > 0) {
+            cleanedConstraints[key as keyof typeof cleanedConstraints] = value;
+          }
+        });
+      }
+
       // Create the run
       const runId = await createRun({
         name: runName,
         factory: "perth",
         isActive: true,
         startsAt: Date.now(),
+        specConstraints: Object.keys(cleanedConstraints).length > 0 ? cleanedConstraints : undefined,
       });
 
       // Create all stages
@@ -520,6 +615,171 @@ export default function NewRunPage() {
           </div>
         </div>
 
+        {/* Spec Constraints */}
+        <div className="border rounded-lg p-4 bg-gray-50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-gray-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Spec Constraints (Optional)</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSpecConstraints(!showSpecConstraints)}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            >
+              {showSpecConstraints ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  Hide Constraints
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  Show Constraints
+                </>
+              )}
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Limit which spec options are available for this run. Clients will only see the options you select when filling out their guitar specifications.
+          </p>
+
+          {showSpecConstraints && (
+            <div className="space-y-4 mt-4">
+              {/* Spec Constraint Category Component */}
+              {([
+                { key: "bodyWood" as const, label: "Body Wood", options: BODY_WOOD_OPTIONS },
+                { key: "topWood" as const, label: "Top Wood", options: TOP_WOOD_OPTIONS },
+                { key: "neckWood" as const, label: "Neck Wood", options: NECK_WOOD_OPTIONS },
+                { key: "fretboardWood" as const, label: "Fretboard Wood", options: FRETBOARD_WOOD_OPTIONS },
+                { key: "pickupNeck" as const, label: "Neck Pickup", options: PICKUP_NECK_OPTIONS },
+                { key: "pickupBridge" as const, label: "Bridge Pickup", options: PICKUP_BRIDGE_OPTIONS },
+                { key: "pickupConfiguration" as const, label: "Pickup Configuration", options: PICKUP_CONFIGURATION_OPTIONS },
+                { key: "controls" as const, label: "Controls", options: CONTROLS_OPTIONS },
+                { key: "switch" as const, label: "Switch", options: SWITCH_OPTIONS },
+                { key: "bridge" as const, label: "Bridge", options: BRIDGE_OPTIONS },
+                { key: "tuners" as const, label: "Tuners", options: TUNER_OPTIONS },
+                { key: "nut" as const, label: "Nut", options: NUT_OPTIONS },
+                { key: "pickguard" as const, label: "Pickguard", options: PICKGUARD_OPTIONS },
+                { key: "strings" as const, label: "String Count", options: STRING_COUNT_OPTIONS },
+                { key: "stringGauge" as const, label: "String Gauge", options: STRING_GAUGE_OPTIONS },
+                { key: "scaleLength" as const, label: "Scale Length", options: SCALE_LENGTH_OPTIONS },
+                { key: "action" as const, label: "Action", options: ACTION_OPTIONS },
+                { key: "finishType" as const, label: "Finish Type", options: FINISH_TYPE_OPTIONS },
+                { key: "binding" as const, label: "Binding", options: BINDING_OPTIONS },
+                { key: "inlays" as const, label: "Inlay Style", options: INLAY_STYLE_OPTIONS },
+                { key: "frets" as const, label: "Fret Count", options: FRET_COUNT_OPTIONS },
+                { key: "neckProfile" as const, label: "Neck Profile", options: NECK_PROFILE_OPTIONS },
+                { key: "radius" as const, label: "Radius", options: RADIUS_OPTIONS },
+                { key: "handedness" as const, label: "Handedness", options: HANDEDNESS_OPTIONS },
+              ] as const).map(({ key, label, options }) => {
+                const isExpanded = expandedSpecCategories.has(key);
+                const selected = specConstraints?.[key] || [];
+                const customOptions = selected.filter((opt) => !options.includes(opt));
+                const predefinedSelected = selected.filter((opt) => options.includes(opt));
+
+                return (
+                  <div key={key} className="bg-white border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleSpecCategory(key)}
+                        className="flex items-center gap-2 text-sm font-medium text-gray-900 hover:text-blue-600"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                        {label}
+                        {selected.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                            {selected.length} selected
+                          </span>
+                        )}
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => selectAllOptions(key, options)}
+                          className="text-xs text-gray-600 hover:text-blue-600"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-gray-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => deselectAllOptions(key)}
+                          className="text-xs text-gray-600 hover:text-blue-600"
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-3 space-y-3">
+                        {/* Predefined Options */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded">
+                          {options.map((option) => {
+                            const isChecked = predefinedSelected.includes(option);
+                            return (
+                              <label
+                                key={option}
+                                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleSpecOption(key, option)}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <span className={isChecked ? "font-medium text-blue-700" : "text-gray-700"}>
+                                  {option}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        {/* Custom Options */}
+                        {customOptions.length > 0 && (
+                          <div className="border-t pt-3">
+                            <p className="text-xs font-medium text-gray-700 mb-2">Custom Options:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {customOptions.map((option) => (
+                                <span
+                                  key={option}
+                                  className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm"
+                                >
+                                  {option}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeCustomSpecOption(key, option)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Add Custom Option */}
+                        <CustomOptionInput
+                          onAdd={(value) => addCustomSpecOption(key, value)}
+                          placeholder={`Add custom ${label.toLowerCase()}...`}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Submit */}
         <div className="flex gap-4">
           <button
@@ -541,6 +801,49 @@ export default function NewRunPage() {
       </form>
       </div>
     </AppLayout>
+  );
+}
+
+// Custom Option Input Component
+function CustomOptionInput({
+  onAdd,
+  placeholder,
+}: {
+  onAdd: (value: string) => void;
+  placeholder: string;
+}) {
+  const [value, setValue] = useState("");
+
+  const handleAdd = () => {
+    if (value.trim()) {
+      onAdd(value.trim());
+      setValue("");
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyPress={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleAdd();
+          }
+        }}
+        placeholder={placeholder}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+      >
+        Add
+      </button>
+    </div>
   );
 }
 
