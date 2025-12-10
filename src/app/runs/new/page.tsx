@@ -118,7 +118,7 @@ export default function NewRunPage() {
   ]);
   const [expandedInvoiceSchedules, setExpandedInvoiceSchedules] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSpecConstraints, setShowSpecConstraints] = useState(false);
+  const [showSpecConstraints, setShowSpecConstraints] = useState(true);
   const [specConstraints, setSpecConstraints] = useState<Run["specConstraints"]>({});
   const [expandedSpecCategories, setExpandedSpecCategories] = useState<Set<string>>(new Set());
 
