@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { subscribeRuns, getFirstStage, createGuitar } from "@/lib/firestore";
 import { uploadColorInspirationImage } from "@/lib/storage";
 import { useClientProfile } from "@/hooks/useClientProfile";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Run, GuitarSpecs } from "@/types/guitars";
 import {
   BODY_WOOD_OPTIONS,
@@ -103,7 +104,94 @@ export default function OnboardPage() {
     }
     // Return all constraint options (includes both predefined and custom)
     // This ensures custom options are shown even if not in predefined list
-    return constraintOptions;
+    // Always return an array, even if it has only 1 option (dropdown will still work)
+    // The dropdown will show: empty "Select..." option + the constraint option(s)
+    return Array.isArray(constraintOptions) ? [...constraintOptions] : [];
+  };
+
+  // Auto-set spec value when there's only 1 option available
+  useEffect(() => {
+    if (!selectedRunId || !constraints) return;
+
+    const categories: Array<{ key: keyof GuitarSpecs; constraintKey: keyof NonNullable<Run["specConstraints"]>; options: readonly string[] }> = [
+      { key: "bodyWood", constraintKey: "bodyWood", options: BODY_WOOD_OPTIONS },
+      { key: "topWood", constraintKey: "topWood", options: TOP_WOOD_OPTIONS },
+      { key: "neckWood", constraintKey: "neckWood", options: NECK_WOOD_OPTIONS },
+      { key: "fretboardWood", constraintKey: "fretboardWood", options: FRETBOARD_WOOD_OPTIONS },
+      { key: "pickupNeck", constraintKey: "pickupNeck", options: PICKUP_NECK_OPTIONS },
+      { key: "pickupBridge", constraintKey: "pickupBridge", options: PICKUP_BRIDGE_OPTIONS },
+      { key: "pickupConfiguration", constraintKey: "pickupConfiguration", options: PICKUP_CONFIGURATION_OPTIONS },
+      { key: "controls", constraintKey: "controls", options: CONTROLS_OPTIONS },
+      { key: "switch", constraintKey: "switch", options: SWITCH_OPTIONS },
+      { key: "bridge", constraintKey: "bridge", options: BRIDGE_OPTIONS },
+      { key: "tuners", constraintKey: "tuners", options: TUNER_OPTIONS },
+      { key: "nut", constraintKey: "nut", options: NUT_OPTIONS },
+      { key: "pickguard", constraintKey: "pickguard", options: PICKGUARD_OPTIONS },
+      { key: "strings", constraintKey: "strings", options: STRING_COUNT_OPTIONS },
+      { key: "stringGauge", constraintKey: "stringGauge", options: STRING_GAUGE_OPTIONS },
+      { key: "scaleLength", constraintKey: "scaleLength", options: SCALE_LENGTH_OPTIONS },
+      { key: "action", constraintKey: "action", options: ACTION_OPTIONS },
+      { key: "finishType", constraintKey: "finishType", options: FINISH_TYPE_OPTIONS },
+      { key: "binding", constraintKey: "binding", options: BINDING_OPTIONS },
+      { key: "inlays", constraintKey: "inlays", options: INLAY_STYLE_OPTIONS },
+      { key: "frets", constraintKey: "frets", options: FRET_COUNT_OPTIONS },
+      { key: "neckProfile", constraintKey: "neckProfile", options: NECK_PROFILE_OPTIONS },
+      { key: "radius", constraintKey: "radius", options: RADIUS_OPTIONS },
+      { key: "handedness", constraintKey: "handedness", options: HANDEDNESS_OPTIONS },
+    ];
+
+    const updates: Partial<GuitarSpecs> = {};
+    categories.forEach(({ key, constraintKey, options }) => {
+      const filtered = getFilteredOptions(constraintKey, options);
+      if (filtered.length === 1) {
+        // Auto-set the value if there's only 1 option
+        updates[key] = filtered[0];
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      setSpecs((prevSpecs) => ({ ...prevSpecs, ...updates }));
+    }
+  }, [selectedRunId, constraints]);
+
+  // Helper function to render spec field (read-only input if 1 option, dropdown if multiple)
+  const renderSpecField = (
+    category: keyof NonNullable<Run["specConstraints"]>,
+    specKey: keyof GuitarSpecs,
+    allOptions: readonly string[],
+    placeholder: string,
+    label: string
+  ) => {
+    const options = getFilteredOptions(category, allOptions);
+    const isSingleOption = options.length === 1;
+    const currentValue = specs[specKey] || "";
+
+    if (isSingleOption) {
+      return (
+        <input
+          type="text"
+          value={options[0]}
+          readOnly
+          className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+        />
+      );
+    }
+
+    return (
+      <select
+        value={currentValue}
+        onChange={(e) => setSpecs({ ...specs, [specKey]: e.target.value || undefined })}
+        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        disabled={submitting}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
   };
 
   // Load runs and filter by assigned runs
@@ -417,67 +505,19 @@ export default function OnboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Body Wood</label>
-                <select
-                  value={specs.bodyWood || ""}
-                  onChange={(e) => setSpecs({ ...specs, bodyWood: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select body wood</option>
-                  {getFilteredOptions("bodyWood", BODY_WOOD_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("bodyWood", "bodyWood", BODY_WOOD_OPTIONS, "Select body wood", "Body Wood")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Top Wood</label>
-                <select
-                  value={specs.topWood || ""}
-                  onChange={(e) => setSpecs({ ...specs, topWood: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select top wood</option>
-                  {getFilteredOptions("topWood", TOP_WOOD_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("topWood", "topWood", TOP_WOOD_OPTIONS, "Select top wood", "Top Wood")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Neck Wood</label>
-                <select
-                  value={specs.neckWood || ""}
-                  onChange={(e) => setSpecs({ ...specs, neckWood: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select neck wood</option>
-                  {getFilteredOptions("neckWood", NECK_WOOD_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("neckWood", "neckWood", NECK_WOOD_OPTIONS, "Select neck wood", "Neck Wood")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Fretboard Wood</label>
-                <select
-                  value={specs.fretboardWood || ""}
-                  onChange={(e) => setSpecs({ ...specs, fretboardWood: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select fretboard wood</option>
-                  {getFilteredOptions("fretboardWood", FRETBOARD_WOOD_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("fretboardWood", "fretboardWood", FRETBOARD_WOOD_OPTIONS, "Select fretboard wood", "Fretboard Wood")}
               </div>
             </div>
           </div>
@@ -488,67 +528,19 @@ export default function OnboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Bridge</label>
-                <select
-                  value={specs.bridge || ""}
-                  onChange={(e) => setSpecs({ ...specs, bridge: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select bridge</option>
-                  {getFilteredOptions("bridge", BRIDGE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("bridge", "bridge", BRIDGE_OPTIONS, "Select bridge", "Bridge")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Tuners</label>
-                <select
-                  value={specs.tuners || ""}
-                  onChange={(e) => setSpecs({ ...specs, tuners: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select tuners</option>
-                  {getFilteredOptions("tuners", TUNER_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("tuners", "tuners", TUNER_OPTIONS, "Select tuners", "Tuners")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nut</label>
-                <select
-                  value={specs.nut || ""}
-                  onChange={(e) => setSpecs({ ...specs, nut: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select nut</option>
-                  {getFilteredOptions("nut", NUT_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("nut", "nut", NUT_OPTIONS, "Select nut", "Nut")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Pickguard</label>
-                <select
-                  value={specs.pickguard || ""}
-                  onChange={(e) => setSpecs({ ...specs, pickguard: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select pickguard</option>
-                  {getFilteredOptions("pickguard", PICKGUARD_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("pickguard", "pickguard", PICKGUARD_OPTIONS, "Select pickguard", "Pickguard")}
               </div>
             </div>
           </div>
@@ -559,83 +551,23 @@ export default function OnboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Configuration</label>
-                <select
-                  value={specs.pickupConfiguration || ""}
-                  onChange={(e) => setSpecs({ ...specs, pickupConfiguration: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select configuration</option>
-                  {getFilteredOptions("pickupConfiguration", PICKUP_CONFIGURATION_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("pickupConfiguration", "pickupConfiguration", PICKUP_CONFIGURATION_OPTIONS, "Select configuration", "Pickup Configuration")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Neck Pickup</label>
-                <select
-                  value={specs.pickupNeck || ""}
-                  onChange={(e) => setSpecs({ ...specs, pickupNeck: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select neck pickup</option>
-                  {getFilteredOptions("pickupNeck", PICKUP_NECK_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("pickupNeck", "pickupNeck", PICKUP_NECK_OPTIONS, "Select neck pickup", "Neck Pickup")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Bridge Pickup</label>
-                <select
-                  value={specs.pickupBridge || ""}
-                  onChange={(e) => setSpecs({ ...specs, pickupBridge: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select bridge pickup</option>
-                  {getFilteredOptions("pickupBridge", PICKUP_BRIDGE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("pickupBridge", "pickupBridge", PICKUP_BRIDGE_OPTIONS, "Select bridge pickup", "Bridge Pickup")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Controls</label>
-                <select
-                  value={specs.controls || ""}
-                  onChange={(e) => setSpecs({ ...specs, controls: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select controls</option>
-                  {getFilteredOptions("controls", CONTROLS_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("controls", "controls", CONTROLS_OPTIONS, "Select controls", "Controls")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Switch</label>
-                <select
-                  value={specs.switch || ""}
-                  onChange={(e) => setSpecs({ ...specs, switch: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select switch</option>
-                  {getFilteredOptions("switch", SWITCH_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("switch", "switch", SWITCH_OPTIONS, "Select switch", "Switch")}
               </div>
             </div>
           </div>
@@ -646,67 +578,19 @@ export default function OnboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">String Count</label>
-                <select
-                  value={specs.strings || ""}
-                  onChange={(e) => setSpecs({ ...specs, strings: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select string count</option>
-                  {getFilteredOptions("strings", STRING_COUNT_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("strings", "strings", STRING_COUNT_OPTIONS, "Select string count", "String Count")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">String Gauge</label>
-                <select
-                  value={specs.stringGauge || ""}
-                  onChange={(e) => setSpecs({ ...specs, stringGauge: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select string gauge</option>
-                  {getFilteredOptions("stringGauge", STRING_GAUGE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("stringGauge", "stringGauge", STRING_GAUGE_OPTIONS, "Select string gauge", "String Gauge")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Scale Length</label>
-                <select
-                  value={specs.scaleLength || ""}
-                  onChange={(e) => setSpecs({ ...specs, scaleLength: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select scale length</option>
-                  {getFilteredOptions("scaleLength", SCALE_LENGTH_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("scaleLength", "scaleLength", SCALE_LENGTH_OPTIONS, "Select scale length", "Scale Length")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Action</label>
-                <select
-                  value={specs.action || ""}
-                  onChange={(e) => setSpecs({ ...specs, action: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select action</option>
-                  {getFilteredOptions("action", ACTION_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("action", "action", ACTION_OPTIONS, "Select action", "Action")}
               </div>
             </div>
           </div>
@@ -728,51 +612,15 @@ export default function OnboardPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Finish Type</label>
-                <select
-                  value={specs.finishType || ""}
-                  onChange={(e) => setSpecs({ ...specs, finishType: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select finish type</option>
-                  {getFilteredOptions("finishType", FINISH_TYPE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("finishType", "finishType", FINISH_TYPE_OPTIONS, "Select finish type", "Finish Type")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Binding</label>
-                <select
-                  value={specs.binding || ""}
-                  onChange={(e) => setSpecs({ ...specs, binding: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select binding</option>
-                  {getFilteredOptions("binding", BINDING_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("binding", "binding", BINDING_OPTIONS, "Select binding", "Binding")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Inlay Style</label>
-                <select
-                  value={specs.inlays || ""}
-                  onChange={(e) => setSpecs({ ...specs, inlays: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select inlay style</option>
-                  {getFilteredOptions("inlays", INLAY_STYLE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("inlays", "inlays", INLAY_STYLE_OPTIONS, "Select inlay style", "Inlay Style")}
               </div>
             </div>
           </div>
@@ -783,67 +631,19 @@ export default function OnboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Fret Count</label>
-                <select
-                  value={specs.frets || ""}
-                  onChange={(e) => setSpecs({ ...specs, frets: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select fret count</option>
-                  {getFilteredOptions("frets", FRET_COUNT_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("frets", "frets", FRET_COUNT_OPTIONS, "Select fret count", "Fret Count")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Neck Profile</label>
-                <select
-                  value={specs.neckProfile || ""}
-                  onChange={(e) => setSpecs({ ...specs, neckProfile: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select neck profile</option>
-                  {getFilteredOptions("neckProfile", NECK_PROFILE_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("neckProfile", "neckProfile", NECK_PROFILE_OPTIONS, "Select neck profile", "Neck Profile")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Radius</label>
-                <select
-                  value={specs.radius || ""}
-                  onChange={(e) => setSpecs({ ...specs, radius: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select radius</option>
-                  {getFilteredOptions("radius", RADIUS_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("radius", "radius", RADIUS_OPTIONS, "Select radius", "Radius")}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Handedness</label>
-                <select
-                  value={specs.handedness || ""}
-                  onChange={(e) => setSpecs({ ...specs, handedness: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={submitting}
-                >
-                  <option value="">Select handedness</option>
-                  {getFilteredOptions("handedness", HANDEDNESS_OPTIONS).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                {renderSpecField("handedness", "handedness", HANDEDNESS_OPTIONS, "Select handedness", "Handedness")}
               </div>
             </div>
           </div>

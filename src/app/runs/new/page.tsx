@@ -31,6 +31,7 @@ import {
   FRET_COUNT_OPTIONS,
   NECK_PROFILE_OPTIONS,
   RADIUS_OPTIONS,
+  HANDEDNESS_OPTIONS,
 } from "@/constants/guitarSpecs";
 
 // Standard template stages
