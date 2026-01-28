@@ -22,6 +22,7 @@ import { ClientContactCard } from "@/components/client/ClientContactCard";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { UploadInvoiceModal } from "@/components/client/UploadInvoiceModal";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
+import { RecordPaymentQuickModal } from "@/components/client/RecordPaymentQuickModal";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   Calendar,
@@ -42,6 +43,8 @@ import {
   EyeOff,
   Archive,
   ArchiveRestore,
+  Plus,
+  DollarSign,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -89,6 +92,7 @@ export default function ClientDashboardPage({
   const [useCustomPassword, setUseCustomPassword] = useState(false);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -540,6 +544,18 @@ export default function ClientDashboardPage({
                   </span>
                 </div>
               )}
+              {!isEmailContact && (
+                <div className="pt-3 border-t border-gray-200 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickPaymentModal(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Record Payment
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <ClientContactCard profile={profile} onSave={handleSaveProfile} canEdit />
@@ -789,6 +805,19 @@ export default function ClientDashboardPage({
           invoice={paymentInvoice}
           isOpen={Boolean(paymentInvoice)}
           onClose={() => setPaymentInvoice(null)}
+        />
+      )}
+
+      {!isEmailContact && (
+        <RecordPaymentQuickModal
+          clientUid={clientId}
+          invoices={invoices}
+          guitars={guitars.map((g) => ({ id: g.id, model: g.model, finish: g.finish }))}
+          isOpen={showQuickPaymentModal}
+          onClose={() => setShowQuickPaymentModal(false)}
+          onSuccess={() => {
+            // Invoices will refresh automatically via subscription
+          }}
         />
       )}
 

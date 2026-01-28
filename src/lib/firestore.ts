@@ -793,11 +793,22 @@ export async function recordInvoicePayment(
     approvalStatus,
   };
 
+  // Strip undefined values so Firestore accepts the document
+  const cleanPayment = (p: InvoicePayment): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    (Object.keys(p) as (keyof InvoicePayment)[]).forEach((key) => {
+      const v = p[key];
+      if (v !== undefined) out[key] = v;
+    });
+    return out;
+  };
+
   const existingPayments = invoice.payments || [];
-  const newPayments = [...existingPayments, paymentData];
-  
+  const newPaymentsRaw = [...existingPayments, paymentData];
+  const newPayments = newPaymentsRaw.map((p) => cleanPayment(p));
+
   // Only count approved payments when calculating totals
-  const approvedPayments = newPayments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+  const approvedPayments = newPaymentsRaw.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
   const totalPaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
   let newStatus: InvoiceRecord["status"] = invoice.status;
