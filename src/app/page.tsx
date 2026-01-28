@@ -1,11 +1,121 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
 import { Guitar, User, Shield, ArrowRight, Factory } from "lucide-react";
+import type { User } from "firebase/auth";
+
+function NoRoleScreen({
+  currentUser,
+  refreshToken,
+  signOut,
+  router,
+}: {
+  currentUser: User;
+  refreshToken: () => Promise<void>;
+  signOut: () => Promise<void>;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [settingClient, setSettingClient] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSetAsClient = async () => {
+    setError(null);
+    setSettingClient(true);
+    try {
+      const functions = getFunctions();
+      const setClientRole = httpsCallable(functions, "setClientRole");
+      await setClientRole({
+        uid: currentUser.uid,
+        displayName: currentUser.displayName || undefined,
+      });
+      await refreshToken();
+      router.push("/my-guitars");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to set client account";
+      setError(message);
+      setSettingClient(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="bg-white rounded-lg shadow-md p-8 max-w-md">
+        <h1 className="text-2xl font-bold mb-4">Welcome!</h1>
+        <p className="text-gray-600 mb-4">
+          You're signed in as <strong>{currentUser.email}</strong>, but you
+          don't have a role assigned yet.
+        </p>
+
+        <div className="mb-6">
+          <p className="text-sm font-semibold text-gray-700 mb-2">I'm a client</p>
+          <p className="text-sm text-gray-600 mb-3">
+            If you're here to track your guitar, set your account as a client to continue.
+          </p>
+          <button
+            onClick={handleSetAsClient}
+            disabled={settingClient}
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed font-medium"
+          >
+            {settingClient ? "Setting up your account…" : "Set as client"}
+          </button>
+          {error && (
+            <p className="text-sm text-red-600 mt-2">{error}</p>
+          )}
+        </div>
+
+        <p className="text-sm text-gray-500 mb-4">
+          Staff: a role can be set using Firebase Admin SDK. See the{" "}
+          <a
+            href="/admin/set-role"
+            className="text-blue-600 hover:underline"
+          >
+            role setup page
+          </a>{" "}
+          for instructions.
+        </p>
+        <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+          <p className="text-sm font-semibold text-blue-900 mb-2">
+            Quick Setup (staff):
+          </p>
+          <code className="block text-xs bg-blue-100 p-2 rounded mb-2">
+            npx ts-node scripts/set-user-role.ts {currentUser.email} client
+          </code>
+          <code className="block text-xs bg-blue-100 p-2 rounded mb-2">
+            npx ts-node scripts/set-user-role.ts {currentUser.email} accounting
+          </code>
+          <p className="text-xs text-blue-700">
+            Then sign out and sign back in for the role to take effect.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              await refreshToken();
+              window.location.reload();
+            }}
+            className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+          >
+            Refresh Role
+          </button>
+          <button
+            onClick={async () => {
+              await signOut();
+              router.push("/");
+            }}
+            className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const { currentUser, userRole, loading, signOut, refreshToken } = useAuth();
@@ -47,61 +157,15 @@ export default function Home() {
     );
   }
 
-  // If user is logged in but has no role, show helpful message
+  // If user is logged in but has no role, show helpful message and "Set as client" option
   if (currentUser && !userRole) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white rounded-lg shadow-md p-8 max-w-md">
-          <h1 className="text-2xl font-bold mb-4">Welcome!</h1>
-          <p className="text-gray-600 mb-4">
-            You're signed in as <strong>{currentUser.email}</strong>, but you
-            don't have a role assigned yet.
-          </p>
-          <p className="text-sm text-gray-500 mb-6">
-            A role (staff, client, admin, factory, or accounting) needs to be set using Firebase
-            Admin SDK. See the{" "}
-            <a
-              href="/admin/set-role"
-              className="text-blue-600 hover:underline"
-            >
-              role setup page
-            </a>{" "}
-            for instructions.
-          </p>
-          <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
-            <p className="text-sm font-semibold text-blue-900 mb-2">
-              Quick Setup:
-            </p>
-            <code className="block text-xs bg-blue-100 p-2 rounded mb-2">
-              npx ts-node scripts/set-user-role.ts {currentUser.email} accounting
-            </code>
-            <p className="text-xs text-blue-700">
-              Then sign out and sign back in for the role to take effect.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={async () => {
-                await refreshToken();
-                // Force a page reload to check role again
-                window.location.reload();
-              }}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Refresh Role
-            </button>
-            <button
-              onClick={async () => {
-                await signOut();
-                router.push("/");
-              }}
-              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </div>
+      <NoRoleScreen
+        currentUser={currentUser}
+        refreshToken={refreshToken}
+        signOut={signOut}
+        router={router}
+      />
     );
   }
 
