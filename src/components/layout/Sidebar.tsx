@@ -18,6 +18,7 @@ import {
   DollarSign,
   UserPlus,
   Shield,
+  FileText,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -190,6 +191,18 @@ export function Sidebar() {
             >
               <Shield className="w-5 h-5" />
               <span>Set Role</span>
+            </Link>
+            <Link
+              href="/settings/audit-logs"
+              onClick={() => setIsMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
+                isActive("/settings/audit-logs")
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "text-textMuted hover:bg-slate/40 border-transparent"
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>Audit Logs</span>
             </Link>
           </div>
         )}

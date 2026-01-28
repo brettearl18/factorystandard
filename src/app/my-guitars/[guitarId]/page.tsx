@@ -1,12 +1,12 @@
 "use client";
 
 import { use } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages } from "@/lib/firestore";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages, recordAuditLog } from "@/lib/firestore";
 import { isGoogleDriveLink, uploadGuitarGalleryImage } from "@/lib/storage";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
@@ -61,6 +61,14 @@ export default function GuitarDetailPage({
       return;
     }
   }, [currentUser, userRole, authLoading, router]);
+
+  // Audit: log when client views a guitar (once per guitar per visit)
+  const loggedViewGuitar = useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentUser || userRole !== "client" || !guitar || loggedViewGuitar.current === guitar.id) return;
+    loggedViewGuitar.current = guitar.id;
+    recordAuditLog("view_guitar", { guitarId: guitar.id, runId: guitar.runId }).catch(() => {});
+  }, [currentUser, userRole, guitar]);
 
   useEffect(() => {
     // Allow staff/admin to view, but only load data if authenticated
@@ -683,10 +691,11 @@ export default function GuitarDetailPage({
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-gray-900">Run Updates</h2>
                 </div>
-                <RunUpdatesList 
-                  runId={guitar.runId} 
+                <RunUpdatesList
+                  runId={guitar.runId}
                   clientOnly={true}
                   maxUpdates={5}
+                  guitarId={guitar.id}
                 />
               </div>
             )}

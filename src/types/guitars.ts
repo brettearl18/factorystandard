@@ -253,3 +253,20 @@ export interface RunUpdate {
   imageUrls?: string[]; // Optional images attached to the update
 }
 
+/** Audit log action types for client/staff activity */
+export type AuditAction =
+  | "login"
+  | "view_my_guitars"
+  | "view_guitar"
+  | "view_run_updates";
+
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  userEmail: string | null;
+  userRole: UserRole | null;
+  action: AuditAction;
+  details: Record<string, unknown>; // e.g. { guitarId, runId }
+  createdAt: number; // timestamp (ms or Firestore Timestamp)
+}
+

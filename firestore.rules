@@ -131,6 +131,13 @@ service cloud.firestore {
       allow read: if true; // Public read for branding on login page
       allow write: if request.auth != null && (request.auth.token.role == "admin" || request.auth.token.role == "staff");
     }
+
+    // Audit logs - users can create their own entries (userId must match); staff/admin can read
+    match /auditLogs/{logId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if isStaff();
+      allow update, delete: if false;
+    }
   }
 }
 

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { useClientInvoices } from "@/hooks/useClientInvoices";
-import { subscribeRunStages, subscribeGuitarNotes } from "@/lib/firestore";
+import { subscribeRunStages, subscribeGuitarNotes, recordAuditLog } from "@/lib/firestore";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
@@ -39,6 +39,14 @@ export default function MyGuitarsPage() {
       return;
     }
   }, [currentUser, userRole, loading, router]);
+
+  // Audit: log when client views My Guitars list (once per page visit)
+  const loggedViewMyGuitars = useRef(false);
+  useEffect(() => {
+    if (!currentUser || userRole !== "client" || loggedViewMyGuitars.current) return;
+    loggedViewMyGuitars.current = true;
+    recordAuditLog("view_my_guitars", {}).catch(() => {});
+  }, [currentUser, userRole]);
 
   // Load stages for each guitar's run
   useEffect(() => {

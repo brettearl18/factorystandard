@@ -36,6 +36,17 @@ npx ts-node scripts/set-user-role.ts user@example.com staff
 - `client` - Can only view their own guitars
 - `admin` - Full access, can set user roles
 
+### `backfill-audit-logs.ts`
+Backfill audit logs with backdated entries (past logins / view_my_guitars). Uses Firebase Admin SDK.
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+npx tsx scripts/backfill-audit-logs.ts [--days=30] [--users=client|all]
+```
+
+- `--days=N` – spread entries over the last N days (default: 30).
+- `--users=client` – only client-role users (default); `--users=all` – every user.
+
 ### `seed-data.ts`
 Create sample data for development/testing.
 

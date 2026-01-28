@@ -12,6 +12,7 @@ import {
 } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth } from "@/lib/firebase";
+import { recordAuditLog } from "@/lib/firestore";
 import type { UserRole } from "@/types/guitars";
 
 interface AuthContextType {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
+    recordAuditLog("login", {}).catch(() => {});
   };
 
   const signUp = async (email: string, password: string, displayName: string) => {
@@ -97,7 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     const userCredential = await signInWithPopup(auth, provider);
-    
+    recordAuditLog("login", {}).catch(() => {});
+
     // Call Cloud Function to set client role if user is new
     try {
       const functions = getFunctions();
@@ -106,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         uid: userCredential.user.uid,
         displayName: userCredential.user.displayName || undefined,
       });
-      
+
       // Refresh token to get the new role
       await refreshToken();
     } catch (error) {

@@ -27,12 +27,13 @@ import {
   deleteDoc,
   writeBatch,
   Timestamp,
+  serverTimestamp,
   QuerySnapshot,
   DocumentData,
   Unsubscribe,
   setDoc,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import type {
   Run,
   RunStage,
@@ -43,6 +44,8 @@ import type {
   InvoiceRecord,
   InvoicePayment,
   RunUpdate,
+  AuditAction,
+  AuditLogEntry,
 } from "@/types/guitars";
 import type { AppSettings } from "@/types/settings";
 
@@ -1558,4 +1561,72 @@ export async function updateAppSettings(
     };
     await setDoc(settingsRef, defaultSettings);
   }
+}
+
+// ——— Audit logs (admin-visible activity: logins, client views) ———
+
+const AUDIT_LOGS_LIMIT = 500;
+
+/**
+ * Record an audit log entry. Call from client after auth is set.
+ * Users can only write entries for their own userId (enforced by Firestore rules).
+ */
+export async function recordAuditLog(
+  action: AuditAction,
+  details: Record<string, unknown> = {}
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const token = await user.getIdTokenResult(true);
+    const userRole = (token.claims.role as string) || null;
+    const ref = collection(db, "auditLogs");
+    await addDoc(ref, {
+      userId: user.uid,
+      userEmail: user.email ?? null,
+      userRole,
+      action,
+      details,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Failed to record audit log:", err);
+  }
+}
+
+/**
+ * Subscribe to audit logs (newest first). Staff/admin only.
+ */
+export function subscribeAuditLogs(
+  callback: (entries: AuditLogEntry[]) => void,
+  maxEntries: number = AUDIT_LOGS_LIMIT
+): Unsubscribe {
+  const ref = collection(db, "auditLogs");
+  const q = query(ref, orderBy("createdAt", "desc"), limit(maxEntries));
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const entries: AuditLogEntry[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        const createdAt = data.createdAt instanceof Timestamp
+          ? data.createdAt.toMillis()
+          : (data.createdAt as number) ?? 0;
+        return {
+          id: d.id,
+          userId: data.userId ?? "",
+          userEmail: data.userEmail ?? null,
+          userRole: data.userRole ?? null,
+          action: data.action as AuditAction,
+          details: (data.details as Record<string, unknown>) ?? {},
+          createdAt,
+        };
+      });
+      callback(entries);
+    },
+    (err) => {
+      console.error("Audit logs subscription error:", err);
+      callback([]);
+    }
+  );
 }

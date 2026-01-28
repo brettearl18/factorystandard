@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { subscribeRunUpdates } from "@/lib/firestore";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { subscribeRunUpdates, recordAuditLog } from "@/lib/firestore";
 import { MessageSquare, Calendar, Image as ImageIcon } from "lucide-react";
 import type { RunUpdate } from "@/types/guitars";
 
@@ -9,15 +10,28 @@ interface RunUpdatesListProps {
   runId: string;
   clientOnly?: boolean; // If true, only show updates visible to clients
   maxUpdates?: number; // Limit number of updates to display
+  guitarId?: string; // Optional, for audit log when client views updates
 }
 
-export function RunUpdatesList({ 
-  runId, 
+export function RunUpdatesList({
+  runId,
   clientOnly = true,
-  maxUpdates = 10 
+  maxUpdates = 10,
+  guitarId,
 }: RunUpdatesListProps) {
+  const { userRole } = useAuth();
   const [updates, setUpdates] = useState<RunUpdate[]>([]);
   const [loading, setLoading] = useState(true);
+  const loggedViewRunUpdates = useRef(false);
+
+  // Audit: log when client views run updates (once per mount)
+  useEffect(() => {
+    if (!runId || !clientOnly || userRole !== "client" || loggedViewRunUpdates.current) return;
+    loggedViewRunUpdates.current = true;
+    const details: Record<string, unknown> = { runId };
+    if (guitarId) details.guitarId = guitarId;
+    recordAuditLog("view_run_updates", details).catch(() => {});
+  }, [runId, clientOnly, userRole, guitarId]);
 
   useEffect(() => {
     if (!runId) {
