@@ -287,6 +287,33 @@ export function subscribeClientGuitars(
   });
 }
 
+/**
+ * Subscribe to guitars that have the given customerEmail (for "contact from guitars" views
+ * when the client has no Firebase Auth account yet).
+ */
+export function subscribeGuitarsByCustomerEmail(
+  email: string,
+  callback: (guitars: GuitarBuild[]) => void,
+  includeArchived: boolean = false
+): Unsubscribe {
+  const guitarsRef = collection(db, "guitars");
+  const q = query(
+    guitarsRef,
+    where("customerEmail", "==", email),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const guitars = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    })) as GuitarBuild[];
+    const filteredGuitars = includeArchived
+      ? guitars
+      : guitars.filter((g) => !g.archived);
+    callback(filteredGuitars);
+  });
+}
+
 export async function getGuitar(guitarId: string): Promise<GuitarBuild | null> {
   try {
     const guitarDoc = await getDoc(doc(db, "guitars", guitarId));

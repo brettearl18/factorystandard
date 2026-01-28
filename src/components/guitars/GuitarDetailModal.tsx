@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign, Copy, Check } from "lucide-react";
 import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { GuitarInvoiceManager } from "./GuitarInvoiceManager";
 import { useAuth } from "@/contexts/AuthContext";
+import { useClientProfile } from "@/hooks/useClientProfile";
 import { isGoogleDriveLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
@@ -32,8 +34,37 @@ export function GuitarDetailModal({
   const [isArchiving, setIsArchiving] = useState(false);
   const [clientViewMode, setClientViewMode] = useState(false);
   const [deletingImage, setDeletingImage] = useState<string | null>(null);
+  const [emailCopied, setEmailCopied] = useState(false);
   const { userRole } = useAuth();
+  const router = useRouter();
+  const clientProfile = useClientProfile(isOpen && guitar.clientUid ? guitar.clientUid : null);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
+
+  const getFullLoginEmailTemplate = (): string => {
+    const name = guitar.customerName || "there";
+    const email = guitar.customerEmail || "";
+    const password = clientProfile?.initialPassword || "[Set via Reset Password on client profile]";
+    const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://factorystandards.com";
+    const loginUrl = `${siteUrl}/login`;
+    return `Subject: Your Factory Standards Account
+
+Hi ${name},
+
+Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+
+Login Details:
+Email: ${email}
+Password: ${password}
+
+Login Link: ${loginUrl}
+
+Please change your password after your first login for security.
+
+If you have any questions, please don't hesitate to reach out.
+
+Best regards,
+Factory Standards Team`;
+  };
 
   const handleDeleteReferenceImage = async (imageUrl: string, index: number) => {
     if (!confirm("Are you sure you want to delete this reference image?")) return;
@@ -352,6 +383,59 @@ export function GuitarDetailModal({
                         {guitar.customerEmail || "No email assigned"}
                       </a>
                     </div>
+                    {isAdminViewing && (guitar.clientUid || guitar.customerEmail) && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const profileId = guitar.clientUid
+                              ? guitar.clientUid
+                              : `email:${encodeURIComponent((guitar.customerEmail || "").trim())}`;
+                            router.push(`/settings/clients/${profileId}`);
+                            onClose();
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium"
+                        >
+                          <User className="w-3.5 h-3.5" />
+                          View profile
+                        </button>
+                        {guitar.customerEmail && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const emailText = getFullLoginEmailTemplate();
+                              try {
+                                await navigator.clipboard.writeText(emailText);
+                                setEmailCopied(true);
+                                setTimeout(() => setEmailCopied(false), 2000);
+                              } catch {
+                                const ta = document.createElement("textarea");
+                                ta.value = emailText;
+                                document.body.appendChild(ta);
+                                ta.select();
+                                document.execCommand("copy");
+                                document.body.removeChild(ta);
+                                setEmailCopied(true);
+                                setTimeout(() => setEmailCopied(false), 2000);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-600 text-white hover:bg-gray-700 text-xs font-medium"
+                          >
+                            {emailCopied ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                Copy login email
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

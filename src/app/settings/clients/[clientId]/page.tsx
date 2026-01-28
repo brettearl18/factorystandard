@@ -15,6 +15,7 @@ import {
   getGuitar,
   updateClientProfile,
 } from "@/lib/firestore";
+import { useGuitarsByCustomerEmail } from "@/hooks/useGuitarsByCustomerEmail";
 import { ClientContactCard } from "@/components/client/ClientContactCard";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { UploadInvoiceModal } from "@/components/client/UploadInvoiceModal";
@@ -59,11 +60,15 @@ export default function ClientDashboardPage({
   const { clientId } = use(params);
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
+  const isEmailContact = clientId.startsWith("email:");
+  const decodedEmail = isEmailContact ? decodeURIComponent(clientId.slice(6)) : "";
   // Only subscribe to client data if user is authenticated and is staff/admin
   const canViewClientData = !authLoading && currentUser && (userRole === "staff" || userRole === "admin");
-  const guitars = useClientGuitars(canViewClientData ? clientId : null);
-  const profile = useClientProfile(canViewClientData ? clientId : null);
-  const invoices = useClientInvoices(canViewClientData ? clientId : null);
+  const uidGuitars = useClientGuitars(canViewClientData && !isEmailContact ? clientId : null);
+  const emailGuitars = useGuitarsByCustomerEmail(canViewClientData && isEmailContact ? decodedEmail : null);
+  const guitars = isEmailContact ? emailGuitars : uidGuitars;
+  const profile = useClientProfile(canViewClientData && !isEmailContact ? clientId : null);
+  const invoices = useClientInvoices(canViewClientData && !isEmailContact ? clientId : null);
   const [client, setClient] = useState<ClientUser | null>(null);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
@@ -94,9 +99,23 @@ export default function ClientDashboardPage({
     }
   }, [currentUser, userRole, authLoading, router]);
 
-  // Load client info
+  // Load client info (or synthetic client for "contact from guitars" by email)
   useEffect(() => {
     if (!currentUser || (userRole !== "staff" && userRole !== "admin")) return;
+
+    if (isEmailContact) {
+      setClient({
+        uid: clientId,
+        email: decodedEmail,
+        displayName: null,
+        role: null,
+        emailVerified: false,
+        createdAt: "",
+        lastSignIn: null,
+      });
+      setLoading(false);
+      return;
+    }
 
     const loadClient = async () => {
       try {
@@ -122,7 +141,7 @@ export default function ClientDashboardPage({
     };
 
     loadClient();
-  }, [clientId, currentUser, userRole, router]);
+  }, [clientId, currentUser, userRole, router, isEmailContact, decodedEmail]);
 
   // Load stages for each guitar's run
   useEffect(() => {
@@ -187,6 +206,12 @@ export default function ClientDashboardPage({
   if (!client) {
     return null;
   }
+
+  // For "contact from guitars" (no Firebase account), derive display name from first guitar
+  const displayName =
+    isEmailContact && guitars.length > 0
+      ? guitars[0].customerName || client.displayName || "Contact"
+      : client.displayName;
 
   const getClientStatus = (guitar: GuitarBuild): string => {
     const stage = guitarStages.get(guitar.stageId);
@@ -306,6 +331,95 @@ export default function ClientDashboardPage({
     }
   };
 
+  // "Contact from guitars" view (no Firebase account yet): show name, email, copy, guitars
+  if (isEmailContact) {
+    return (
+      <AppLayout>
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="mb-8">
+            <Link
+              href="/clients"
+              className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Clients</span>
+            </Link>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <User className="w-8 h-8 text-gray-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl font-bold text-gray-900 mb-1">{displayName}</h1>
+                <p className="text-gray-600">{client.email}</p>
+              </div>
+              {client.email && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(client.email!);
+                      setEmailCopied(true);
+                      setTimeout(() => setEmailCopied(false), 2000);
+                    } catch {
+                      const ta = document.createElement("textarea");
+                      ta.value = client.email!;
+                      document.body.appendChild(ta);
+                      ta.select();
+                      document.execCommand("copy");
+                      document.body.removeChild(ta);
+                      setEmailCopied(true);
+                      setTimeout(() => setEmailCopied(false), 2000);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+                >
+                  {emailCopied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy login email
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            <p className="text-sm text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              This contact appears on guitars but does not have a login yet. Create a client account from the guitar detail (Edit → Create user) to give them access.
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Guitars</h2>
+            {guitars.length === 0 ? (
+              <p className="text-gray-500">No guitars found for this email.</p>
+            ) : (
+              <ul className="space-y-2">
+                {guitars.map((g) => (
+                  <li key={g.id}>
+                    <Link
+                      href={`/runs/${g.runId}/board`}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      <Guitar className="w-4 h-4 shrink-0" />
+                      <span>
+                        {g.model}
+                        {g.finish ? ` — ${g.finish}` : ""}
+                      </span>
+                      <ArrowRight className="w-4 h-4 shrink-0" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -324,7 +438,7 @@ export default function ClientDashboardPage({
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-1">
-                {client.displayName || "Client Dashboard"}
+                {displayName || "Client Dashboard"}
               </h1>
               <p className="text-gray-600">{client.email}</p>
             </div>

@@ -41,6 +41,8 @@ interface ClientUser {
 interface ClientWithProfile extends ClientUser {
   profile?: ClientProfile | null;
   guitars: GuitarBuild[];
+  /** True when the client appears only on guitars (no Firebase Auth account yet). */
+  fromGuitarsOnly?: boolean;
 }
 
 interface GuitarWithStage extends GuitarBuild {
@@ -146,16 +148,50 @@ export default function ClientsPage() {
     return () => unsubscribe();
   }, [currentUser, userRole]);
 
-  // Merge guitars with clients
+  // Merge guitars with clients: attach guitars to auth clients and add placeholder
+  // rows for contacts that only appear on guitars (no Firebase Auth account yet).
   useEffect(() => {
-    if (allGuitars.length === 0) return;
+    setClients((prev) => {
+      const authOnly = prev.filter((c) => !(c as ClientWithProfile).fromGuitarsOnly);
+      const withGuitars = authOnly.map((c) => ({
+        ...c,
+        guitars: allGuitars.filter((g) => g.clientUid === c.uid),
+      }));
+      if (allGuitars.length === 0) return withGuitars;
 
-    setClients((prevClients) =>
-      prevClients.map((client) => ({
-        ...client,
-        guitars: allGuitars.filter((g) => g.clientUid === client.uid),
-      }))
-    );
+      const authUids = new Set(authOnly.map((c) => c.uid));
+      const authEmails = new Set(
+        (authOnly.map((c) => c.email).filter(Boolean) as string[]).map((e) => e.toLowerCase())
+      );
+      const seen = new Set<string>();
+      const placeholders: ClientWithProfile[] = [];
+
+      for (const g of allGuitars) {
+        const email = (g.customerEmail || "").trim();
+        const emailLower = email.toLowerCase();
+        if (!email) continue;
+        const hasAuth =
+          (g.clientUid && authUids.has(g.clientUid)) || authEmails.has(emailLower);
+        if (hasAuth) continue;
+        if (seen.has(emailLower)) continue;
+        seen.add(emailLower);
+        placeholders.push({
+          uid: `email:${encodeURIComponent(email)}`,
+          email,
+          displayName: g.customerName || null,
+          role: null,
+          emailVerified: false,
+          createdAt: "",
+          lastSignIn: null,
+          profile: null,
+          guitars: allGuitars.filter(
+            (gg) => (gg.customerEmail || "").trim().toLowerCase() === emailLower
+          ),
+          fromGuitarsOnly: true,
+        });
+      }
+      return [...withGuitars, ...placeholders];
+    });
   }, [allGuitars]);
 
   // Load guitar details (stages, runs) for table view
@@ -192,11 +228,22 @@ export default function ClientsPage() {
 
       await Promise.all([...stagePromises, ...runPromises]);
 
-      // Build guitar details
+      // Build guitar details: include guitars with clientUid or customerEmail
+      // (customerEmail-only guitars match placeholder clients from the merged list).
       for (const guitar of allGuitars) {
-        if (!guitar.clientUid) continue;
-        
-        const client = clients.find((c) => c.uid === guitar.clientUid);
+        const emailLower = (guitar.customerEmail || "").trim().toLowerCase();
+        const hasClient = guitar.clientUid || emailLower;
+        if (!hasClient) continue;
+
+        const client =
+          clients.find((c) => c.uid === guitar.clientUid) ||
+          (emailLower
+            ? clients.find(
+                (c) =>
+                  (c as ClientWithProfile).fromGuitarsOnly &&
+                  (c.email || "").toLowerCase() === emailLower
+              )
+            : undefined);
         const stages = runStagesMap.get(guitar.runId) || [];
         const currentStage = stages.find((s) => s.id === guitar.stageId);
         const run = runsMap.get(guitar.runId);
@@ -541,16 +588,18 @@ export default function ClientsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {filteredAndSortedGuitars.map((guitar, index) => (
+                  {filteredAndSortedGuitars.map((guitar) => (
                     <tr
                       key={guitar.id}
                       className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent cursor-pointer transition-all group"
-                      onClick={() => router.push(`/settings/clients/${guitar.clientUid}`)}
+                      onClick={() =>
+                        guitar.client && router.push(`/settings/clients/${guitar.client.uid}`)
+                      }
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
-                            {guitar.client?.displayName || "No Name"}
+                            {guitar.client?.displayName || guitar.customerName || "No Name"}
                           </span>
                           {guitar.client?.emailVerified ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -560,7 +609,9 @@ export default function ClientsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {guitar.client?.email || <span className="text-gray-400">-</span>}
+                        {guitar.client?.email || guitar.customerEmail || (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {guitar.client?.profile?.phone || <span className="text-gray-400">-</span>}
