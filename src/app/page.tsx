@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
-import { Guitar, User, Shield, ArrowRight, Factory } from "lucide-react";
+import { Guitar, User as UserIcon, Shield, ArrowRight, Factory } from "lucide-react";
 import type { User } from "firebase/auth";
 
 function NoRoleScreen({
@@ -209,7 +209,7 @@ export default function Home() {
             >
               <div className="flex items-center justify-center mb-6">
                 <div className="bg-blue-100 group-hover:bg-blue-200 p-4 rounded-full transition-colors">
-                  <User className="w-10 h-10 text-blue-600" />
+                  <UserIcon className="w-10 h-10 text-blue-600" />
                 </div>
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-3 text-center">
@@ -283,7 +283,7 @@ export default function Home() {
               </div>
               <div className="text-center">
                 <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <User className="w-6 h-6 text-blue-600" />
+                  <UserIcon className="w-6 h-6 text-blue-600" />
                 </div>
                 <h4 className="font-semibold text-gray-900 mb-2">Photo Gallery</h4>
                 <p className="text-sm text-gray-600">
