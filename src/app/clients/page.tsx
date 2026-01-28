@@ -22,6 +22,8 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import type { GuitarBuild } from "@/types/guitars";
 import { AddClientModal } from "@/components/client/AddClientModal";
@@ -54,6 +56,7 @@ interface GuitarWithStage extends GuitarBuild {
 export default function ClientsPage() {
   const { currentUser, userRole, loading } = useAuth();
   const router = useRouter();
+  const [authClients, setAuthClients] = useState<ClientWithProfile[]>([]);
   const [clients, setClients] = useState<ClientWithProfile[]>([]);
   const [allGuitars, setAllGuitars] = useState<GuitarBuild[]>([]);
   const [guitarsWithDetails, setGuitarsWithDetails] = useState<GuitarWithStage[]>([]);
@@ -63,6 +66,7 @@ export default function ClientsPage() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("table");
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [showArchivedClients, setShowArchivedClients] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -78,7 +82,7 @@ export default function ClientsPage() {
     }
   }, [currentUser, userRole, loading, router]);
 
-  // Load all clients
+  // Load auth clients (Firebase users with role "client") — never overwrites merged list
   useEffect(() => {
     if (!currentUser || (userRole !== "staff" && userRole !== "admin")) return;
 
@@ -93,7 +97,6 @@ export default function ClientsPage() {
         if (data.success) {
           const clientUsers = data.users as ClientUser[];
           
-          // Load profiles for each client
           const clientsWithProfiles = await Promise.all(
             clientUsers.map(async (client) => {
               let profile: ClientProfile | null = null;
@@ -103,22 +106,18 @@ export default function ClientsPage() {
                     profile = p;
                     resolve();
                   });
-                  // Give it a moment to load, then resolve
                   setTimeout(() => {
-                    if (unsubscribe) {
-                      unsubscribe();
-                    }
+                    if (unsubscribe) unsubscribe();
                     resolve();
                   }, 500);
                 });
-              } catch (error) {
-                // Profile might not exist, that's okay
+              } catch {
+                // Profile might not exist
               }
-              return { ...client, profile };
+              return { ...client, profile, guitars: [] as GuitarBuild[] };
             })
           );
-          
-          setClients(clientsWithProfiles.map(client => ({ ...client, guitars: [] })));
+          setAuthClients(clientsWithProfiles);
         }
       } catch (error) {
         console.error("Error loading clients:", error);
@@ -130,7 +129,7 @@ export default function ClientsPage() {
     loadClients();
   }, [currentUser, userRole]);
 
-  // Load all guitars
+  // Load all guitars (realtime)
   useEffect(() => {
     if (!currentUser || (userRole !== "staff" && userRole !== "admin")) return;
 
@@ -148,51 +147,52 @@ export default function ClientsPage() {
     return () => unsubscribe();
   }, [currentUser, userRole]);
 
-  // Merge guitars with clients: attach guitars to auth clients and add placeholder
-  // rows for contacts that only appear on guitars (no Firebase Auth account yet).
+  // Merge auth clients + guitar-derived placeholders into one list. Depends on both
+  // so that clients added via "+ Guitar" in a run appear as soon as allGuitars updates,
+  // and loadClients never overwrites this merged result.
   useEffect(() => {
-    setClients((prev) => {
-      const authOnly = prev.filter((c) => !(c as ClientWithProfile).fromGuitarsOnly);
-      const withGuitars = authOnly.map((c) => ({
-        ...c,
-        guitars: allGuitars.filter((g) => g.clientUid === c.uid),
-      }));
-      if (allGuitars.length === 0) return withGuitars;
+    const withGuitars = authClients.map((c) => ({
+      ...c,
+      guitars: allGuitars.filter((g) => g.clientUid === c.uid),
+    }));
+    if (allGuitars.length === 0) {
+      setClients(withGuitars);
+      return;
+    }
 
-      const authUids = new Set(authOnly.map((c) => c.uid));
-      const authEmails = new Set(
-        (authOnly.map((c) => c.email).filter(Boolean) as string[]).map((e) => e.toLowerCase())
-      );
-      const seen = new Set<string>();
-      const placeholders: ClientWithProfile[] = [];
+    const authUids = new Set(authClients.map((c) => c.uid));
+    const authEmails = new Set(
+      (authClients.map((c) => c.email).filter(Boolean) as string[]).map((e) => e.toLowerCase())
+    );
+    const seen = new Set<string>();
+    const placeholders: ClientWithProfile[] = [];
 
-      for (const g of allGuitars) {
-        const email = (g.customerEmail || "").trim();
-        const emailLower = email.toLowerCase();
-        if (!email) continue;
-        const hasAuth =
-          (g.clientUid && authUids.has(g.clientUid)) || authEmails.has(emailLower);
-        if (hasAuth) continue;
-        if (seen.has(emailLower)) continue;
-        seen.add(emailLower);
-        placeholders.push({
-          uid: `email:${encodeURIComponent(email)}`,
-          email,
-          displayName: g.customerName || null,
-          role: null,
-          emailVerified: false,
-          createdAt: "",
-          lastSignIn: null,
-          profile: null,
-          guitars: allGuitars.filter(
-            (gg) => (gg.customerEmail || "").trim().toLowerCase() === emailLower
-          ),
-          fromGuitarsOnly: true,
-        });
-      }
-      return [...withGuitars, ...placeholders];
-    });
-  }, [allGuitars]);
+    for (const g of allGuitars) {
+      const email = (g.customerEmail || "").trim();
+      const emailLower = email.toLowerCase();
+      if (!email) continue;
+      const hasAuth =
+        (g.clientUid && authUids.has(g.clientUid)) || authEmails.has(emailLower);
+      if (hasAuth) continue;
+      if (seen.has(emailLower)) continue;
+      seen.add(emailLower);
+      placeholders.push({
+        uid: `email:${encodeURIComponent(email)}`,
+        email,
+        displayName: g.customerName || null,
+        role: null,
+        emailVerified: false,
+        createdAt: "",
+        lastSignIn: null,
+        profile: null,
+        guitars: allGuitars.filter(
+          (gg) => (gg.customerEmail || "").trim().toLowerCase() === emailLower
+        ),
+        fromGuitarsOnly: true,
+      });
+    }
+    setClients([...withGuitars, ...placeholders]);
+  }, [authClients, allGuitars]);
 
   // Load guitar details (stages, runs) for table view
   useEffect(() => {
@@ -276,10 +276,15 @@ export default function ClientsPage() {
     return null;
   }
 
+  // Clients visible by archive filter (placeholders never archived)
+  const isClientVisibleByArchive = (c: ClientWithProfile) =>
+    c.fromGuitarsOnly || showArchivedClients || !c.profile?.archived;
+
   // Filter and sort guitars for table view
   const filteredAndSortedGuitars = guitarsWithDetails
     .filter((guitar) => {
       if (!guitar.client) return false;
+      if (!isClientVisibleByArchive(guitar.client as ClientWithProfile)) return false;
       const search = searchTerm.toLowerCase();
       const name = guitar.client.displayName?.toLowerCase() || "";
       const email = guitar.client.email?.toLowerCase() || "";
@@ -359,24 +364,28 @@ export default function ClientsPage() {
       return 0;
     });
 
-  // Filter clients by search term (for cards view)
-  const filteredClients = clients.filter((client) => {
-    const search = searchTerm.toLowerCase();
-    const name = client.displayName?.toLowerCase() || "";
-    const email = client.email?.toLowerCase() || "";
-    const phone = client.profile?.phone?.toLowerCase() || "";
-    const address = client.profile?.shippingAddress
-      ? `${client.profile.shippingAddress.line1 || ""} ${client.profile.shippingAddress.city || ""} ${client.profile.shippingAddress.state || ""}`.toLowerCase()
-      : "";
-    
-    return (
-      name.includes(search) ||
-      email.includes(search) ||
-      phone.includes(search) ||
-      address.includes(search) ||
-      client.uid.toLowerCase().includes(search)
-    );
-  });
+  // Filter clients by archive then search (for cards view)
+  const filteredClients = clients
+    .filter((client) => isClientVisibleByArchive(client))
+    .filter((client) => {
+      const search = searchTerm.toLowerCase();
+      const name = client.displayName?.toLowerCase() || "";
+      const email = client.email?.toLowerCase() || "";
+      const phone = client.profile?.phone?.toLowerCase() || "";
+      const address = client.profile?.shippingAddress
+        ? `${client.profile.shippingAddress.line1 || ""} ${client.profile.shippingAddress.city || ""} ${client.profile.shippingAddress.state || ""}`.toLowerCase()
+        : "";
+      
+      return (
+        name.includes(search) ||
+        email.includes(search) ||
+        phone.includes(search) ||
+        address.includes(search) ||
+        client.uid.toLowerCase().includes(search)
+      );
+    });
+
+  const visibleClientsCount = clients.filter(isClientVisibleByArchive).length;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -403,20 +412,38 @@ export default function ClientsPage() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">Clients</h1>
               <p className="text-gray-500 text-lg">
                 Find clients and view their build progress
               </p>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-medium"
-            >
-              <UserPlus className="w-5 h-5" />
-              Add Client
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowArchivedClients(!showArchivedClients)}
+                className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+              >
+                {showArchivedClients ? (
+                  <>
+                    <ArchiveRestore className="w-5 h-5" />
+                    Show active
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-5 h-5" />
+                    Show archived
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl font-medium"
+              >
+                <UserPlus className="w-5 h-5" />
+                Add Client
+              </button>
+            </div>
           </div>
         </div>
 
@@ -425,8 +452,10 @@ export default function ClientsPage() {
           <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl shadow-sm border border-blue-200/50 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700/80 mb-2 uppercase tracking-wide">Total Clients</p>
-                <p className="text-4xl font-bold text-blue-900">{clients.length}</p>
+                <p className="text-sm font-medium text-blue-700/80 mb-2 uppercase tracking-wide">
+                  {showArchivedClients ? "Archived Clients" : "Total Clients"}
+                </p>
+                <p className="text-4xl font-bold text-blue-900">{visibleClientsCount}</p>
               </div>
               <div className="p-4 bg-white/60 rounded-xl backdrop-blur-sm">
                 <Users className="w-7 h-7 text-blue-600" />

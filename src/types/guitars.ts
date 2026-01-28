@@ -167,6 +167,10 @@ export interface ClientProfile {
   accountCreatedBy?: string; // UID of staff/admin who created the account
   // Run assignments - clients can only see runs they're assigned to
   assignedRunIds?: string[]; // Array of run IDs this client has access to
+  // Archive (soft delete for dev/test cleanup)
+  archived?: boolean;
+  archivedAt?: number;
+  archivedBy?: string;
 }
 
 export interface InvoicePayment {

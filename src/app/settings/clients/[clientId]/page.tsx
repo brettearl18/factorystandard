@@ -14,6 +14,8 @@ import {
   subscribeGuitarNotes,
   getGuitar,
   updateClientProfile,
+  archiveClient,
+  unarchiveClient,
 } from "@/lib/firestore";
 import { useGuitarsByCustomerEmail } from "@/hooks/useGuitarsByCustomerEmail";
 import { ClientContactCard } from "@/components/client/ClientContactCard";
@@ -38,6 +40,8 @@ import {
   X,
   Eye,
   EyeOff,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -84,6 +88,7 @@ export default function ClientDashboardPage({
   const [customPassword, setCustomPassword] = useState("");
   const [useCustomPassword, setUseCustomPassword] = useState(false);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -448,12 +453,17 @@ export default function ClientDashboardPage({
         <div className="grid grid-cols-1 gap-6 mb-10">
           {/* Client Information Card with Login Credentials */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            {profile?.archived && (
+              <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-amber-800 text-sm">
+                This client is archived and hidden from the main Clients list. Use “Unarchive” to show them again.
+              </div>
+            )}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Client Information</h2>
                 <p className="text-sm text-gray-500 mt-1">Account details and login credentials</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setShowResetPasswordModal(true)}
                   disabled={isResettingPassword}
@@ -472,6 +482,45 @@ export default function ClientDashboardPage({
                     Resend Email
                   </button>
                 )}
+                <button
+                  onClick={async () => {
+                    if (isArchiving || !currentUser) return;
+                    const action = profile?.archived ? "unarchive" : "archive";
+                    if (action === "archive" && !confirm("Archive this client? They will be hidden from the main Clients list. You can unarchive them later.")) return;
+                    setIsArchiving(true);
+                    try {
+                      if (profile?.archived) {
+                        await unarchiveClient(clientId);
+                      } else {
+                        await archiveClient(clientId, currentUser.uid);
+                      }
+                    } catch (e) {
+                      console.error("Archive/unarchive failed:", e);
+                      alert(action === "archive" ? "Failed to archive client." : "Failed to unarchive client.");
+                    } finally {
+                      setIsArchiving(false);
+                    }
+                  }}
+                  disabled={isArchiving}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                    profile?.archived
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-gray-600 text-white hover:bg-gray-700"
+                  }`}
+                  title={profile?.archived ? "Show this client in the Clients list again" : "Archive client (hide from Clients list)"}
+                >
+                  {profile?.archived ? (
+                    <>
+                      <ArchiveRestore className="w-4 h-4" />
+                      Unarchive
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="w-4 h-4" />
+                      Archive client
+                    </>
+                  )}
+                </button>
               </div>
             </div>
             <div className="space-y-2 text-sm">

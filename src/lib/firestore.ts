@@ -1126,6 +1126,40 @@ export async function unarchiveGuitar(guitarId: string): Promise<void> {
   });
 }
 
+/** Archive a client (soft delete). Hides them from the default Clients list. */
+export async function archiveClient(
+  clientUid: string,
+  archivedBy?: string
+): Promise<void> {
+  const profileRef = doc(db, "clients", clientUid);
+  await setDoc(
+    profileRef,
+    {
+      archived: true,
+      archivedAt: Timestamp.now().toMillis(),
+      ...(archivedBy ? { archivedBy } : {}),
+      updatedAt: Timestamp.now().toMillis(),
+      ...(archivedBy ? { updatedBy: archivedBy } : {}),
+    },
+    { merge: true }
+  );
+}
+
+/** Unarchive a client so they appear in the Clients list again. */
+export async function unarchiveClient(clientUid: string): Promise<void> {
+  const profileRef = doc(db, "clients", clientUid);
+  await setDoc(
+    profileRef,
+    {
+      archived: false,
+      archivedAt: null,
+      archivedBy: null,
+      updatedAt: Timestamp.now().toMillis(),
+    },
+    { merge: true }
+  );
+}
+
 // Notification functions
 export async function createNotification(
   notification: Omit<Notification, "id" | "createdAt">
