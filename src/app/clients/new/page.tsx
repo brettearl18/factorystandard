@@ -22,6 +22,7 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  X,
 } from "lucide-react";
 import type { Run } from "@/types/guitars";
 
