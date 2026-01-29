@@ -85,18 +85,23 @@ async function main() {
     return current.commit();
   }
 
+  const TTL_DAYS = 90; // Match app: expireAt = createdAt + 90 days
+  const ttlMs = TTL_DAYS * 24 * 60 * 60 * 1000;
+
   for (const user of targetUsers) {
     // 1–3 login events over the period
     const numLogins = 1 + Math.floor(Math.random() * 2);
     for (let i = 0; i < numLogins; i++) {
       if (batchCount >= BATCH_SIZE) await flushBatch();
+      const createdAtMs = randomPastMs(days);
       batch.set(auditRef.doc(), {
         userId: user.uid,
         userEmail: user.email,
         userRole: user.role === "no role" ? null : user.role,
         action: "login",
         details: {},
-        createdAt: admin.firestore.Timestamp.fromMillis(randomPastMs(days)),
+        createdAt: admin.firestore.Timestamp.fromMillis(createdAtMs),
+        expireAt: admin.firestore.Timestamp.fromMillis(createdAtMs + ttlMs),
       });
       batchCount++;
       totalCount++;
@@ -106,13 +111,15 @@ async function main() {
       const numViews = Math.floor(Math.random() * 3);
       for (let i = 0; i < numViews; i++) {
         if (batchCount >= BATCH_SIZE) await flushBatch();
+        const createdAtMs = randomPastMs(days);
         batch.set(auditRef.doc(), {
           userId: user.uid,
           userEmail: user.email,
           userRole: user.role,
           action: "view_my_guitars",
           details: {},
-          createdAt: admin.firestore.Timestamp.fromMillis(randomPastMs(days)),
+          createdAt: admin.firestore.Timestamp.fromMillis(createdAtMs),
+          expireAt: admin.firestore.Timestamp.fromMillis(createdAtMs + ttlMs),
         });
         batchCount++;
         totalCount++;

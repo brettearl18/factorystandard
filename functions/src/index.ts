@@ -1,36 +1,10 @@
-import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
-/**
- * Cloud Function triggered when a guitar's stage changes.
- * This can be used to send notifications or perform other actions.
- */
-export const onGuitarStageChange = functions.firestore
-  .document("guitars/{guitarId}")
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
-    const guitarId = context.params.guitarId;
-
-    // Check if stage changed
-    if (before.stageId !== after.stageId) {
-      // Log the stage change (you can extend this to send notifications)
-      console.log(`Guitar ${guitarId} moved from stage ${before.stageId} to ${after.stageId}`);
-      
-      // Optional: Create a notification document
-      // await admin.firestore().collection("notifications").add({
-      //   guitarId,
-      //   clientUid: guitar.clientUid,
-      //   oldStageId: before.stageId,
-      //   newStageId: after.stageId,
-      //   createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      // });
-    }
-
-    return null;
-  });
+// Firestore triggers: stage change + run update → email clients via Mailgun
+export { onGuitarStageChange } from "./onGuitarStageChange";
+export { onRunUpdateCreated } from "./onRunUpdateCreated";
 
 // Export the setUserRole function
 export { setUserRole } from "./setUserRole";
@@ -52,6 +26,9 @@ export { getUserInfo } from "./getUserInfo";
 
 // Export the setClientRole function
 export { setClientRole } from "./setClientRole";
+
+// Export sendTestEmails (admin only)
+export { sendTestEmails } from "./sendTestEmails";
 
 // Export the backupFirestore function
 export { backupFirestore } from "./backupFirestore";

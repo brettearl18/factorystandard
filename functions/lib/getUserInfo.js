@@ -3,12 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUserInfo = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const callableOpts = { memory: "128MB", timeoutSeconds: 30 };
 /**
  * Cloud Function to get user info by UID
- *
- * This allows staff/accounting to get user display name and email for invoices.
  */
-exports.getUserInfo = functions.https.onCall(async (data, context) => {
+exports.getUserInfo = functions.runWith(callableOpts).https.onCall(async (data, context) => {
     // Verify user is authenticated and is staff/admin/accounting
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");

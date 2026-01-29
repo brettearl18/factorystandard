@@ -3,13 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setUserRole = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const callableOpts = { memory: "128MB", timeoutSeconds: 30 };
 /**
  * Cloud Function to set user role (callable from client with admin privileges)
- *
- * This should be protected to only allow admins to call it.
- * For production, add proper authentication checks.
  */
-exports.setUserRole = functions.https.onCall(async (data, context) => {
+exports.setUserRole = functions.runWith(callableOpts).https.onCall(async (data, context) => {
     // Verify user is authenticated and is admin
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");

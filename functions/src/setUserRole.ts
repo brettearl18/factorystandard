@@ -1,13 +1,12 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
+
 /**
  * Cloud Function to set user role (callable from client with admin privileges)
- * 
- * This should be protected to only allow admins to call it.
- * For production, add proper authentication checks.
  */
-export const setUserRole = functions.https.onCall(async (data, context) => {
+export const setUserRole = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated and is admin
   if (!context.auth) {
     throw new functions.https.HttpsError(

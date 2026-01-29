@@ -1,12 +1,14 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import { getMailgunConfig, sendEmail } from "./mailgun";
+import { welcomeLoginHtml } from "./emailTemplates";
+
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
 
 /**
  * Cloud Function to create a new Firebase Auth user
- * 
- * This allows staff to create client users when adding guitars.
  */
-export const createUser = functions.https.onCall(async (data, context) => {
+export const createUser = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated and is staff/admin
   if (!context.auth) {
     throw new functions.https.HttpsError(
@@ -96,6 +98,28 @@ export const createUser = functions.https.onCall(async (data, context) => {
         console.log(`Password reset link for ${email}: ${resetLink}`);
       } catch (resetError) {
         console.error("Failed to generate password reset link:", resetError);
+      }
+    }
+
+    // Send welcome "you have a login and password" email to new clients (Mailgun)
+    if (userRole === "client") {
+      const mailCfg = getMailgunConfig();
+      if (mailCfg) {
+        const html = welcomeLoginHtml(
+          {
+            brandName: mailCfg.fromName,
+            portalUrl: mailCfg.portalUrl || "",
+            logoUrl: mailCfg.logoUrl,
+          },
+          email,
+          password || null,
+          resetLink
+        );
+        const subject = `Your ${mailCfg.fromName} portal login`;
+        const sent = await sendEmail(email, subject, html);
+        if (!sent) {
+          functions.logger.warn("Welcome email not sent (Mailgun may be unconfigured or failed)", { to: email });
+        }
       }
     }
 

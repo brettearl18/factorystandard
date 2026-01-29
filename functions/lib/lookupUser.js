@@ -3,12 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.lookupUserByEmail = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const callableOpts = { memory: "128MB", timeoutSeconds: 30 };
 /**
  * Cloud Function to look up a user by email and return their UID
- *
- * This allows staff to easily find client UIDs when creating guitars.
  */
-exports.lookupUserByEmail = functions.https.onCall(async (data, context) => {
+exports.lookupUserByEmail = functions.runWith(callableOpts).https.onCall(async (data, context) => {
     // Verify user is authenticated and is staff/admin
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");

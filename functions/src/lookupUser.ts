@@ -1,12 +1,12 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
+
 /**
  * Cloud Function to look up a user by email and return their UID
- * 
- * This allows staff to easily find client UIDs when creating guitars.
  */
-export const lookupUserByEmail = functions.https.onCall(async (data, context) => {
+export const lookupUserByEmail = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated and is staff/admin
   if (!context.auth) {
     throw new functions.https.HttpsError(

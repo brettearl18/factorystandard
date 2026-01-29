@@ -24,6 +24,7 @@ FUNCTIONS=(
   listUsers
   lookupUserByEmail
   resetUserPassword
+  sendTestEmails
   backupFirestore
   restoreFirestore
   listBackups

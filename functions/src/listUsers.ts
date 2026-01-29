@@ -1,12 +1,12 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
+
 /**
  * Cloud Function to list all users with their roles
- * 
- * This allows staff/admin to see all users and their roles.
  */
-export const listUsers = functions.https.onCall(async (data, context) => {
+export const listUsers = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated and is staff/admin
   if (!context.auth) {
     throw new functions.https.HttpsError(

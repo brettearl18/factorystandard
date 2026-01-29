@@ -35,6 +35,17 @@ This guide will walk you through setting up Firebase for the Factory Standards a
    ./scripts/setup-firebase.sh
    ```
 
+## Optional: Email Notifications (Mailgun)
+
+To email clients when a guitar’s stage changes or when a run update is posted, configure Mailgun and set Firebase Functions config. See **[MAILGUN_SETUP.md](MAILGUN_SETUP.md)** for full steps.
+
+Quick setup:
+
+```bash
+firebase functions:config:set mailgun.api_key="YOUR_KEY" mailgun.domain="mg.yourdomain.com"
+firebase deploy --only functions
+```
+
 ## Step 2: Configure Environment Variables
 
 1. **Get your Firebase config:**

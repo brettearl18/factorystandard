@@ -1,11 +1,13 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
+
 /**
  * Cloud Function to set client role for newly signed up users
  * This is called after a user signs up via email/password or Google OAuth
  */
-export const setClientRole = functions.https.onCall(async (data, context) => {
+export const setClientRole = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated
   if (!context.auth) {
     throw new functions.https.HttpsError(

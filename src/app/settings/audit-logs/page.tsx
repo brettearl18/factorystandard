@@ -182,7 +182,7 @@ export default function AuditLogsPage() {
           </div>
         </div>
         <p className="mt-4 text-sm text-gray-500">
-          Showing {filtered.length} of {entries.length} entries (last 500).
+          Showing {filtered.length} of {entries.length} entries (last 200).
         </p>
       </div>
     </AppLayout>

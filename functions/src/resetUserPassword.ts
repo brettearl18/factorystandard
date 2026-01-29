@@ -1,12 +1,12 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
+const callableOpts = { memory: "128MB" as const, timeoutSeconds: 30 };
+
 /**
  * Cloud Function to reset a user's password
- * 
- * This allows staff/admin to reset a client's password and store it in their profile.
  */
-export const resetUserPassword = functions.https.onCall(async (data, context) => {
+export const resetUserPassword = functions.runWith(callableOpts).https.onCall(async (data, context) => {
   // Verify user is authenticated and is staff/admin
   if (!context.auth) {
     throw new functions.https.HttpsError(

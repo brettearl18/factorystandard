@@ -3,12 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.listUsers = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const callableOpts = { memory: "128MB", timeoutSeconds: 30 };
 /**
  * Cloud Function to list all users with their roles
- *
- * This allows staff/admin to see all users and their roles.
  */
-exports.listUsers = functions.https.onCall(async (data, context) => {
+exports.listUsers = functions.runWith(callableOpts).https.onCall(async (data, context) => {
     // Verify user is authenticated and is staff/admin
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");

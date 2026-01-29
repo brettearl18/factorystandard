@@ -3,9 +3,10 @@
  * 
  * COST OPTIMIZATION NOTES:
  * - All queries use limits where appropriate to minimize read operations
- * - Notifications: Limited to 50 most recent (configurable)
+ * - Notifications: Limited to 30 most recent (configurable)
  * - Notes: Can be limited per query (used for client dashboard - only fetches 1 most recent)
- * - Invoices: Limited to 100 most recent
+ * - Invoices: Limited to 100 per client, 200 for accounting list
+ * - Audit logs: 200 most recent, TTL 90 days
  * - Dashboard: Only loads 100 most recent guitars instead of all
  * - Real-time listeners (onSnapshot) are used only when necessary for live updates
  * - All listeners are properly unsubscribed to prevent memory leaks and unnecessary reads
@@ -25,6 +26,7 @@ import {
   updateDoc,
   addDoc,
   deleteDoc,
+  deleteField,
   writeBatch,
   Timestamp,
   serverTimestamp,
@@ -108,7 +110,12 @@ export async function updateRun(
   updates: Partial<Omit<Run, "id">>
 ): Promise<void> {
   const runRef = doc(db, "runs", runId);
-  await updateDoc(runRef, updates);
+  // Firestore does not accept undefined; use deleteField() to remove a field
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(updates)) {
+    sanitized[key] = value === undefined ? deleteField() : value;
+  }
+  await updateDoc(runRef, sanitized);
 }
 
 export async function createStage(
@@ -982,7 +989,7 @@ export interface InvoiceWithClient extends InvoiceRecord {
 
 export function subscribeAllInvoices(
   callback: (invoices: InvoiceWithClient[]) => void,
-  maxInvoices: number = 500
+  maxInvoices: number = 200
 ): Unsubscribe {
   // Use collectionGroup to query all invoices across all clients
   const invoicesRef = collectionGroup(db, "invoices");
@@ -1190,7 +1197,7 @@ export async function createNotification(
 export function subscribeNotifications(
   userId: string,
   callback: (notifications: Notification[]) => void,
-  maxNotifications: number = 50
+  maxNotifications: number = 30
 ): Unsubscribe {
   const notificationsRef = collection(db, "notifications");
   const q = query(
@@ -1565,7 +1572,7 @@ export async function updateAppSettings(
 
 // ——— Audit logs (admin-visible activity: logins, client views) ———
 
-const AUDIT_LOGS_LIMIT = 500;
+const AUDIT_LOGS_LIMIT = 200; // Keep low to reduce read cost; older entries auto-expire via TTL
 
 /**
  * Record an audit log entry. Call from client after auth is set.
@@ -1582,6 +1589,8 @@ export async function recordAuditLog(
     const token = await user.getIdTokenResult(true);
     const userRole = (token.claims.role as string) || null;
     const ref = collection(db, "auditLogs");
+    const now = Date.now();
+    const expireAtMs = now + 90 * 24 * 60 * 60 * 1000; // TTL: delete after 90 days
     await addDoc(ref, {
       userId: user.uid,
       userEmail: user.email ?? null,
@@ -1589,6 +1598,7 @@ export async function recordAuditLog(
       action,
       details,
       createdAt: serverTimestamp(),
+      expireAt: Timestamp.fromMillis(expireAtMs), // For Firestore TTL policy (enable in Console)
     });
   } catch (err) {
     console.error("Failed to record audit log:", err);

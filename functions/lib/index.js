@@ -1,34 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarStageChange = void 0;
-const functions = require("firebase-functions");
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
-/**
- * Cloud Function triggered when a guitar's stage changes.
- * This can be used to send notifications or perform other actions.
- */
-exports.onGuitarStageChange = functions.firestore
-    .document("guitars/{guitarId}")
-    .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
-    const guitarId = context.params.guitarId;
-    // Check if stage changed
-    if (before.stageId !== after.stageId) {
-        // Log the stage change (you can extend this to send notifications)
-        console.log(`Guitar ${guitarId} moved from stage ${before.stageId} to ${after.stageId}`);
-        // Optional: Create a notification document
-        // await admin.firestore().collection("notifications").add({
-        //   guitarId,
-        //   clientUid: guitar.clientUid,
-        //   oldStageId: before.stageId,
-        //   newStageId: after.stageId,
-        //   createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        // });
-    }
-    return null;
-});
+// Firestore triggers: stage change + run update → email clients via Mailgun
+var onGuitarStageChange_1 = require("./onGuitarStageChange");
+Object.defineProperty(exports, "onGuitarStageChange", { enumerable: true, get: function () { return onGuitarStageChange_1.onGuitarStageChange; } });
+var onRunUpdateCreated_1 = require("./onRunUpdateCreated");
+Object.defineProperty(exports, "onRunUpdateCreated", { enumerable: true, get: function () { return onRunUpdateCreated_1.onRunUpdateCreated; } });
 // Export the setUserRole function
 var setUserRole_1 = require("./setUserRole");
 Object.defineProperty(exports, "setUserRole", { enumerable: true, get: function () { return setUserRole_1.setUserRole; } });
@@ -47,6 +26,12 @@ Object.defineProperty(exports, "listUsers", { enumerable: true, get: function ()
 // Export the getUserInfo function
 var getUserInfo_1 = require("./getUserInfo");
 Object.defineProperty(exports, "getUserInfo", { enumerable: true, get: function () { return getUserInfo_1.getUserInfo; } });
+// Export the setClientRole function
+var setClientRole_1 = require("./setClientRole");
+Object.defineProperty(exports, "setClientRole", { enumerable: true, get: function () { return setClientRole_1.setClientRole; } });
+// Export sendTestEmails (admin only)
+var sendTestEmails_1 = require("./sendTestEmails");
+Object.defineProperty(exports, "sendTestEmails", { enumerable: true, get: function () { return sendTestEmails_1.sendTestEmails; } });
 // Export the backupFirestore function
 var backupFirestore_1 = require("./backupFirestore");
 Object.defineProperty(exports, "backupFirestore", { enumerable: true, get: function () { return backupFirestore_1.backupFirestore; } });

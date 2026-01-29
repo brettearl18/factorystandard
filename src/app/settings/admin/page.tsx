@@ -967,6 +967,11 @@ function EmailSection({
         </div>
       </div>
 
+      {/* Send test emails (Mailgun) */}
+      <div className="border-t border-gray-200 pt-6">
+        <SendTestEmailsBlock />
+      </div>
+
       {/* Save Button */}
       <div className="flex justify-end pt-4 border-t border-gray-200">
         <button
@@ -987,6 +992,75 @@ function EmailSection({
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Send test emails (Mailgun) – admin only
+function SendTestEmailsBlock() {
+  const [to, setTo] = useState("brett.earl@gmail.com");
+  const [sending, setSending] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSend = async () => {
+    if (!to.trim()) return;
+    setSending(true);
+    setMessage(null);
+    try {
+      const functions = getFunctions();
+      const sendTestEmails = httpsCallable<{ to: string }, { success: boolean; sent: number; to: string }>(functions, "sendTestEmails");
+      const result = await sendTestEmails({ to: to.trim() });
+      const data = result.data;
+      if (data?.success) {
+        setMessage({ type: "success", text: `Sent ${data.sent} test emails to ${data.to}.` });
+      } else {
+        setMessage({ type: "error", text: "Send failed or Mailgun not configured." });
+      }
+    } catch (err: unknown) {
+      const text = err instanceof Error ? err.message : "Failed to send test emails.";
+      setMessage({ type: "error", text });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-medium text-gray-900">Send test emails (Mailgun)</h3>
+      <p className="text-sm text-gray-600">
+        Sends sample &quot;stage change&quot; and &quot;run update&quot; emails to the address below. Requires Mailgun to be configured.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+          <input
+            type="email"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="brett.earl@gmail.com"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={sending}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+        >
+          {sending ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            "Send test emails"
+          )}
+        </button>
+      </div>
+      {message && (
+        <p className={`text-sm ${message.type === "success" ? "text-green-600" : "text-red-600"}`}>
+          {message.text}
+        </p>
+      )}
     </div>
   );
 }
