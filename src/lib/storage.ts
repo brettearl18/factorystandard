@@ -209,9 +209,7 @@ export async function deleteImageFromStorage(imageUrl: string): Promise<void> {
     }
     throw error;
   }
-}
-
-/**
+}/**
  * Deletes a guitar reference image from storage
  */
 export async function deleteGuitarReferenceImage(guitarId: string, imageUrl: string): Promise<void> {

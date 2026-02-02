@@ -820,9 +820,7 @@ function CustomOptionInput({
       onAdd(value.trim());
       setValue("");
     }
-  };
-
-  return (
+  };  return (
     <div className="flex gap-2">
       <input
         type="text"

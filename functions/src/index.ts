@@ -27,9 +27,7 @@ export { resetUserPassword } from "./resetUserPassword";
 export { listUsers } from "./listUsers";
 
 // Export the getUserInfo function
-export { getUserInfo } from "./getUserInfo";
-
-// Export the setClientRole function
+export { getUserInfo } from "./getUserInfo";// Export the setClientRole function
 export { setClientRole } from "./setClientRole";
 
 // Export sendTestEmails (admin only)
