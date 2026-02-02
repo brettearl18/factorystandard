@@ -31,11 +31,18 @@ service cloud.firestore {
 
       match /updates/{updateId} {
         // Clients can read updates visible to them
-        allow read: if request.auth != null && 
-                       (isStaff() || 
+        allow read: if request.auth != null &&
+                       (isStaff() ||
                         (isClient() && resource.data.visibleToClients == true));
-        // Only staff can create/update/delete updates
-        allow write: if isStaff();
+        // Only staff can create/delete updates
+        allow create, delete: if isStaff();
+        // Staff or client can update (client only for viewedBy thumbs up)
+        allow update: if isStaff() ||
+          (isClient() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy']));
+        match /comments/{commentId} {
+          allow read, create: if request.auth != null && (isStaff() || isClient());
+          allow update, delete: if isStaff();
+        }
       }
     }
 
@@ -65,15 +72,23 @@ service cloud.firestore {
                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referenceImages', 'updatedAt']);
       
       match /notes/{noteId} {
-        allow read, write: if isStaff();
+        allow read, create, delete: if isStaff();
         // Allow clients to read notes for their guitars that are visible to them
-        // Note: Collection queries must filter by visibleToClient == true in the query
-        // Security: The get() call checks that the guitar belongs to the client
-        // This is safe because clients can only read guitars they own (enforced by parent rule)
         allow read: if isClient() &&
           resource.data.visibleToClient == true &&
           exists(/databases/$(database)/documents/guitars/$(guitarId)) &&
           get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid == request.auth.uid;
+        // Allow client (guitar owner) to update only viewedBy (thumbs up)
+        allow update: if isStaff() ||
+          (isClient() &&
+           get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid == request.auth.uid &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewedBy']));
+        match /comments/{commentId} {
+          allow read, create: if isStaff() ||
+            (isClient() &&
+             get(/databases/$(database)/documents/guitars/$(guitarId)).data.clientUid == request.auth.uid);
+          allow update, delete: if isStaff();
+        }
       }
     }
 

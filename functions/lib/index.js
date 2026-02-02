@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onInvoiceUpdated = exports.onRunUpdateCommentCreated = exports.onNoteCommentCreated = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Firestore triggers: stage change + run update → email clients via Mailgun
@@ -8,6 +8,13 @@ var onGuitarStageChange_1 = require("./onGuitarStageChange");
 Object.defineProperty(exports, "onGuitarStageChange", { enumerable: true, get: function () { return onGuitarStageChange_1.onGuitarStageChange; } });
 var onRunUpdateCreated_1 = require("./onRunUpdateCreated");
 Object.defineProperty(exports, "onRunUpdateCreated", { enumerable: true, get: function () { return onRunUpdateCreated_1.onRunUpdateCreated; } });
+// Firestore triggers: notify staff when comments or payment approvals come in
+var onNoteCommentCreated_1 = require("./onNoteCommentCreated");
+Object.defineProperty(exports, "onNoteCommentCreated", { enumerable: true, get: function () { return onNoteCommentCreated_1.onNoteCommentCreated; } });
+var onRunUpdateCommentCreated_1 = require("./onRunUpdateCommentCreated");
+Object.defineProperty(exports, "onRunUpdateCommentCreated", { enumerable: true, get: function () { return onRunUpdateCommentCreated_1.onRunUpdateCommentCreated; } });
+var onInvoiceUpdated_1 = require("./onInvoiceUpdated");
+Object.defineProperty(exports, "onInvoiceUpdated", { enumerable: true, get: function () { return onInvoiceUpdated_1.onInvoiceUpdated; } });
 // Export the setUserRole function
 var setUserRole_1 = require("./setUserRole");
 Object.defineProperty(exports, "setUserRole", { enumerable: true, get: function () { return setUserRole_1.setUserRole; } });

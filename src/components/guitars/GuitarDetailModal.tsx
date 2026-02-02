@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign, Copy, Check } from "lucide-react";
-import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote } from "@/lib/firestore";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign, Copy, Check, FileText, LogIn, Guitar, MessageSquare } from "lucide-react";
+import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote, subscribeAuditLogsByGuitar, subscribeAuditLogsByUser, subscribeGuitarNoteComments } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { GuitarInvoiceManager } from "./GuitarInvoiceManager";
@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useClientProfile } from "@/hooks/useClientProfile";
 import { isGoogleDriveLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
-import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
+import type { GuitarBuild, GuitarNote, RunStage, AuditLogEntry, AuditAction, NoteComment } from "@/types/guitars";
 
 interface GuitarDetailModalProps {
   guitar: GuitarBuild;
@@ -35,7 +35,23 @@ export function GuitarDetailModal({
   const [clientViewMode, setClientViewMode] = useState(false);
   const [deletingImage, setDeletingImage] = useState<string | null>(null);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [guitarActivity, setGuitarActivity] = useState<AuditLogEntry[]>([]);
+  const [clientActivity, setClientActivity] = useState<AuditLogEntry[]>([]);
+  const [noteCommentMap, setNoteCommentMap] = useState<Record<string, NoteComment[]>>({});
   const { userRole } = useAuth();
+
+  const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
+    login: "Login",
+    view_my_guitars: "Viewed My Guitars",
+    view_guitar: "Viewed guitar",
+    view_run_updates: "Viewed run updates",
+  };
+  const AUDIT_ACTION_ICONS: Record<AuditAction, typeof FileText> = {
+    login: LogIn,
+    view_my_guitars: Guitar,
+    view_guitar: Eye,
+    view_run_updates: MessageSquare,
+  };
   const router = useRouter();
   const clientProfile = useClientProfile(isOpen && guitar.clientUid ? guitar.clientUid : null);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
@@ -150,6 +166,36 @@ Factory Standards Team`;
     };
   }, [isOpen, guitar.id, guitar.runId, guitar.stageId, clientViewMode, userRole]);
 
+  // Guitar + purchaser activity logs (staff/admin only)
+  useEffect(() => {
+    if (!isOpen || !guitar.id || (userRole !== "staff" && userRole !== "admin")) return;
+    const unsubGuitar = subscribeAuditLogsByGuitar(guitar.id, setGuitarActivity);
+    return () => unsubGuitar();
+  }, [isOpen, guitar.id, userRole]);
+
+  useEffect(() => {
+    if (!isOpen || !guitar.clientUid || (userRole !== "staff" && userRole !== "admin")) {
+      setClientActivity([]);
+      return;
+    }
+    const unsubUser = subscribeAuditLogsByUser(guitar.clientUid, setClientActivity);
+    return () => unsubUser();
+  }, [isOpen, guitar.clientUid, userRole]);
+
+  // Staff: subscribe to comments for each note (to show client feedback)
+  useEffect(() => {
+    if (!isOpen || !guitar.id || notes.length === 0 || (userRole !== "staff" && userRole !== "admin")) return;
+    const unsubs: (() => void)[] = [];
+    notes.forEach((note) => {
+      unsubs.push(
+        subscribeGuitarNoteComments(guitar.id, note.id, (comments) => {
+          setNoteCommentMap((prev) => ({ ...prev, [note.id]: comments }));
+        })
+      );
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [isOpen, guitar.id, userRole, notes.map((n) => n.id).join(",")]);
+
   if (!isOpen) return null;
 
   // Collect all photos from notes and reference images
@@ -182,25 +228,18 @@ Factory Standards Team`;
             <p className="text-gray-600 mt-1">{guitar.finish}</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Client View Mode Toggle */}
+            {/* View as Client: open the real client guitar page (with thumbs up, comments) */}
             {isAdminViewing && (
               <button
-                onClick={() => setClientViewMode(true)}
+                onClick={() => {
+                  onClose();
+                  router.push(`/my-guitars/${guitar.id}?viewAsClient=1`);
+                }}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                title="View as Client"
+                title="View as Client (opens client page)"
               >
                 <Eye className="w-4 h-4" />
                 View as Client
-              </button>
-            )}
-            {clientViewMode && (userRole === "staff" || userRole === "admin") && (
-              <button
-                onClick={() => setClientViewMode(false)}
-                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                title="Exit Client View"
-              >
-                <EyeOff className="w-4 h-4" />
-                Exit Client View
               </button>
             )}
             {(userRole === "staff" || userRole === "admin") && (
@@ -892,12 +931,95 @@ Factory Standards Team`;
                                 })}
                               </div>
                             )}
+                            {/* Staff: viewed-by count and client comments */}
+                            {isAdminViewing && note.visibleToClient && (
+                              <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                                {(note.viewedBy && Object.keys(note.viewedBy).length > 0) && (
+                                  <p>Viewed by {Object.keys(note.viewedBy).length} client(s)</p>
+                                )}
+                                {(noteCommentMap[note.id]?.length ?? 0) > 0 && (
+                                  <div>
+                                    <p className="font-medium text-gray-600 mb-1">Comments ({noteCommentMap[note.id].length}):</p>
+                                    <ul className="space-y-1">
+                                      {noteCommentMap[note.id].map((c) => (
+                                        <li key={c.id} className="bg-white rounded px-2 py-1 border border-gray-100">
+                                          <span className="font-medium text-gray-700">{c.authorName}</span>
+                                          <span className="ml-1 text-gray-400">
+                                            {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                          </span>
+                                          <p className="text-gray-600 mt-0.5">{c.message}</p>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                         })}
                     </div>
                   )}
                 </div>
+
+                {/* Guitar activity & Client activity - staff/admin only */}
+                {isAdminViewing && (
+                  <>
+                    <div className="mt-6">
+                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        Guitar activity ({guitarActivity.length})
+                      </h3>
+                      <p className="text-xs text-gray-500 mb-2">When this guitar was viewed or related actions.</p>
+                      {guitarActivity.length === 0 ? (
+                        <div className="text-center py-4 text-gray-400 text-sm bg-gray-50 rounded-lg">No activity yet</div>
+                      ) : (
+                        <ul className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                          {guitarActivity.map((entry) => {
+                            const Icon = AUDIT_ACTION_ICONS[entry.action];
+                            return (
+                              <li key={entry.id} className="flex items-center gap-2 text-sm">
+                                <Icon className="w-4 h-4 text-gray-500 shrink-0" />
+                                <span className="text-gray-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
+                                <span className="text-gray-500">— {entry.userEmail ?? "Unknown"}</span>
+                                <span className="text-gray-400 text-xs ml-auto shrink-0">
+                                  {new Date(entry.createdAt).toLocaleDateString()} {new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                    {guitar.clientUid && (
+                      <div className="mt-4">
+                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                          <User className="w-5 h-5" />
+                          Client activity ({clientActivity.length})
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-2">Logins and page views for the purchaser.</p>
+                        {clientActivity.length === 0 ? (
+                          <div className="text-center py-4 text-gray-400 text-sm bg-gray-50 rounded-lg">No activity yet</div>
+                        ) : (
+                          <ul className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                            {clientActivity.map((entry) => {
+                              const Icon = AUDIT_ACTION_ICONS[entry.action];
+                              return (
+                                <li key={entry.id} className="flex items-center gap-2 text-sm">
+                                  <Icon className="w-4 h-4 text-gray-500 shrink-0" />
+                                  <span className="text-gray-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
+                                  <span className="text-gray-400 text-xs ml-auto shrink-0">
+                                    {new Date(entry.createdAt).toLocaleDateString()} {new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {/* Invoice Manager - Only for Accounting Users */}
                 {userRole === "accounting" && (

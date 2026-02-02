@@ -6,6 +6,11 @@ admin.initializeApp();
 export { onGuitarStageChange } from "./onGuitarStageChange";
 export { onRunUpdateCreated } from "./onRunUpdateCreated";
 
+// Firestore triggers: notify staff when comments or payment approvals come in
+export { onNoteCommentCreated } from "./onNoteCommentCreated";
+export { onRunUpdateCommentCreated } from "./onRunUpdateCommentCreated";
+export { onInvoiceUpdated } from "./onInvoiceUpdated";
+
 // Export the setUserRole function
 export { setUserRole } from "./setUserRole";
 
@@ -38,4 +43,3 @@ export { restoreFirestore } from "./restoreFirestore";
 
 // Export the listBackups function
 export { listBackups } from "./listBackups";
-

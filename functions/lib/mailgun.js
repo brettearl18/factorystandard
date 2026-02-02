@@ -11,10 +11,12 @@ exports.sendEmail = sendEmail;
 const functions = require("firebase-functions");
 const DEFAULT_API_HOST = "https://api.mailgun.net";
 const DEFAULT_ORMSBY_LOGO = "https://ormsbyguitars.com/cdn/shop/files/OrmsbyLogo_nosite_white_73380.png?v=1767617611&width=200";
+const DEFAULT_CC = "guitars@ormsbyguitars.com";
 function getMailgunConfig() {
     const config = functions.config().mailgun;
     if (!config?.api_key || !config?.domain)
         return null;
+    const cc = config.cc ?? DEFAULT_CC;
     return {
         apiKey: config.api_key,
         domain: config.domain,
@@ -23,6 +25,7 @@ function getMailgunConfig() {
         apiHost: config.api_host || DEFAULT_API_HOST,
         portalUrl: config.portal_url || "",
         logoUrl: config.logo_url || DEFAULT_ORMSBY_LOGO,
+        cc: cc.trim(),
     };
 }
 /**
@@ -44,6 +47,8 @@ async function sendEmail(to, subject, html, text) {
     body.set("html", html);
     if (text)
         body.set("text", text);
+    if (cfg.cc)
+        body.set("cc", cfg.cc);
     try {
         const res = await fetch(url, {
             method: "POST",

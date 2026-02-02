@@ -1,15 +1,11 @@
 {
   "indexes": [
     {
-      "collectionGroup": "guitars",
+      "collectionGroup": "auditLogs",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "runId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "archived",
+          "fieldPath": "details.guitarId",
           "order": "ASCENDING"
         },
         {
@@ -19,53 +15,7 @@
       ]
     },
     {
-      "collectionGroup": "guitars",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "clientUid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "archived",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "runs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "archived",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startsAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "notes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "visibleToClient",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "notifications",
+      "collectionGroup": "auditLogs",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -77,46 +27,7 @@
           "order": "DESCENDING"
         }
       ]
-    },
-    {
-      "collectionGroup": "invoices",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "uploadedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "invoices",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "guitarId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "uploadedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "guitars",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "customerEmail",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
     }
   ],
   "fieldOverrides": []
 }
-

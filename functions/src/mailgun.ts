@@ -11,6 +11,8 @@ const DEFAULT_API_HOST = "https://api.mailgun.net";
 
 const DEFAULT_ORMSBY_LOGO = "https://ormsbyguitars.com/cdn/shop/files/OrmsbyLogo_nosite_white_73380.png?v=1767617611&width=200";
 
+const DEFAULT_CC = "guitars@ormsbyguitars.com";
+
 export interface MailgunConfig {
   apiKey: string;
   domain: string;
@@ -19,11 +21,14 @@ export interface MailgunConfig {
   apiHost: string;
   portalUrl: string;
   logoUrl: string;
+  /** CC address when sending to clients (e.g. guitars@ormsbyguitars.com). Set to empty string to disable. */
+  cc: string;
 }
 
 export function getMailgunConfig(): MailgunConfig | null {
   const config = functions.config().mailgun as Record<string, string> | undefined;
   if (!config?.api_key || !config?.domain) return null;
+  const cc = config.cc ?? DEFAULT_CC;
   return {
     apiKey: config.api_key,
     domain: config.domain,
@@ -32,6 +37,7 @@ export function getMailgunConfig(): MailgunConfig | null {
     apiHost: config.api_host || DEFAULT_API_HOST,
     portalUrl: config.portal_url || "",
     logoUrl: config.logo_url || DEFAULT_ORMSBY_LOGO,
+    cc: cc.trim(),
   };
 }
 
@@ -59,6 +65,7 @@ export async function sendEmail(
   body.set("subject", subject);
   body.set("html", html);
   if (text) body.set("text", text);
+  if (cfg.cc) body.set("cc", cfg.cc);
 
   try {
     const res = await fetch(url, {

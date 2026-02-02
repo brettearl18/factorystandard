@@ -41,11 +41,13 @@ import type {
   RunStage,
   GuitarBuild,
   GuitarNote,
+  NoteComment,
+  RunUpdate,
+  RunUpdateComment,
   Notification,
   ClientProfile,
   InvoiceRecord,
   InvoicePayment,
-  RunUpdate,
   AuditAction,
   AuditLogEntry,
 } from "@/types/guitars";
@@ -666,6 +668,130 @@ export async function updateGuitarNote(
   }
   
   await updateDoc(noteRef, cleanUpdates);
+}
+
+/** Mark a guitar note as viewed by the current user (thumbs up). Client-only. */
+export async function recordGuitarNoteViewed(
+  guitarId: string,
+  noteId: string
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  const noteRef = doc(db, "guitars", guitarId, "notes", noteId);
+  await updateDoc(noteRef, {
+    [`viewedBy.${user.uid}`]: Date.now(),
+  });
+}
+
+/** Add a comment to a guitar note. Client (owner) or staff. */
+export async function addGuitarNoteComment(
+  guitarId: string,
+  noteId: string,
+  message: string
+): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Must be signed in to comment");
+  const authorName = user.displayName || user.email || "Unknown";
+  const commentsRef = collection(db, "guitars", guitarId, "notes", noteId, "comments");
+  const docRef = await addDoc(commentsRef, {
+    authorUid: user.uid,
+    authorName,
+    message: message.trim(),
+    createdAt: Timestamp.now().toMillis(),
+  });
+  return docRef.id;
+}
+
+export function subscribeGuitarNoteComments(
+  guitarId: string,
+  noteId: string,
+  callback: (comments: NoteComment[]) => void
+): Unsubscribe {
+  const commentsRef = collection(db, "guitars", guitarId, "notes", noteId, "comments");
+  const q = query(commentsRef, orderBy("createdAt", "asc"));
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const comments: NoteComment[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : (data.createdAt as number) ?? 0;
+        return {
+          id: d.id,
+          authorUid: data.authorUid ?? "",
+          authorName: data.authorName ?? "",
+          message: data.message ?? "",
+          createdAt,
+        };
+      });
+      callback(comments);
+    },
+    (err) => {
+      console.error("Guitar note comments subscription error:", err);
+      callback([]);
+    }
+  );
+}
+
+/** Mark a run update as viewed by the current user (thumbs up). Client-only. */
+export async function recordRunUpdateViewed(
+  runId: string,
+  updateId: string
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  const updateRef = doc(db, "runs", runId, "updates", updateId);
+  await updateDoc(updateRef, {
+    [`viewedBy.${user.uid}`]: Date.now(),
+  });
+}
+
+/** Add a comment to a run update. Client or staff. */
+export async function addRunUpdateComment(
+  runId: string,
+  updateId: string,
+  message: string
+): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Must be signed in to comment");
+  const authorName = user.displayName || user.email || "Unknown";
+  const commentsRef = collection(db, "runs", runId, "updates", updateId, "comments");
+  const docRef = await addDoc(commentsRef, {
+    authorUid: user.uid,
+    authorName,
+    message: message.trim(),
+    createdAt: Timestamp.now().toMillis(),
+  });
+  return docRef.id;
+}
+
+export function subscribeRunUpdateComments(
+  runId: string,
+  updateId: string,
+  callback: (comments: RunUpdateComment[]) => void
+): Unsubscribe {
+  const commentsRef = collection(db, "runs", runId, "updates", updateId, "comments");
+  const q = query(commentsRef, orderBy("createdAt", "asc"));
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const comments: RunUpdateComment[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : (data.createdAt as number) ?? 0;
+        return {
+          id: d.id,
+          authorUid: data.authorUid ?? "",
+          authorName: data.authorName ?? "",
+          message: data.message ?? "",
+          createdAt,
+        };
+      });
+      callback(comments);
+    },
+    (err) => {
+      console.error("Run update comments subscription error:", err);
+      callback([]);
+    }
+  );
 }
 
 // Client profile & billing
@@ -1636,6 +1762,78 @@ export function subscribeAuditLogs(
     },
     (err) => {
       console.error("Audit logs subscription error:", err);
+      callback([]);
+    }
+  );
+}
+
+const AUDIT_LOGS_BY_ENTITY_LIMIT = 30;
+
+function mapAuditSnapshot(snapshot: QuerySnapshot<DocumentData>): AuditLogEntry[] {
+  return snapshot.docs.map((d) => {
+    const data = d.data();
+    const createdAt = data.createdAt instanceof Timestamp
+      ? data.createdAt.toMillis()
+      : (data.createdAt as number) ?? 0;
+    return {
+      id: d.id,
+      userId: data.userId ?? "",
+      userEmail: data.userEmail ?? null,
+      userRole: data.userRole ?? null,
+      action: data.action as AuditAction,
+      details: (data.details as Record<string, unknown>) ?? {},
+      createdAt,
+    };
+  });
+}
+
+/**
+ * Subscribe to audit logs for a specific guitar (actions that reference this guitar, e.g. view_guitar).
+ * Staff/admin only. Requires composite index: auditLogs (details.guitarId ASC, createdAt DESC).
+ */
+export function subscribeAuditLogsByGuitar(
+  guitarId: string,
+  callback: (entries: AuditLogEntry[]) => void,
+  maxEntries: number = AUDIT_LOGS_BY_ENTITY_LIMIT
+): Unsubscribe {
+  const ref = collection(db, "auditLogs");
+  const q = query(
+    ref,
+    where("details.guitarId", "==", guitarId),
+    orderBy("createdAt", "desc"),
+    limit(maxEntries)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => callback(mapAuditSnapshot(snapshot)),
+    (err) => {
+      console.error("Audit logs by guitar subscription error:", err);
+      callback([]);
+    }
+  );
+}
+
+/**
+ * Subscribe to audit logs for a specific user (purchaser/client activity: login, view_my_guitars, view_guitar, etc.).
+ * Staff/admin only. Requires composite index: auditLogs (userId ASC, createdAt DESC).
+ */
+export function subscribeAuditLogsByUser(
+  userId: string,
+  callback: (entries: AuditLogEntry[]) => void,
+  maxEntries: number = AUDIT_LOGS_BY_ENTITY_LIMIT
+): Unsubscribe {
+  const ref = collection(db, "auditLogs");
+  const q = query(
+    ref,
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc"),
+    limit(maxEntries)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => callback(mapAuditSnapshot(snapshot)),
+    (err) => {
+      console.error("Audit logs by user subscription error:", err);
       callback([]);
     }
   );

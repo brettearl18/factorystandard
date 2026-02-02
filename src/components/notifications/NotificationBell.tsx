@@ -64,6 +64,10 @@ export function NotificationBell() {
     }
 
     // Staff/Admin navigation
+    if (notification.type === "payment_pending_approval") {
+      router.push("/accounting");
+      return;
+    }
     if (notification.runId) {
       router.push(`/runs/${notification.runId}/board`);
     } else if (notification.guitarId) {
@@ -106,15 +110,23 @@ export function NotificationBell() {
         return "🎸";
       case "guitar_note_added":
         return "📝";
+      case "guitar_note_comment":
+        return "💬";
       case "guitar_created":
         return "✨";
       case "guitar_assigned":
         return "👤";
       case "run_created":
         return "📦";
+      case "run_update":
+        return "📢";
+      case "run_update_comment":
+        return "💬";
       case "run_archived":
       case "guitar_archived":
         return "📁";
+      case "payment_pending_approval":
+        return "💰";
       default:
         return "🔔";
     }

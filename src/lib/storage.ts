@@ -250,4 +250,3 @@ export async function deleteRunThumbnail(runId: string, imageUrl: string): Promi
     await deleteImageFromStorage(imageUrl);
   }
 }
-

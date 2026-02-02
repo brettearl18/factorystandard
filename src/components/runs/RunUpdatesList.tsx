@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeRunUpdates, recordAuditLog } from "@/lib/firestore";
-import { MessageSquare, Calendar, Image as ImageIcon } from "lucide-react";
-import type { RunUpdate } from "@/types/guitars";
+import { subscribeRunUpdates, recordAuditLog, recordRunUpdateViewed, addRunUpdateComment, subscribeRunUpdateComments } from "@/lib/firestore";
+import { MessageSquare, Calendar, Image as ImageIcon, ThumbsUp, Loader2 } from "lucide-react";
+import type { RunUpdate, RunUpdateComment } from "@/types/guitars";
 
 interface RunUpdatesListProps {
   runId: string;
@@ -19,9 +19,12 @@ export function RunUpdatesList({
   maxUpdates = 10,
   guitarId,
 }: RunUpdatesListProps) {
-  const { userRole } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const [updates, setUpdates] = useState<RunUpdate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [commentMap, setCommentMap] = useState<Record<string, RunUpdateComment[]>>({});
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
+  const [submittingCommentUpdateId, setSubmittingCommentUpdateId] = useState<string | null>(null);
   const loggedViewRunUpdates = useRef(false);
 
   // Audit: log when client views run updates (once per mount)
@@ -40,7 +43,7 @@ export function RunUpdatesList({
     }
 
     const unsubscribe = subscribeRunUpdates(runId, (loadedUpdates) => {
-      const limitedUpdates = maxUpdates 
+      const limitedUpdates = maxUpdates
         ? loadedUpdates.slice(0, maxUpdates)
         : loadedUpdates;
       setUpdates(limitedUpdates);
@@ -49,6 +52,20 @@ export function RunUpdatesList({
 
     return () => unsubscribe();
   }, [runId, clientOnly, maxUpdates]);
+
+  // Subscribe to comments for each update (when client view and we have updates)
+  useEffect(() => {
+    if (!runId || updates.length === 0) return;
+    const unsubs: (() => void)[] = [];
+    updates.forEach((update) => {
+      unsubs.push(
+        subscribeRunUpdateComments(runId, update.id, (comments) => {
+          setCommentMap((prev) => ({ ...prev, [update.id]: comments }));
+        })
+      );
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [runId, updates.map((u) => u.id).join(",")]);
 
   if (loading) {
     return (
@@ -112,6 +129,87 @@ export function RunUpdatesList({
               ))}
             </div>
           )}
+
+          {/* Thumbs up (mark as viewed) - client only */}
+          {userRole === "client" && currentUser && (
+            <div className="mt-3 flex items-center gap-2">
+              {update.viewedBy?.[currentUser.uid] ? (
+                <span className="inline-flex items-center gap-1.5 text-sm text-green-600">
+                  <ThumbsUp className="w-4 h-4 fill-current" />
+                  Viewed by you
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => recordRunUpdateViewed(runId, update.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <ThumbsUp className="w-4 h-4" />
+                  Mark as viewed
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Comments */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Comments ({(commentMap[update.id] ?? []).length})
+            </p>
+            {(commentMap[update.id] ?? []).length > 0 && (
+              <ul className="space-y-2 mb-3">
+                {(commentMap[update.id] ?? []).map((c) => (
+                  <li key={c.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="font-medium text-gray-900">{c.authorName}</span>
+                    <span className="text-gray-500 text-xs ml-2">
+                      {new Date(c.createdAt).toLocaleDateString()}{" "}
+                      {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <p className="text-gray-700 mt-0.5">{c.message}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {currentUser && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Add a comment..."
+                  value={commentDraft[update.id] ?? ""}
+                  onChange={(e) => setCommentDraft((prev) => ({ ...prev, [update.id]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const msg = (commentDraft[update.id] ?? "").trim();
+                      if (msg && submittingCommentUpdateId !== update.id) {
+                        setSubmittingCommentUpdateId(update.id);
+                        addRunUpdateComment(runId, update.id, msg)
+                          .then(() => setCommentDraft((prev) => ({ ...prev, [update.id]: "" })))
+                          .catch((err) => console.error(err))
+                          .finally(() => setSubmittingCommentUpdateId(null));
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  disabled={!(commentDraft[update.id]?.trim()) || submittingCommentUpdateId === update.id}
+                  onClick={() => {
+                    const msg = (commentDraft[update.id] ?? "").trim();
+                    if (!msg || submittingCommentUpdateId === update.id) return;
+                    setSubmittingCommentUpdateId(update.id);
+                    addRunUpdateComment(runId, update.id, msg)
+                      .then(() => setCommentDraft((prev) => ({ ...prev, [update.id]: "" })))
+                      .catch((err) => console.error(err))
+                      .finally(() => setSubmittingCommentUpdateId(null));
+                  }}
+                  className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingCommentUpdateId === update.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Post"}
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <p className="text-xs text-gray-500">

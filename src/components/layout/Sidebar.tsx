@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
+import { useUnreadGuitarNotifications } from "@/hooks/useUnreadGuitarNotifications";
 import {
   LayoutDashboard,
   Package,
@@ -26,6 +27,8 @@ export function Sidebar() {
   const branding = useBranding();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { total: guitarUnreadCount } = useUnreadGuitarNotifications();
+  const showGuitarBadge = (userRole === "staff" || userRole === "admin" || userRole === "accounting") && guitarUnreadCount > 0;
 
   if (!currentUser) return null;
 
@@ -147,6 +150,7 @@ export function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
+          const isGuitars = item.href === "/guitars";
           return (
             <Link
               key={item.href}
@@ -158,7 +162,14 @@ export function Sidebar() {
                   : "text-textMuted hover:bg-slate/40 border-transparent"
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <span className="relative">
+                <Icon className="w-5 h-5" />
+                {isGuitars && showGuitarBadge && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full">
+                    {guitarUnreadCount > 99 ? "99+" : guitarUnreadCount}
+                  </span>
+                )}
+              </span>
               <span>{item.label}</span>
             </Link>
           );

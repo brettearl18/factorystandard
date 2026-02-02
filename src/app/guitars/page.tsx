@@ -8,6 +8,7 @@ import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getRun, subscribeRunStages } from "@/lib/firestore";
 import { GuitarDetailModal } from "@/components/guitars/GuitarDetailModal";
+import { useUnreadGuitarNotifications } from "@/hooks/useUnreadGuitarNotifications";
 import type { GuitarBuild, Run, RunStage } from "@/types/guitars";
 import { Guitar, Search, X, Package, User, Hash, Calendar, Grid, Table } from "lucide-react";
 
@@ -21,6 +22,7 @@ export default function GuitarsPage() {
   const [selectedGuitar, setSelectedGuitar] = useState<GuitarBuild | null>(null);
   const [runs, setRuns] = useState<Map<string, Run>>(new Map());
   const [stages, setStages] = useState<Map<string, RunStage[]>>(new Map());
+  const { byGuitarId: unreadByGuitarId } = useUnreadGuitarNotifications();
 
   useEffect(() => {
     if (loading) return;
@@ -227,8 +229,14 @@ export default function GuitarsPage() {
                       setSelectedGuitar(guitar);
                     }
                   }}
-                  className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow text-left"
+                  className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow text-left relative"
                 >
+                  {/* Unread notification badge */}
+                  {(unreadByGuitarId[guitar.id] ?? 0) > 0 && (
+                    <span className="absolute top-3 right-3 min-w-[22px] h-[22px] px-1.5 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full">
+                      {unreadByGuitarId[guitar.id]! > 99 ? "99+" : unreadByGuitarId[guitar.id]}
+                    </span>
+                  )}
                   {/* Guitar Image */}
                   {guitar.coverPhotoUrl ? (
                     <div className="w-full h-48 rounded-lg overflow-hidden mb-3 bg-gray-100">
@@ -345,19 +353,26 @@ export default function GuitarsPage() {
                         className="hover:bg-gray-50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {guitar.coverPhotoUrl ? (
-                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
-                              <img
-                                src={guitar.coverPhotoUrl}
-                                alt={guitar.model}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
-                              <Guitar className="w-6 h-6 text-gray-400" />
-                            </div>
-                          )}
+                          <div className="relative inline-block">
+                            {(unreadByGuitarId[guitar.id] ?? 0) > 0 && (
+                              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full z-10">
+                                {unreadByGuitarId[guitar.id]! > 99 ? "99+" : unreadByGuitarId[guitar.id]}
+                              </span>
+                            )}
+                            {guitar.coverPhotoUrl ? (
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
+                                <img
+                                  src={guitar.coverPhotoUrl}
+                                  alt={guitar.model}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
+                                <Guitar className="w-6 h-6 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900">{guitar.model}</div>

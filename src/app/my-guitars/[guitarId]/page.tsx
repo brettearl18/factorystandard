@@ -2,17 +2,17 @@
 
 import { use } from "react";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages, recordAuditLog } from "@/lib/firestore";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages, recordAuditLog, recordGuitarNoteViewed, addGuitarNoteComment, subscribeGuitarNoteComments } from "@/lib/firestore";
 import { isGoogleDriveLink, uploadGuitarGalleryImage } from "@/lib/storage";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { RunUpdatesList } from "@/components/runs/RunUpdatesList";
-import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff, Upload, X, Loader2 } from "lucide-react";
-import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord } from "@/types/guitars";
+import { ArrowLeft, Camera, CheckCircle, Circle, TreePine, Zap, Music, Palette, Settings, ExternalLink, FileText, Download, Eye, EyeOff, Upload, X, Loader2, ThumbsUp, MessageSquare } from "lucide-react";
+import type { GuitarBuild, GuitarNote, RunStage, InvoiceRecord, NoteComment } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 
 const formatCurrency = (amount: number, currency: string = "AUD") =>
@@ -28,6 +28,7 @@ export default function GuitarDetailPage({
   params: Promise<{ guitarId: string }>;
 }) {
   const { guitarId } = use(params);
+  const searchParams = useSearchParams();
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
   const [guitar, setGuitar] = useState<GuitarBuild | null>(null);
@@ -47,6 +48,11 @@ export default function GuitarDetailPage({
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [showGalleryUpload, setShowGalleryUpload] = useState(false);
 
+  // Comments per note (noteId -> comments)
+  const [commentMap, setCommentMap] = useState<Record<string, NoteComment[]>>({});
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
+  const [submittingCommentNoteId, setSubmittingCommentNoteId] = useState<string | null>(null);
+
   useEffect(() => {
     if (authLoading) return;
 
@@ -61,6 +67,13 @@ export default function GuitarDetailPage({
       return;
     }
   }, [currentUser, userRole, authLoading, router]);
+
+  // When opened with ?viewAsClient=1 (e.g. from modal "View as Client"), show client view with thumbs up & comments
+  useEffect(() => {
+    if (searchParams.get("viewAsClient") === "1" && (userRole === "staff" || userRole === "admin")) {
+      setClientViewMode(true);
+    }
+  }, [searchParams, userRole]);
 
   // Audit: log when client views a guitar (once per guitar per visit)
   const loggedViewGuitar = useRef<string | null>(null);
@@ -167,6 +180,20 @@ export default function GuitarDetailPage({
       if (unsubscribeNotes) unsubscribeNotes();
     };
   }, [guitarId, currentUser, userRole, router, clientViewMode]);
+
+  // Subscribe to comments for each visible note (client or staff viewing)
+  useEffect(() => {
+    if (!guitarId || notes.length === 0) return;
+    const unsubs: (() => void)[] = [];
+    notes.forEach((note) => {
+      unsubs.push(
+        subscribeGuitarNoteComments(guitarId, note.id, (comments) => {
+          setCommentMap((prev) => ({ ...prev, [note.id]: comments }));
+        })
+      );
+    });
+    return () => unsubs.forEach((u) => u());
+  }, [guitarId, notes.map((n) => n.id).join(",")]);
 
   // Subscribe to invoices - for clients viewing their own guitar, or staff/admin viewing client guitars
   useEffect(() => {
@@ -637,6 +664,86 @@ export default function GuitarDetailPage({
                             })}
                           </div>
                         )}
+                        {/* Thumbs up (mark as viewed) - client, or staff in client view mode */}
+                        {(userRole === "client" || clientViewMode) && currentUser && (
+                          <div className="mt-3 flex items-center gap-2">
+                            {note.viewedBy?.[currentUser.uid] ? (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-green-600">
+                                <ThumbsUp className="w-4 h-4 fill-current" />
+                                Viewed by you
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => recordGuitarNoteViewed(guitarId, note.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                              >
+                                <ThumbsUp className="w-4 h-4" />
+                                Mark as viewed
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {/* Comments */}
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Comments ({commentMap[note.id]?.length ?? 0})
+                          </p>
+                          {(commentMap[note.id]?.length ?? 0) > 0 && (
+                            <ul className="space-y-2 mb-3">
+                              {(commentMap[note.id] ?? []).map((c) => (
+                                <li key={c.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
+                                  <span className="font-medium text-gray-900">{c.authorName}</span>
+                                  <span className="text-gray-500 text-xs ml-2">
+                                    {new Date(c.createdAt).toLocaleDateString()}{" "}
+                                    {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                  <p className="text-gray-700 mt-0.5">{c.message}</p>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {currentUser && (
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Add a comment..."
+                                value={commentDraft[note.id] ?? ""}
+                                onChange={(e) => setCommentDraft((prev) => ({ ...prev, [note.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const msg = (commentDraft[note.id] ?? "").trim();
+                                    if (msg && submittingCommentNoteId !== note.id) {
+                                      setSubmittingCommentNoteId(note.id);
+                                      addGuitarNoteComment(guitarId, note.id, msg)
+                                        .then(() => setCommentDraft((prev) => ({ ...prev, [note.id]: "" })))
+                                        .catch((err) => console.error(err))
+                                        .finally(() => setSubmittingCommentNoteId(null));
+                                    }
+                                  }
+                                }}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              <button
+                                type="button"
+                                disabled={!(commentDraft[note.id]?.trim()) || submittingCommentNoteId === note.id}
+                                onClick={() => {
+                                  const msg = (commentDraft[note.id] ?? "").trim();
+                                  if (!msg || submittingCommentNoteId === note.id) return;
+                                  setSubmittingCommentNoteId(note.id);
+                                  addGuitarNoteComment(guitarId, note.id, msg)
+                                    .then(() => setCommentDraft((prev) => ({ ...prev, [note.id]: "" })))
+                                    .catch((err) => console.error(err))
+                                    .finally(() => setSubmittingCommentNoteId(null));
+                                }}
+                                className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {submittingCommentNoteId === note.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Post"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                     })}

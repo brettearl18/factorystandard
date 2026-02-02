@@ -132,6 +132,9 @@ export type NoteType =
   | "status_change"
   | "general";
 
+/** When a client marks an update as viewed (thumbs up). uid -> timestamp ms */
+export type ViewedByMap = Record<string, number>;
+
 export interface GuitarNote {
   id: string;
   guitarId: string;
@@ -143,6 +146,17 @@ export interface GuitarNote {
   createdAt: number;
   visibleToClient: boolean;
   photoUrls?: string[];
+  /** Client uids who marked this note as viewed (thumbs up), with timestamp */
+  viewedBy?: ViewedByMap;
+}
+
+/** Comment on a guitar note (subcollection guitars/{id}/notes/{noteId}/comments) */
+export interface NoteComment {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  message: string;
+  createdAt: number;
 }
 
 export interface ClientProfile {
@@ -234,12 +248,15 @@ export interface Notification {
 export type NotificationType =
   | "guitar_stage_changed"
   | "guitar_note_added"
+  | "guitar_note_comment"
   | "guitar_created"
   | "guitar_assigned"
   | "run_created"
   | "run_archived"
   | "guitar_archived"
-  | "run_update";
+  | "run_update"
+  | "run_update_comment"
+  | "payment_pending_approval";
 
 export interface RunUpdate {
   id: string; // document id under runs/{runId}/updates
@@ -251,6 +268,17 @@ export interface RunUpdate {
   createdAt: number;
   visibleToClients: boolean; // if false, only staff can see
   imageUrls?: string[]; // Optional images attached to the update
+  /** Client uids who marked this update as viewed (thumbs up), with timestamp */
+  viewedBy?: ViewedByMap;
+}
+
+/** Comment on a run update (subcollection runs/{runId}/updates/{updateId}/comments) */
+export interface RunUpdateComment {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  message: string;
+  createdAt: number;
 }
 
 /** Audit log action types for client/staff activity */

@@ -38,6 +38,9 @@ firebase functions:config:set mailgun.from_email="updates@mg.yourdomain.com"
 # Portal URL – makes "View in the portal" a clickable button in emails (recommended)
 firebase functions:config:set mailgun.portal_url="https://ormsby-factory-standard-runs.web.app"
 
+# CC on all client emails (default: guitars@ormsbyguitars.com). Set to empty to disable.
+firebase functions:config:set mailgun.cc="guitars@ormsbyguitars.com"
+
 # EU region
 firebase functions:config:set mailgun.api_host="https://api.eu.mailgun.net"
 ```
