@@ -7,32 +7,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { createRun, createStage } from "@/lib/firestore";
 import { Plus, X, GripVertical, FileText, DollarSign, ChevronDown, ChevronUp, Settings, CheckSquare } from "lucide-react";
 import type { RunStage, InvoiceSchedule, Run } from "@/types/guitars";
-import {
-  BODY_WOOD_OPTIONS,
-  TOP_WOOD_OPTIONS,
-  NECK_WOOD_OPTIONS,
-  FRETBOARD_WOOD_OPTIONS,
-  PICKUP_NECK_OPTIONS,
-  PICKUP_BRIDGE_OPTIONS,
-  PICKUP_CONFIGURATION_OPTIONS,
-  CONTROLS_OPTIONS,
-  SWITCH_OPTIONS,
-  BRIDGE_OPTIONS,
-  TUNER_OPTIONS,
-  NUT_OPTIONS,
-  PICKGUARD_OPTIONS,
-  STRING_COUNT_OPTIONS,
-  STRING_GAUGE_OPTIONS,
-  SCALE_LENGTH_OPTIONS,
-  ACTION_OPTIONS,
-  FINISH_TYPE_OPTIONS,
-  BINDING_OPTIONS,
-  INLAY_STYLE_OPTIONS,
-  FRET_COUNT_OPTIONS,
-  NECK_PROFILE_OPTIONS,
-  RADIUS_OPTIONS,
-  HANDEDNESS_OPTIONS,
-} from "@/constants/guitarSpecs";
+import { SPEC_CATEGORIES } from "@/constants/guitarSpecs";
+import { useRunSpecOptions } from "@/hooks/useRunSpecOptions";
 
 // Standard template stages
 const STANDARD_STAGES: Omit<RunStage, "id">[] = [
@@ -121,6 +97,12 @@ export default function NewRunPage() {
   const [showSpecConstraints, setShowSpecConstraints] = useState(true);
   const [specConstraints, setSpecConstraints] = useState<Run["specConstraints"]>({});
   const [expandedSpecCategories, setExpandedSpecCategories] = useState<Set<string>>(new Set());
+  const runSpecOptions = useRunSpecOptions();
+  const specCategoriesWithOptions = SPEC_CATEGORIES.map(({ key, label, options }) => ({
+    key,
+    label,
+    options: runSpecOptions[key] ?? options,
+  }));
 
   if (loading) {
     return (
@@ -648,32 +630,7 @@ export default function NewRunPage() {
           {showSpecConstraints && (
             <div className="space-y-4 mt-4">
               {/* Spec Constraint Category Component */}
-              {([
-                { key: "bodyWood" as const, label: "Body Wood", options: BODY_WOOD_OPTIONS },
-                { key: "topWood" as const, label: "Top Wood", options: TOP_WOOD_OPTIONS },
-                { key: "neckWood" as const, label: "Neck Wood", options: NECK_WOOD_OPTIONS },
-                { key: "fretboardWood" as const, label: "Fretboard Wood", options: FRETBOARD_WOOD_OPTIONS },
-                { key: "pickupNeck" as const, label: "Neck Pickup", options: PICKUP_NECK_OPTIONS },
-                { key: "pickupBridge" as const, label: "Bridge Pickup", options: PICKUP_BRIDGE_OPTIONS },
-                { key: "pickupConfiguration" as const, label: "Pickup Configuration", options: PICKUP_CONFIGURATION_OPTIONS },
-                { key: "controls" as const, label: "Controls", options: CONTROLS_OPTIONS },
-                { key: "switch" as const, label: "Switch", options: SWITCH_OPTIONS },
-                { key: "bridge" as const, label: "Bridge", options: BRIDGE_OPTIONS },
-                { key: "tuners" as const, label: "Tuners", options: TUNER_OPTIONS },
-                { key: "nut" as const, label: "Nut", options: NUT_OPTIONS },
-                { key: "pickguard" as const, label: "Pickguard", options: PICKGUARD_OPTIONS },
-                { key: "strings" as const, label: "String Count", options: STRING_COUNT_OPTIONS },
-                { key: "stringGauge" as const, label: "String Gauge", options: STRING_GAUGE_OPTIONS },
-                { key: "scaleLength" as const, label: "Scale Length", options: SCALE_LENGTH_OPTIONS },
-                { key: "action" as const, label: "Action", options: ACTION_OPTIONS },
-                { key: "finishType" as const, label: "Finish Type", options: FINISH_TYPE_OPTIONS },
-                { key: "binding" as const, label: "Binding", options: BINDING_OPTIONS },
-                { key: "inlays" as const, label: "Inlay Style", options: INLAY_STYLE_OPTIONS },
-                { key: "frets" as const, label: "Fret Count", options: FRET_COUNT_OPTIONS },
-                { key: "neckProfile" as const, label: "Neck Profile", options: NECK_PROFILE_OPTIONS },
-                { key: "radius" as const, label: "Radius", options: RADIUS_OPTIONS },
-                { key: "handedness" as const, label: "Handedness", options: HANDEDNESS_OPTIONS },
-              ] as const).map(({ key, label, options }) => {
+              {specCategoriesWithOptions.map(({ key, label, options }) => {
                 const isExpanded = expandedSpecCategories.has(key);
                 const selected = specConstraints?.[key] || [];
                 const customOptions = selected.filter((opt) => !options.includes(opt));

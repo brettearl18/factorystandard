@@ -52,12 +52,41 @@ export interface SystemSettings {
   maxFileUploadSize: number; // in MB
 }
 
+/** Master list of allowed options per run spec category (body wood, top wood, etc.). */
+export interface RunSpecSettings {
+  bodyWood?: string[];
+  topWood?: string[];
+  neckWood?: string[];
+  fretboardWood?: string[];
+  pickupNeck?: string[];
+  pickupBridge?: string[];
+  pickupConfiguration?: string[];
+  controls?: string[];
+  switch?: string[];
+  bridge?: string[];
+  tuners?: string[];
+  nut?: string[];
+  pickguard?: string[];
+  strings?: string[];
+  stringGauge?: string[];
+  scaleLength?: string[];
+  action?: string[];
+  finishType?: string[];
+  binding?: string[];
+  inlays?: string[];
+  frets?: string[];
+  neckProfile?: string[];
+  radius?: string[];
+  handedness?: string[];
+}
+
 export interface AppSettings {
   branding: BrandingSettings;
   general: GeneralSettings;
   email: EmailSettings;
   notifications: NotificationSettings;
   system: SystemSettings;
+  runSpecs?: RunSpecSettings;
   updatedAt: number;
   updatedBy: string;
 }

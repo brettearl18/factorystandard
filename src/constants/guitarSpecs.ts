@@ -410,3 +410,31 @@ export const HANDEDNESS_OPTIONS = [
 // Placeholder arrays for other spec fields (to be populated later)
 export const FINISH_COLOR_OPTIONS: string[] = [];
 
+/** All run spec categories with key, label, and default options. Used by Admin Run Specs and run create/edit. */
+export const SPEC_CATEGORIES = [
+  { key: "bodyWood" as const, label: "Body Wood", options: BODY_WOOD_OPTIONS },
+  { key: "topWood" as const, label: "Top Wood", options: TOP_WOOD_OPTIONS },
+  { key: "neckWood" as const, label: "Neck Wood", options: NECK_WOOD_OPTIONS },
+  { key: "fretboardWood" as const, label: "Fretboard Wood", options: FRETBOARD_WOOD_OPTIONS },
+  { key: "pickupNeck" as const, label: "Neck Pickup", options: PICKUP_NECK_OPTIONS },
+  { key: "pickupBridge" as const, label: "Bridge Pickup", options: PICKUP_BRIDGE_OPTIONS },
+  { key: "pickupConfiguration" as const, label: "Pickup Configuration", options: PICKUP_CONFIGURATION_OPTIONS },
+  { key: "controls" as const, label: "Controls", options: CONTROLS_OPTIONS },
+  { key: "switch" as const, label: "Switch", options: SWITCH_OPTIONS },
+  { key: "bridge" as const, label: "Bridge", options: BRIDGE_OPTIONS },
+  { key: "tuners" as const, label: "Tuners", options: TUNER_OPTIONS },
+  { key: "nut" as const, label: "Nut", options: NUT_OPTIONS },
+  { key: "pickguard" as const, label: "Pickguard", options: PICKGUARD_OPTIONS },
+  { key: "strings" as const, label: "String Count", options: STRING_COUNT_OPTIONS },
+  { key: "stringGauge" as const, label: "String Gauge", options: STRING_GAUGE_OPTIONS },
+  { key: "scaleLength" as const, label: "Scale Length", options: SCALE_LENGTH_OPTIONS },
+  { key: "action" as const, label: "Action", options: ACTION_OPTIONS },
+  { key: "finishType" as const, label: "Finish Type", options: FINISH_TYPE_OPTIONS },
+  { key: "binding" as const, label: "Binding", options: BINDING_OPTIONS },
+  { key: "inlays" as const, label: "Inlay Style", options: INLAY_STYLE_OPTIONS },
+  { key: "frets" as const, label: "Fret Count", options: FRET_COUNT_OPTIONS },
+  { key: "neckProfile" as const, label: "Neck Profile", options: NECK_PROFILE_OPTIONS },
+  { key: "radius" as const, label: "Radius", options: RADIUS_OPTIONS },
+  { key: "handedness" as const, label: "Handedness", options: HANDEDNESS_OPTIONS },
+] as const;
+

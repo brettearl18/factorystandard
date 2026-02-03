@@ -7,7 +7,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { subscribeAppSettings, updateAppSettings } from "@/lib/firestore";
 import { uploadBrandingAsset } from "@/lib/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { AppSettings, BrandingSettings, GeneralSettings, EmailSettings, NotificationSettings, SystemSettings } from "@/types/settings";
+import type { AppSettings, BrandingSettings, GeneralSettings, EmailSettings, NotificationSettings, SystemSettings, RunSpecSettings } from "@/types/settings";
+import { SPEC_CATEGORIES } from "@/constants/guitarSpecs";
 import {
   Palette,
   Building2,
@@ -23,9 +24,11 @@ import {
   Download,
   RotateCcw,
   AlertTriangle,
+  Package,
+  Plus,
 } from "lucide-react";
 
-type TabType = "branding" | "general" | "email" | "notifications" | "system";
+type TabType = "branding" | "general" | "email" | "notifications" | "runSpecs" | "system";
 
 export default function AdminSettingsPage() {
   const { currentUser, userRole, loading, refreshToken } = useAuth();
@@ -147,6 +150,7 @@ export default function AdminSettingsPage() {
     { id: "general" as TabType, label: "General", icon: Building2 },
     { id: "email" as TabType, label: "Email", icon: Mail },
     { id: "notifications" as TabType, label: "Notifications", icon: Bell },
+    { id: "runSpecs" as TabType, label: "Run specifications", icon: Package },
     { id: "system" as TabType, label: "System", icon: SettingsIcon },
   ];
 
@@ -233,6 +237,13 @@ export default function AdminSettingsPage() {
             <NotificationsSection
               settings={settings.notifications}
               onSave={(data) => handleSave("Notifications", { notifications: data })}
+              isSaving={isSaving}
+            />
+          )}
+          {activeTab === "runSpecs" && (
+            <RunSpecsSection
+              runSpecs={settings.runSpecs}
+              onSave={(data) => handleSave("Run specifications", { runSpecs: data })}
               isSaving={isSaving}
             />
           )}
@@ -1197,6 +1208,165 @@ function NotificationsSection({
             <>
               <Save className="w-4 h-4" />
               Save Notification Settings
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Run Specifications Section
+function RunSpecsSection({
+  runSpecs,
+  onSave,
+  isSaving,
+}: {
+  runSpecs: RunSpecSettings | undefined;
+  onSave: (data: RunSpecSettings) => void;
+  isSaving: boolean;
+}) {
+  const [formData, setFormData] = useState<RunSpecSettings>(() => {
+    const out: RunSpecSettings = {};
+    SPEC_CATEGORIES.forEach(({ key, options }) => {
+      out[key] = runSpecs?.[key] ?? [...options];
+    });
+    return out;
+  });
+  const [newOptionByKey, setNewOptionByKey] = useState<Record<string, string>>({});
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const out: RunSpecSettings = {};
+    SPEC_CATEGORIES.forEach(({ key, options }) => {
+      out[key] = runSpecs?.[key] ?? [...options];
+    });
+    setFormData(out);
+  }, [runSpecs]);
+
+  const toggleCategory = (key: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const addOption = (key: keyof RunSpecSettings, value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const current = formData[key] ?? [];
+    if (current.includes(trimmed)) return;
+    setFormData({ ...formData, [key]: [...current, trimmed] });
+    setNewOptionByKey((prev) => ({ ...prev, [key]: "" }));
+  };
+
+  const removeOption = (key: keyof RunSpecSettings, option: string) => {
+    const current = formData[key] ?? [];
+    setFormData({ ...formData, [key]: current.filter((o) => o !== option) });
+  };
+
+  const resetToDefaults = (key: keyof RunSpecSettings) => {
+    const cat = SPEC_CATEGORIES.find((c) => c.key === key);
+    if (!cat) return;
+    setFormData({ ...formData, [key]: [...cat.options] });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Run Specifications</h2>
+        <p className="text-sm text-gray-600 mb-6">
+          Add, edit, and change the master list of spec options (body wood, top wood, pickups, etc.). These options are used when creating or editing runs and when clients fill out guitar specs.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {SPEC_CATEGORIES.map(({ key, label, options: defaultOptions }) => {
+          const options = formData[key] ?? defaultOptions;
+          const isExpanded = expandedCategories.has(key);
+          const newVal = newOptionByKey[key] ?? "";
+
+          return (
+            <div key={key} className="border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleCategory(key)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left font-medium text-gray-900"
+              >
+                <span>{label}</span>
+                <span className="text-sm text-gray-500 font-normal">
+                  {options.length} option{options.length !== 1 ? "s" : ""}
+                </span>
+              </button>
+              {isExpanded && (
+                <div className="p-4 bg-white border-t border-gray-200 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((opt) => (
+                      <span
+                        key={opt}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm"
+                      >
+                        {opt}
+                        <button
+                          type="button"
+                          onClick={() => removeOption(key, opt)}
+                          className="text-gray-500 hover:text-red-600"
+                          title="Remove"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={newVal}
+                      onChange={(e) => setNewOptionByKey((prev) => ({ ...prev, [key]: e.target.value }))}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addOption(key, newVal))}
+                      placeholder="Add option..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addOption(key, newVal)}
+                      className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resetToDefaults(key)}
+                      className="px-3 py-2 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg text-sm"
+                    >
+                      Reset to defaults
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end pt-4 border-t border-gray-200">
+        <button
+          onClick={() => onSave(formData)}
+          disabled={isSaving}
+          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSaving ? (
+            <>
+              <Loader className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              Save Run Specifications
             </>
           )}
         </button>
