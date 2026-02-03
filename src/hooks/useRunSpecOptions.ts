@@ -29,8 +29,10 @@ export function useRunSpecOptions(): RunSpecSettings {
         return;
       }
       const merged: RunSpecSettings = {};
+      const saved = settings.runSpecs;
       SPEC_CATEGORIES.forEach(({ key, options }) => {
-        merged[key] = (settings.runSpecs[key]?.length ? settings.runSpecs[key] : options) as string[];
+        const arr = saved?.[key];
+        merged[key] = (arr?.length ? arr : options) as string[];
       });
       setRunSpecs(merged);
     });
