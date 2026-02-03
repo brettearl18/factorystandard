@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { Run, GuitarBuild, RunStage } from "@/types/guitars";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRuns } from "@/hooks/useRuns";
+import { useClientDisplayNames } from "@/hooks/useClientDisplayNames";
 import { subscribeGuitarsForRun, subscribeRunStages, getRun, subscribeGuitarNotes } from "@/lib/firestore";
-import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X } from "lucide-react";
+import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X, User } from "lucide-react";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import type { GuitarNote } from "@/types/guitars";
 import { MobileGuitarDetailsView } from "./MobileGuitarDetailsView";
@@ -21,6 +22,21 @@ export default function FactoryPortalPage() {
   const [stages, setStages] = useState<RunStage[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const [showGuitarDetails, setShowGuitarDetails] = useState(false);
+
+  const clientUidsNeedingNames = useMemo(
+    () => guitars.filter((g) => g.clientUid && !g.customerName?.trim()).map((g) => g.clientUid!),
+    [guitars]
+  );
+  const clientDisplayNames = useClientDisplayNames(clientUidsNeedingNames);
+  const guitarsWithClientNames = useMemo(
+    () =>
+      guitars.map((g) =>
+        g.clientUid && !g.customerName?.trim() && clientDisplayNames[g.clientUid]
+          ? { ...g, customerName: clientDisplayNames[g.clientUid] }
+          : g
+      ),
+    [guitars, clientDisplayNames]
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -206,8 +222,9 @@ export default function FactoryPortalPage() {
             <p>No guitars in this run</p>
           </div>
         ) : (
-          guitars.map((guitar) => {
+          guitarsWithClientNames.map((guitar) => {
             const guitarStage = stages.find(s => s.id === guitar.stageId);
+            const clientName = guitar.customerName || "No client assigned";
             return (
               <button
                 key={guitar.id}
@@ -225,6 +242,10 @@ export default function FactoryPortalPage() {
                     <h3 className="font-semibold text-gray-900">{guitar.model}</h3>
                     <p className="text-sm text-gray-600">{guitar.finish}</p>
                     <p className="text-xs text-gray-500 mt-1">Order: {guitar.orderNumber}</p>
+                    <p className="text-xs text-gray-700 mt-1 flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="truncate">{clientName}</span>
+                    </p>
                     {guitarStage && (
                       <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded">
                         {guitarStage.label}

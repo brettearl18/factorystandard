@@ -177,12 +177,11 @@ Factory Standards Team`;
 
       const clientUid = userData.uid;
 
-      // Step 2: Update client profile with assigned runs (if any)
-      if (assignedRunIds.length > 0) {
-        await updateClientProfile(clientUid, {
-          assignedRunIds: assignedRunIds,
-        }, currentUser?.uid);
-      }
+      // Step 2: Update client profile with displayName and assigned runs (if any)
+      await updateClientProfile(clientUid, {
+        displayName: name.trim(),
+        ...(assignedRunIds.length > 0 ? { assignedRunIds } : {}),
+      }, currentUser?.uid);
 
       // Success! Show email template modal
       setCreatedClientInfo({

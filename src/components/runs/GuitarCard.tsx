@@ -54,10 +54,10 @@ export function GuitarCard({ guitar, onDragStart, onClick }: GuitarCardProps) {
           <span className="text-gray-500">Order</span>
           <span className="font-semibold text-gray-900">{guitar.orderNumber}</span>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Customer</span>
-          <span className="font-medium text-gray-700 truncate ml-2">
-            {guitar.customerName || "No customer assigned"}
+        <div className="flex flex-col gap-0.5 text-xs">
+          <span className="text-gray-500">Client</span>
+          <span className="font-semibold text-gray-900 truncate" title={guitar.customerName || undefined}>
+            {guitar.customerName || "No client assigned"}
           </span>
         </div>
         {guitar.serial && (

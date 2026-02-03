@@ -1057,10 +1057,11 @@ export async function approvePayment(
 }
 
 // Update invoice fields (title, amount, dueDate, description, currency, guitarId) – staff/accounting
+export type InvoiceRecordUpdate = Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "status">> & { guitarId?: string | null };
 export async function updateInvoiceRecord(
   clientUid: string,
   invoiceId: string,
-  updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "status" | "guitarId">> & { guitarId?: string | null }
+  updates: InvoiceRecordUpdate
 ): Promise<void> {
   const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
   const snapshot = await getDoc(invoiceRef);

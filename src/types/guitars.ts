@@ -161,6 +161,7 @@ export interface NoteComment {
 
 export interface ClientProfile {
   uid: string;
+  displayName?: string; // Client display name (synced from Auth when available)
   phone?: string;
   alternateEmail?: string;
   shippingAddress?: {

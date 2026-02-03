@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRunStages } from "@/hooks/useRunStages";
 import { useRunGuitars } from "@/hooks/useRunGuitars";
+import { useClientDisplayNames } from "@/hooks/useClientDisplayNames";
 import { useRunBoardStore } from "@/store/runBoardStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateGuitarStage } from "@/lib/firestore";
@@ -24,6 +25,20 @@ export function RunBoard({ runId }: RunBoardProps) {
   const { currentUser } = useAuth();
   const stages = useRunStages(runId);
   const guitars = useRunGuitars(runId);
+  const clientUidsNeedingNames = useMemo(
+    () => guitars.filter((g) => g.clientUid && !g.customerName?.trim()).map((g) => g.clientUid!),
+    [guitars]
+  );
+  const clientDisplayNames = useClientDisplayNames(clientUidsNeedingNames);
+  const guitarsWithClientNames = useMemo(
+    () =>
+      guitars.map((g) =>
+        g.clientUid && !g.customerName?.trim() && clientDisplayNames[g.clientUid]
+          ? { ...g, customerName: clientDisplayNames[g.clientUid] }
+          : g
+      ),
+    [guitars, clientDisplayNames]
+  );
   const { setStages, setGuitars, moveGuitar } = useRunBoardStore();
   const [draggedGuitar, setDraggedGuitar] = useState<GuitarBuild | null>(null);
   const [targetStage, setTargetStage] = useState<RunStage | null>(null);
@@ -45,6 +60,8 @@ export function RunBoard({ runId }: RunBoardProps) {
   useEffect(() => {
     setGuitars(guitars);
   }, [guitars, setGuitars]);
+
+  const guitarsForBoard = guitarsWithClientNames;
 
   const handleDragStart = (guitar: GuitarBuild) => {
     setDraggedGuitar(guitar);
@@ -101,7 +118,7 @@ export function RunBoard({ runId }: RunBoardProps) {
   };
 
   const getGuitarsForStage = (stageId: string): GuitarBuild[] => {
-    return guitars.filter((guitar) => guitar.stageId === stageId);
+    return guitarsForBoard.filter((guitar) => guitar.stageId === stageId);
   };
 
   return (
@@ -121,7 +138,7 @@ export function RunBoard({ runId }: RunBoardProps) {
                 {run?.name || "Loading..."}
               </h1>
               <p className="text-sm text-gray-500">
-                {guitars.length} guitar{guitars.length !== 1 ? "s" : ""} in this run
+                {guitarsForBoard.length} guitar{guitarsForBoard.length !== 1 ? "s" : ""} in this run
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -265,7 +282,7 @@ export function RunBoard({ runId }: RunBoardProps) {
           isOpen={isRunUpdateModalOpen}
           onClose={() => setIsRunUpdateModalOpen(false)}
           run={run}
-          clientCount={new Set(guitars.map((g) => g.clientUid).filter((uid): uid is string => !!uid)).size}
+          clientCount={new Set(guitarsForBoard.map((g) => g.clientUid).filter((uid): uid is string => !!uid)).size}
         />
       )}
     </div>

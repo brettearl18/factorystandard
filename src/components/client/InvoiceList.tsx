@@ -7,6 +7,7 @@ import {
   deleteInvoiceRecord,
   updateInvoicePayment,
   deleteInvoicePayment,
+  type InvoiceRecordUpdate,
 } from "@/lib/firestore";
 import { Pencil, Trash2, Guitar } from "lucide-react";
 
@@ -74,7 +75,7 @@ export function InvoiceList({
 
   const canEdit = canEditDelete && clientUid;
 
-  const handleUpdateInvoice = async (updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "guitarId">>) => {
+  const handleUpdateInvoice = async (updates: InvoiceRecordUpdate) => {
     if (!clientUid || !editingInvoice) return;
     setSaving(true);
     setError(null);
@@ -469,7 +470,7 @@ function EditInvoiceModal({
 }: {
   invoice: InvoiceRecord;
   clientGuitars?: GuitarBuild[];
-  onSave: (u: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "guitarId">> & { guitarId?: string | null }) => void;
+  onSave: (u: InvoiceRecordUpdate) => void;
   onClose: () => void;
   saving: boolean;
 }) {
