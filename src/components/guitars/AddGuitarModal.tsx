@@ -8,7 +8,7 @@ import { uploadReferenceImage } from "@/lib/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth } from "@/lib/firebase";
 import type { GuitarBuild, GuitarSpecs, RunStage } from "@/types/guitars";
-import { BODY_WOOD_OPTIONS, TOP_WOOD_OPTIONS, NECK_WOOD_OPTIONS, FRETBOARD_WOOD_OPTIONS, ORMSBY_PICKUP_MODELS, PICKUP_NECK_OPTIONS, PICKUP_BRIDGE_OPTIONS, PICKUP_CONFIGURATION_OPTIONS, CONTROLS_OPTIONS, SWITCH_OPTIONS, BRIDGE_OPTIONS, TUNER_OPTIONS, NUT_OPTIONS, PICKGUARD_OPTIONS, STRING_COUNT_OPTIONS, STRING_GAUGE_OPTIONS, SCALE_LENGTH_OPTIONS, ACTION_OPTIONS, FINISH_TYPE_OPTIONS, BINDING_OPTIONS, INLAY_STYLE_OPTIONS, FRET_COUNT_OPTIONS, NECK_PROFILE_OPTIONS, RADIUS_OPTIONS } from "@/constants/guitarSpecs";
+import { useRunSpecOptions } from "@/hooks/useRunSpecOptions";
 
 interface AddGuitarModalProps {
   runId: string;
@@ -43,6 +43,9 @@ export function AddGuitarModal({
 
   // Specs fields
   const [specs, setSpecs] = useState<Partial<GuitarSpecs>>({});
+
+  // Run spec options from Admin Run Specifications
+  const runSpecOptions = useRunSpecOptions();
 
   // Reference images
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
@@ -788,7 +791,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Body Wood</option>
-                      {BODY_WOOD_OPTIONS.map((option) => (
+                      {(runSpecOptions.bodyWood || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -800,7 +803,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Top Cap</option>
-                      {TOP_WOOD_OPTIONS.map((option) => (
+                      {(runSpecOptions.topWood || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -812,7 +815,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Neck Wood</option>
-                      {NECK_WOOD_OPTIONS.map((option) => (
+                      {(runSpecOptions.neckWood || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -824,7 +827,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Fretboard Wood</option>
-                      {FRETBOARD_WOOD_OPTIONS.map((option) => (
+                      {(runSpecOptions.fretboardWood || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -845,7 +848,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Neck Pickup</option>
-                      {PICKUP_NECK_OPTIONS.map((option) => (
+                      {(runSpecOptions.pickupNeck || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -857,7 +860,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Bridge Pickup</option>
-                      {PICKUP_BRIDGE_OPTIONS.map((option) => (
+                      {(runSpecOptions.pickupBridge || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -869,7 +872,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Configuration</option>
-                      {PICKUP_CONFIGURATION_OPTIONS.map((option) => (
+                      {(runSpecOptions.pickupConfiguration || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -881,7 +884,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Controls</option>
-                      {CONTROLS_OPTIONS.map((option) => (
+                      {(runSpecOptions.controls || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -893,7 +896,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Switch</option>
-                      {SWITCH_OPTIONS.map((option) => (
+                      {(runSpecOptions.switch || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -914,7 +917,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Bridge</option>
-                      {BRIDGE_OPTIONS.map((option) => (
+                      {(runSpecOptions.bridge || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -926,7 +929,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Tuners</option>
-                      {TUNER_OPTIONS.map((option) => (
+                      {(runSpecOptions.tuners || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -938,7 +941,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Nut</option>
-                      {NUT_OPTIONS.map((option) => (
+                      {(runSpecOptions.nut || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -950,7 +953,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Pickguard</option>
-                      {PICKGUARD_OPTIONS.map((option) => (
+                      {(runSpecOptions.pickguard || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -971,7 +974,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Strings</option>
-                      {STRING_COUNT_OPTIONS.map((option) => (
+                      {(runSpecOptions.strings || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -983,7 +986,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">String Gauge</option>
-                      {STRING_GAUGE_OPTIONS.map((option) => (
+                      {(runSpecOptions.stringGauge || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -995,7 +998,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Scale Length</option>
-                      {SCALE_LENGTH_OPTIONS.map((option) => (
+                      {(runSpecOptions.scaleLength || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1007,7 +1010,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Action</option>
-                      {ACTION_OPTIONS.map((option) => (
+                      {(runSpecOptions.action || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1037,7 +1040,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Finish Type</option>
-                      {FINISH_TYPE_OPTIONS.map((option) => (
+                      {(runSpecOptions.finishType || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1049,7 +1052,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Binding</option>
-                      {BINDING_OPTIONS.map((option) => (
+                      {(runSpecOptions.binding || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1061,7 +1064,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Inlay Style</option>
-                      {INLAY_STYLE_OPTIONS.map((option) => (
+                      {(runSpecOptions.inlays || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1082,7 +1085,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Fret Count</option>
-                      {FRET_COUNT_OPTIONS.map((option) => (
+                      {(runSpecOptions.frets || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1094,7 +1097,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Neck Profile</option>
-                      {NECK_PROFILE_OPTIONS.map((option) => (
+                      {(runSpecOptions.neckProfile || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -1106,7 +1109,7 @@ Factory Standards Team`;
                       className="p-2 border rounded-md text-sm"
                     >
                       <option value="">Radius</option>
-                      {RADIUS_OPTIONS.map((option) => (
+                      {(runSpecOptions.radius || []).map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>

@@ -561,7 +561,11 @@ export default function ClientDashboardPage({
           <ClientContactCard profile={profile} onSave={handleSaveProfile} canEdit />
           <InvoiceList
             invoices={invoices}
-            canManage
+            canManage={!isEmailContact}
+            canEditDelete={!isEmailContact}
+            clientUid={isEmailContact ? undefined : clientId}
+            totalOrderAmount={profile?.totalOrderAmount}
+            totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
             onUploadInvoice={() => setIsUploadModalOpen(true)}
             onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
           />

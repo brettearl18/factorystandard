@@ -67,6 +67,10 @@ export default function ClientSettingsPage() {
         <InvoiceList
           invoices={invoices}
           canManage={canManageInvoices}
+          canEditDelete={canManageInvoices}
+          clientUid={currentUser?.uid}
+          totalOrderAmount={profile?.totalOrderAmount}
+          totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
           onUploadInvoice={() => setIsUploadModalOpen(true)}
           onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
         />

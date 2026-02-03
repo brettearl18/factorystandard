@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, subscribeGuitarInvoices, addGuitarGalleryImages, recordAuditLog, recordGuitarNoteViewed, addGuitarNoteComment, subscribeGuitarNoteComments } from "@/lib/firestore";
+import { useClientProfile } from "@/hooks/useClientProfile";
+import { getGuitar, subscribeGuitar, subscribeGuitarNotes, getRun, subscribeRunStages, subscribeClientInvoices, addGuitarGalleryImages, recordAuditLog, recordGuitarNoteViewed, addGuitarNoteComment, subscribeGuitarNoteComments } from "@/lib/firestore";
 import { isGoogleDriveLink, uploadGuitarGalleryImage } from "@/lib/storage";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
@@ -40,6 +41,7 @@ export default function GuitarDetailPage({
   const [clientViewMode, setClientViewMode] = useState(false);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
+  const clientProfile = useClientProfile(guitar?.clientUid ?? null);
   const isAdminViewing = (userRole === "staff" || userRole === "admin") && !clientViewMode;
   
   // Gallery upload state (client only)
@@ -195,49 +197,24 @@ export default function GuitarDetailPage({
     return () => unsubs.forEach((u) => u());
   }, [guitarId, notes.map((n) => n.id).join(",")]);
 
-  // Subscribe to invoices - for clients viewing their own guitar, or staff/admin viewing client guitars
+  // Subscribe to invoices - for clients viewing their own guitar, or staff/admin viewing client guitars.
+  // Always load the client's full invoice list so "payments received and approved" and balance remaining show;
+  // we filter by guitarId when displaying so guitar-linked invoices are shown, and unlinked ones show for this client too.
   useEffect(() => {
     if (!currentUser || !guitar) return;
-    
-    // For clients: subscribe to all their invoices
-    // For staff/admin: subscribe to client's invoices if viewing a client's guitar
-    const shouldLoadInvoices = 
+
+    const shouldLoadInvoices =
       (userRole === "client" && guitar.clientUid === currentUser.uid) ||
       ((userRole === "staff" || userRole === "admin") && guitar.clientUid);
-    
+
     if (shouldLoadInvoices && guitar.clientUid) {
-      // Try to get guitar-specific invoices first, fallback to all client invoices
-      let unsubscribeInvoices: (() => void) | undefined;
-      
-      // If guitar has invoices linked to it, use guitar-specific subscription
-      if (guitar.id) {
-        unsubscribeInvoices = subscribeGuitarInvoices(guitar.id, (guitarInvoices) => {
-          // If guitar has specific invoices, use those; otherwise get all client invoices
-          if (guitarInvoices.length > 0) {
-            setInvoices(guitarInvoices);
-          } else {
-            // Fallback to all client invoices
-            const unsubscribeClient = subscribeClientInvoices(guitar.clientUid || null, (clientInvoices) => {
-              setInvoices(clientInvoices);
-            });
-            return () => {
-              unsubscribeClient?.();
-            };
-          }
-        });
-      } else {
-        // Fallback: subscribe to all client invoices
-        const unsubscribe = subscribeClientInvoices(guitar.clientUid || null, (invoiceRecords) => {
-          setInvoices(invoiceRecords);
-        });
-        unsubscribeInvoices = unsubscribe || undefined;
-      }
-      
+      const unsubscribe = subscribeClientInvoices(guitar.clientUid, (invoiceRecords) => {
+        setInvoices(invoiceRecords);
+      });
       return () => {
-        if (unsubscribeInvoices) unsubscribeInvoices();
+        if (typeof unsubscribe === "function") unsubscribe();
       };
     } else {
-      // Clear invoices for non-clients or clients viewing other guitars
       setInvoices([]);
     }
   }, [currentUser, userRole, guitar]);
@@ -813,6 +790,10 @@ export default function GuitarDetailPage({
                 <InvoiceList
                   invoices={filteredInvoices}
                   canManage={userRole === "staff" || userRole === "admin"}
+                  canEditDelete={userRole === "staff" || userRole === "admin"}
+                  clientUid={guitar?.clientUid}
+                  totalOrderAmount={clientProfile?.totalOrderAmount}
+                  totalOrderCurrency={clientProfile?.totalOrderCurrency || "AUD"}
                   onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
                 />
                 {currentUser && guitar?.clientUid && (

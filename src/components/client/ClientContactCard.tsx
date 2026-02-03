@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Edit, Phone, Mail, MapPin, MessageSquare, X } from "lucide-react";
+import { Edit, Phone, Mail, MapPin, MessageSquare, X, DollarSign } from "lucide-react";
 import type { ClientProfile } from "@/types/guitars";
 
 interface ClientContactCardProps {
@@ -21,6 +21,8 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
     country: "",
     preferredContact: "email",
     notes: "",
+    totalOrderAmount: "",
+    totalOrderCurrency: "AUD",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -38,12 +40,23 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
         country: profile.shippingAddress?.country || "",
         preferredContact: profile.preferredContact || "email",
         notes: profile.notes || "",
+        totalOrderAmount: profile.totalOrderAmount != null ? String(profile.totalOrderAmount) : "",
+        totalOrderCurrency: profile.totalOrderCurrency || "AUD",
       });
     }
   }, [profile]);
 
   const handleChange = (field: string, value: string) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const formatOrderTotal = () => {
+    if (profile?.totalOrderAmount == null || profile.totalOrderAmount === 0) return "Not set";
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: profile.totalOrderCurrency || "AUD",
+      minimumFractionDigits: 2,
+    }).format(profile.totalOrderAmount);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -53,11 +66,14 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
     setIsSaving(true);
     setMessage(null);
     try {
+      const totalNum = formState.totalOrderAmount.trim() ? parseFloat(formState.totalOrderAmount) : undefined;
       await onSave({
         phone: formState.phone || undefined,
         alternateEmail: formState.alternateEmail || undefined,
         preferredContact: formState.preferredContact as ClientProfile["preferredContact"],
         notes: formState.notes || undefined,
+        totalOrderAmount: totalNum != null && !Number.isNaN(totalNum) ? totalNum : undefined,
+        totalOrderCurrency: formState.totalOrderCurrency || undefined,
         shippingAddress: {
           line1: formState.line1 || undefined,
           line2: formState.line2 || undefined,
@@ -152,6 +168,16 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-500 mb-1">Shipping Address</p>
                 <p className="text-gray-900">{formatAddress()}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <DollarSign className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Total order amount (guitars)</p>
+                <p className="text-gray-900">{formatOrderTotal()}</p>
               </div>
             </div>
           </div>
@@ -277,6 +303,34 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
                       onChange={(e) => handleChange("country", e.target.value)}
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Total order amount (guitars)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formState.totalOrderAmount}
+                    onChange={(e) => handleChange("totalOrderAmount", e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    placeholder="e.g. 5000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Currency</label>
+                  <select
+                    value={formState.totalOrderCurrency}
+                    onChange={(e) => handleChange("totalOrderCurrency", e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  >
+                    <option value="AUD">AUD</option>
+                    <option value="USD">USD</option>
+                    <option value="GBP">GBP</option>
+                    <option value="NZD">NZD</option>
+                  </select>
                 </div>
               </div>
 

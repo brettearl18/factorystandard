@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { useClientInvoices } from "@/hooks/useClientInvoices";
+import { useClientProfile } from "@/hooks/useClientProfile";
 import { subscribeRunStages, subscribeGuitarNotes, recordAuditLog } from "@/lib/firestore";
 import { InvoiceList } from "@/components/client/InvoiceList";
 import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff } from "lucide-react";
@@ -21,6 +22,7 @@ export default function MyGuitarsPage() {
   const clientId = clientViewMode && viewingClientId ? viewingClientId : (userRole === "client" ? currentUser?.uid || null : null);
   const guitars = useClientGuitars(clientId);
   const invoices = useClientInvoices(clientId);
+  const profile = useClientProfile(clientId);
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
   const [recentNotes, setRecentNotes] = useState<Map<string, GuitarNote>>(new Map());
@@ -297,6 +299,8 @@ export default function MyGuitarsPage() {
                 <InvoiceList
                   invoices={invoices}
                   canManage={false}
+                  totalOrderAmount={profile?.totalOrderAmount}
+                  totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
                 />
               </div>
             )}

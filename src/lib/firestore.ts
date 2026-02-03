@@ -825,16 +825,31 @@ export function subscribeClientProfile(
   );
 }
 
+function stripUndefined<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) continue;
+    if (value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+      out[key] = stripUndefined(value as Record<string, unknown>);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 export async function updateClientProfile(
   clientUid: string,
   updates: Partial<ClientProfile>,
   updatedBy?: string
 ): Promise<void> {
   const profileRef = doc(db, "clients", clientUid);
+  // Firestore does not allow undefined; strip undefined values from updates
+  const cleanUpdates = stripUndefined(updates as Record<string, unknown>);
   await setDoc(
     profileRef,
     {
-      ...updates,
+      ...cleanUpdates,
       updatedAt: Timestamp.now().toMillis(),
       ...(updatedBy ? { updatedBy } : {}),
     },
@@ -1038,6 +1053,109 @@ export async function approvePayment(
     await updateGuitarPaymentInfo(invoice.guitarId).catch((error) => {
       console.error("Failed to update guitar payment info:", error);
     });
+  }
+}
+
+// Update invoice fields (title, amount, dueDate, description, currency) – staff/accounting
+export async function updateInvoiceRecord(
+  clientUid: string,
+  invoiceId: string,
+  updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "status">>
+): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+  const clean: Record<string, unknown> = {};
+  (Object.keys(updates) as (keyof typeof updates)[]).forEach((key) => {
+    const v = updates[key];
+    if (v !== undefined) clean[key] = v;
+  });
+  if (Object.keys(clean).length === 0) return;
+  await updateDoc(invoiceRef, clean);
+  const invoice = snapshot.data() as InvoiceRecord;
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
+  }
+}
+
+// Delete an invoice – staff/accounting
+export async function deleteInvoiceRecord(clientUid: string, invoiceId: string): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+  const invoice = snapshot.data() as InvoiceRecord;
+  await deleteDoc(invoiceRef);
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
+  }
+}
+
+// Update a payment (amount, method, note, paidAt) – staff/accounting
+export async function updateInvoicePayment(
+  clientUid: string,
+  invoiceId: string,
+  paymentId: string,
+  updates: Partial<Pick<InvoicePayment, "amount" | "currency" | "method" | "note" | "paidAt">>
+): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+  const invoice = snapshot.data() as InvoiceRecord;
+  const payments = invoice.payments || [];
+  const idx = payments.findIndex((p) => p.id === paymentId);
+  if (idx === -1) throw new Error("Payment not found");
+  const updatedPayments = [...payments];
+  updatedPayments[idx] = { ...updatedPayments[idx], ...updates };
+  const approvedPayments = updatedPayments.filter(
+    (p) => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined)
+  );
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  let newStatus: InvoiceRecord["status"] = invoice.status;
+  if (totalPaid >= invoice.amount) newStatus = "paid";
+  else if (totalPaid > 0) newStatus = "partial";
+  else newStatus = "pending";
+  await updateDoc(invoiceRef, {
+    payments: updatedPayments,
+    status: newStatus,
+  });
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
+  }
+}
+
+// Delete a payment – staff/accounting
+export async function deleteInvoicePayment(
+  clientUid: string,
+  invoiceId: string,
+  paymentId: string
+): Promise<void> {
+  const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
+  const snapshot = await getDoc(invoiceRef);
+  if (!snapshot.exists()) {
+    throw new Error("Invoice not found");
+  }
+  const invoice = snapshot.data() as InvoiceRecord;
+  const payments = (invoice.payments || []).filter((p) => p.id !== paymentId);
+  const approvedPayments = payments.filter(
+    (p) => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined)
+  );
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  let newStatus: InvoiceRecord["status"] = invoice.status;
+  if (totalPaid >= invoice.amount) newStatus = "paid";
+  else if (totalPaid > 0) newStatus = "partial";
+  else newStatus = "pending";
+  await updateDoc(invoiceRef, {
+    payments,
+    status: newStatus,
+  });
+  if (invoice.guitarId) {
+    await updateGuitarPaymentInfo(invoice.guitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
   }
 }
 

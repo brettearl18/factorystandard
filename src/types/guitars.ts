@@ -185,6 +185,9 @@ export interface ClientProfile {
   archived?: boolean;
   archivedAt?: number;
   archivedBy?: string;
+  // Order total – total amount for guitars; deposits/payments are applied against this
+  totalOrderAmount?: number;
+  totalOrderCurrency?: string;
 }
 
 export interface InvoicePayment {
