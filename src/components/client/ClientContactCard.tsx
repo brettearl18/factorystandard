@@ -219,6 +219,39 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
                 </div>
               )}
 
+              {/* Total order amount – shown first so it's visible; used for Invoices summary */}
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 mb-4">
+                <p className="text-sm font-semibold text-emerald-900 mb-3">Total order amount (guitars)</p>
+                <p className="text-xs text-emerald-800/80 mb-3">This total is used for the Invoices &amp; Payments summary (payments received vs balance remaining).</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formState.totalOrderAmount}
+                      onChange={(e) => handleChange("totalOrderAmount", e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      placeholder="e.g. 4430"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Currency</label>
+                    <select
+                      value={formState.totalOrderCurrency}
+                      onChange={(e) => handleChange("totalOrderCurrency", e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    >
+                      <option value="AUD">AUD</option>
+                      <option value="USD">USD</option>
+                      <option value="GBP">GBP</option>
+                      <option value="NZD">NZD</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
@@ -303,34 +336,6 @@ export function ClientContactCard({ profile, onSave, canEdit = true }: ClientCon
                       onChange={(e) => handleChange("country", e.target.value)}
                     />
                   </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Total order amount (guitars)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formState.totalOrderAmount}
-                    onChange={(e) => handleChange("totalOrderAmount", e.target.value)}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                    placeholder="e.g. 5000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Currency</label>
-                  <select
-                    value={formState.totalOrderCurrency}
-                    onChange={(e) => handleChange("totalOrderCurrency", e.target.value)}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                  >
-                    <option value="AUD">AUD</option>
-                    <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
-                    <option value="NZD">NZD</option>
-                  </select>
                 </div>
               </div>
 
