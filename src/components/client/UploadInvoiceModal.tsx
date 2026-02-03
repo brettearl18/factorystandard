@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { uploadInvoiceFile } from "@/lib/storage";
 import { createInvoiceRecord } from "@/lib/firestore";
+import type { GuitarBuild } from "@/types/guitars";
 
 interface UploadInvoiceModalProps {
   clientUid: string;
   uploadedBy: string;
   isOpen: boolean;
   onClose: () => void;
+  /** Client's guitars – for allocating this invoice to a specific guitar. */
+  clientGuitars?: GuitarBuild[];
+  /** Pre-select this guitar when opening (e.g. when uploading from guitar detail page). */
+  defaultGuitarId?: string;
 }
 
 export function UploadInvoiceModal({
@@ -14,16 +19,23 @@ export function UploadInvoiceModal({
   uploadedBy,
   isOpen,
   onClose,
+  clientGuitars = [],
+  defaultGuitarId = "",
 }: UploadInvoiceModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("AUD");
   const [dueDate, setDueDate] = useState("");
+  const [guitarId, setGuitarId] = useState(defaultGuitarId);
   const [file, setFile] = useState<File | null>(null);
   const [paymentLink, setPaymentLink] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) setGuitarId(defaultGuitarId);
+  }, [isOpen, defaultGuitarId]);
 
   if (!isOpen) return null;
 
@@ -33,6 +45,7 @@ export function UploadInvoiceModal({
     setAmount("");
     setCurrency("AUD");
     setDueDate("");
+    setGuitarId(defaultGuitarId);
     setFile(null);
     setPaymentLink("");
     setError(null);
@@ -83,6 +96,7 @@ export function UploadInvoiceModal({
         downloadUrl,
         paymentLink: paymentLink.trim() || undefined,
         uploadedBy,
+        guitarId: guitarId.trim() || undefined,
       });
 
       reset();
@@ -161,6 +175,26 @@ export function UploadInvoiceModal({
               className="w-full border rounded-md px-3 py-2"
             />
           </div>
+          {clientGuitars.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Allocate to guitar (optional)</label>
+              <select
+                value={guitarId}
+                onChange={(e) => setGuitarId(e.target.value)}
+                className="w-full border rounded-md px-3 py-2"
+              >
+                <option value="">All guitars (unallocated)</option>
+                {clientGuitars.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {[g.model, g.finish].filter(Boolean).join(" — ") || g.id}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Unallocated applies to all guitars. Allocating links this invoice to one guitar only.
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Invoice File (PDF/Image) <span className="text-gray-500 text-xs">(Optional if payment link provided)</span>

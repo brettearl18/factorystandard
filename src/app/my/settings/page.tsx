@@ -10,6 +10,7 @@ import { UploadInvoiceModal } from "@/components/client/UploadInvoiceModal";
 import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { useClientProfile } from "@/hooks/useClientProfile";
 import { useClientInvoices } from "@/hooks/useClientInvoices";
+import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { updateClientProfile } from "@/lib/firestore";
 import type { ClientProfile, InvoiceRecord } from "@/types/guitars";
 
@@ -19,6 +20,7 @@ export default function ClientSettingsPage() {
   const isClient = userRole === "client";
   const profile = useClientProfile(isClient ? currentUser?.uid || null : null);
   const invoices = useClientInvoices(isClient ? currentUser?.uid || null : null);
+  const clientGuitars = useClientGuitars(isClient ? currentUser?.uid || null : null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
 
@@ -69,6 +71,7 @@ export default function ClientSettingsPage() {
           canManage={canManageInvoices}
           canEditDelete={canManageInvoices}
           clientUid={currentUser?.uid}
+          clientGuitars={clientGuitars}
           totalOrderAmount={profile?.totalOrderAmount}
           totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
           onUploadInvoice={() => setIsUploadModalOpen(true)}

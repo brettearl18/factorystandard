@@ -1056,11 +1056,11 @@ export async function approvePayment(
   }
 }
 
-// Update invoice fields (title, amount, dueDate, description, currency) – staff/accounting
+// Update invoice fields (title, amount, dueDate, description, currency, guitarId) – staff/accounting
 export async function updateInvoiceRecord(
   clientUid: string,
   invoiceId: string,
-  updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "status">>
+  updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "status" | "guitarId">> & { guitarId?: string | null }
 ): Promise<void> {
   const invoiceRef = doc(db, "clients", clientUid, "invoices", invoiceId);
   const snapshot = await getDoc(invoiceRef);
@@ -1070,13 +1070,18 @@ export async function updateInvoiceRecord(
   const clean: Record<string, unknown> = {};
   (Object.keys(updates) as (keyof typeof updates)[]).forEach((key) => {
     const v = updates[key];
-    if (v !== undefined) clean[key] = v;
+    if (key === "guitarId" && v === null) {
+      clean[key] = deleteField();
+    } else if (v !== undefined) {
+      clean[key] = v;
+    }
   });
   if (Object.keys(clean).length === 0) return;
   await updateDoc(invoiceRef, clean);
   const invoice = snapshot.data() as InvoiceRecord;
-  if (invoice.guitarId) {
-    await updateGuitarPaymentInfo(invoice.guitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
+  const newGuitarId = updates.guitarId !== undefined ? (updates.guitarId || null) : invoice.guitarId;
+  if (newGuitarId) {
+    await updateGuitarPaymentInfo(newGuitarId).catch((e) => console.error("Failed to update guitar payment info:", e));
   }
 }
 

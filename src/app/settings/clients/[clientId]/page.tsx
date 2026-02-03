@@ -564,6 +564,7 @@ export default function ClientDashboardPage({
             canManage={!isEmailContact}
             canEditDelete={!isEmailContact}
             clientUid={isEmailContact ? undefined : clientId}
+            clientGuitars={isEmailContact ? undefined : guitars}
             totalOrderAmount={profile?.totalOrderAmount}
             totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
             onUploadInvoice={() => setIsUploadModalOpen(true)}
@@ -800,6 +801,7 @@ export default function ClientDashboardPage({
           uploadedBy={currentUser.uid}
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
+          clientGuitars={guitars}
         />
       )}
 

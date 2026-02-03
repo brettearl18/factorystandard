@@ -107,12 +107,14 @@ service cloud.firestore {
 
     match /clients/{clientId} {
       allow read, write: if isStaff();
-      allow read, update: if isClient() && request.auth.uid == clientId;
+      // Client (by role) or document owner so client view shows profile and order total
+      allow read, update: if (isClient() && request.auth.uid == clientId) || (request.auth != null && request.auth.uid == clientId);
       // Accounting can read client profiles to get names/emails for invoices
       allow read: if isAccounting();
 
       match /invoices/{invoiceId} {
-        allow read: if isStaff() || (isClient() && request.auth.uid == clientId);
+        // Staff/accounting, or client (by role), or document owner so payments show in client view
+        allow read: if isStaff() || (isClient() && request.auth.uid == clientId) || (request.auth != null && request.auth.uid == clientId);
         allow write: if isStaff();
         // Accounting can read and write invoices for payment recording
         allow read, write: if isAccounting();
@@ -136,8 +138,9 @@ service cloud.firestore {
                      resource.data.guitarId != null &&
                      exists(/databases/$(database)/documents/guitars/$(resource.data.guitarId)) &&
                      get(/databases/$(database)/documents/guitars/$(resource.data.guitarId)).data.clientUid == request.auth.uid;
-      // Also allow clients to read invoices directly under their client profile
-      allow read: if isClient() && path.matches("clients/{clientId}/invoices/{invoiceId}") &&
+      // Also allow clients to read invoices directly under their client profile (or owner by path)
+      allow read: if (isClient() || request.auth != null) &&
+                     path.matches("clients/{clientId}/invoices/{invoiceId}") &&
                      path.split("/")[1] == request.auth.uid;
     }
 

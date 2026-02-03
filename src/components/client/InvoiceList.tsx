@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { InvoiceRecord, InvoicePayment } from "@/types/guitars";
+import type { InvoiceRecord, InvoicePayment, GuitarBuild } from "@/types/guitars";
 import {
   updateInvoiceRecord,
   deleteInvoiceRecord,
   updateInvoicePayment,
   deleteInvoicePayment,
 } from "@/lib/firestore";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Guitar } from "lucide-react";
 
 interface InvoiceListProps {
   invoices: InvoiceRecord[];
@@ -23,6 +23,8 @@ interface InvoiceListProps {
   totalOrderAmount?: number;
   /** Currency for order total and overall balance summary. */
   totalOrderCurrency?: string;
+  /** Client's guitars – for allocating an invoice to a specific guitar when editing/creating. */
+  clientGuitars?: GuitarBuild[];
 }
 
 function formatCurrency(amount: number, currency: string = "AUD") {
@@ -30,7 +32,19 @@ function formatCurrency(amount: number, currency: string = "AUD") {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+}
+
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function getGuitarLabel(guitarId: string | undefined, clientGuitars: GuitarBuild[]): string {
+  if (!guitarId) return "All guitars";
+  const g = clientGuitars.find((x) => x.id === guitarId);
+  if (!g) return "One guitar";
+  return [g.model, g.finish].filter(Boolean).join(" — ") || g.id;
 }
 
 export function InvoiceList({
@@ -42,6 +56,7 @@ export function InvoiceList({
   clientUid,
   totalOrderAmount,
   totalOrderCurrency = "AUD",
+  clientGuitars = [],
 }: InvoiceListProps) {
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
 
@@ -59,7 +74,7 @@ export function InvoiceList({
 
   const canEdit = canEditDelete && clientUid;
 
-  const handleUpdateInvoice = async (updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency">>) => {
+  const handleUpdateInvoice = async (updates: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "guitarId">>) => {
     if (!clientUid || !editingInvoice) return;
     setSaving(true);
     setError(null);
@@ -116,20 +131,20 @@ export function InvoiceList({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Invoices & Payments</h2>
-          <p className="text-sm text-gray-500">
-            View your invoices and payment history. Payments received and approved are listed below; balance remaining shows what is still due.
+          <h2 className="text-xl font-bold text-gray-900">Invoices & payments</h2>
+          <p className="text-sm text-gray-500 mt-1 max-w-xl">
+            View invoices and payment history. Approved payments and balance remaining are shown below.
           </p>
         </div>
         {canManage && onUploadInvoice && (
           <button
             onClick={onUploadInvoice}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
           >
-            Upload Invoice
+            Upload invoice
           </button>
         )}
       </div>
@@ -141,59 +156,74 @@ export function InvoiceList({
       )}
 
       {totalOrderAmount != null && totalOrderAmount > 0 && (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-          <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
-            <p className="text-gray-600 font-medium">Total order amount (guitars)</p>
-            <p className="text-xl font-bold text-emerald-800">{formatCurrency(totalOrderAmount, totalOrderCurrency)}</p>
-          </div>
-          <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-            <p className="text-gray-600 font-medium">Payments received & approved</p>
-            <p className="text-xl font-bold text-blue-800">{formatCurrency(totalPaymentsReceived, totalOrderCurrency)}</p>
-          </div>
-          <div className="bg-amber-50 rounded-lg border border-amber-200 p-4">
-            <p className="text-gray-600 font-medium">Overall balance remaining</p>
-            <p className="text-xl font-bold text-amber-800">{formatCurrency(overallBalance ?? 0, totalOrderCurrency)}</p>
+        <div className="mb-8">
+          <p className="text-sm font-medium text-gray-500 mb-3">Summary</p>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="bg-emerald-50 rounded-xl border border-emerald-200 px-5 py-4">
+              <p className="text-sm font-medium text-emerald-800/80">Total order (guitars)</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-900 tabular-nums">{formatCurrency(totalOrderAmount, totalOrderCurrency)}</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl border border-blue-200 px-5 py-4">
+              <p className="text-sm font-medium text-blue-800/80">Payments received & approved</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900 tabular-nums">{formatCurrency(totalPaymentsReceived, totalOrderCurrency)}</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl border border-amber-200 px-5 py-4">
+              <p className="text-sm font-medium text-amber-800/80">Balance remaining</p>
+              <p className="mt-1 text-2xl font-bold text-amber-900 tabular-nums">{formatCurrency(overallBalance ?? 0, totalOrderCurrency)}</p>
+            </div>
           </div>
         </div>
       )}
 
       {invoices.length === 0 ? (
-        <div className="text-center text-gray-500 py-10 border border-dashed rounded-lg">
-          No invoices yet.
+        <div className="text-center text-gray-500 py-12 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+          <p className="font-medium">No invoices yet</p>
+          <p className="text-sm mt-1">Invoices and deposits will appear here once added.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          <p className="text-sm font-medium text-gray-500">Invoices & deposits</p>
           {invoices.map((invoice) => {
             const payments = invoice.payments || [];
             const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
             const paidAmount = approvedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
             const outstanding = Math.max(invoice.amount - paidAmount, 0);
             const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
+            const guitarLabel = clientGuitars.length > 0 ? getGuitarLabel(invoice.guitarId, clientGuitars) : null;
 
             return (
-              <div key={invoice.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{invoice.title}</h3>
+              <div key={invoice.id} className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
+                {/* Header row: title, guitar, amount, status, actions */}
+                <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 bg-gray-50/80 border-b border-gray-100">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{invoice.title}</h3>
+                      {guitarLabel && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200/90 text-gray-700">
+                          <Guitar className="w-3.5 h-3.5" />
+                          {guitarLabel}
+                        </span>
+                      )}
+                    </div>
                     {invoice.description && (
-                      <p className="text-sm text-gray-500">{invoice.description}</p>
+                      <p className="text-sm text-gray-500 mt-1">{invoice.description}</p>
                     )}
-                    <p className="text-sm text-gray-600 mt-1">
-                      Due {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "N/A"}
+                    <p className="text-sm text-gray-500 mt-1">
+                      Due {invoice.dueDate ? formatDate(invoice.dueDate) : "N/A"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right space-y-1">
-                      <p className="text-sm text-gray-500">Amount</p>
-                      <p className="text-lg font-bold">{formatCurrency(invoice.amount, invoice.currency)}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Amount</p>
+                      <p className="text-xl font-bold text-gray-900 tabular-nums">{formatCurrency(invoice.amount, invoice.currency)}</p>
                       <span
-                        className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                        className={`inline-flex mt-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
                           invoice.status === "paid"
-                            ? "bg-green-100 text-green-700"
+                            ? "bg-green-100 text-green-800"
                             : invoice.status === "overdue"
-                            ? "bg-red-100 text-red-700"
+                            ? "bg-red-100 text-red-800"
                             : invoice.status === "partial"
-                            ? "bg-yellow-100 text-yellow-700"
+                            ? "bg-amber-100 text-amber-800"
                             : "bg-gray-100 text-gray-700"
                         }`}
                       >
@@ -201,11 +231,11 @@ export function InvoiceList({
                       </span>
                     </div>
                     {canEdit && (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-0.5">
                         <button
                           type="button"
                           onClick={() => setEditingInvoice(invoice)}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit invoice"
                         >
                           <Pencil className="w-4 h-4" />
@@ -213,7 +243,7 @@ export function InvoiceList({
                         <button
                           type="button"
                           onClick={() => setDeletingInvoiceId(invoice.id)}
-                          className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md"
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete invoice"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -223,32 +253,31 @@ export function InvoiceList({
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                  <div className="bg-white rounded border border-gray-200 p-3">
-                    <p className="text-gray-500">Payments received & approved</p>
-                    <p className="font-semibold">{formatCurrency(paidAmount, invoice.currency)}</p>
+                {/* Summary row for this invoice */}
+                <div className="px-5 py-4 grid grid-cols-1 gap-3">
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Payments received & approved</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(paidAmount, invoice.currency)}</p>
                   </div>
-                  <div className="bg-white rounded border border-gray-200 p-3">
-                    <p className="text-gray-500">Balance remaining</p>
-                    <p className="font-semibold">{formatCurrency(outstanding, invoice.currency)}</p>
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Balance remaining</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(outstanding, invoice.currency)}</p>
                   </div>
-                  <div className="bg-white rounded border border-gray-200 p-3">
-                    <p className="text-gray-500">Last updated</p>
-                    <p className="font-semibold">
-                      {new Date(invoice.uploadedAt).toLocaleDateString()}
-                    </p>
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last updated</p>
+                    <p className="mt-1 text-base font-medium text-gray-700">{formatDate(invoice.uploadedAt)}</p>
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
                   {invoice.downloadUrl && (
                     <a
                       href={invoice.downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 underline"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 underline"
                     >
-                      📄 Download Invoice
+                      📄 Download invoice
                     </a>
                   )}
                   {invoice.paymentLink && (
@@ -256,34 +285,33 @@ export function InvoiceList({
                       href={invoice.paymentLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-semibold text-green-600 hover:text-green-700 bg-green-50 px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-100"
+                      className="text-sm font-medium text-green-700 bg-green-50 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100"
                     >
-                      💳 Pay Now
+                      💳 Pay now
                     </a>
                   )}
                   {onRecordPayment && (
                     <button
                       onClick={() => onRecordPayment(invoice)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 hover:bg-blue-100"
+                      className="text-sm font-medium text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-100"
                     >
-                      Record Payment
+                      Record payment
                     </button>
                   )}
                 </div>
 
                 {pendingPayments.length > 0 && (
-                  <div className="mt-4 bg-yellow-50 rounded border border-yellow-200 p-3">
-                    <p className="text-sm font-semibold mb-2 text-yellow-800">Pending Approval</p>
+                  <div className="mx-5 mb-4 bg-amber-50 rounded-lg border border-amber-200 px-4 py-3">
+                    <p className="text-sm font-semibold text-amber-900 mb-2">Pending approval</p>
                     <div className="space-y-2">
                       {pendingPayments.map((payment) => (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between text-sm text-yellow-700"
+                          className="flex items-center justify-between text-sm text-amber-800"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span>
-                              {new Date(payment.paidAt).toLocaleDateString()} —{" "}
-                              {payment.method || "Payment"} (Awaiting approval)
+                              {formatDate(payment.paidAt)} — {payment.method || "Payment"} (awaiting approval)
                             </span>
                             {payment.receiptUrl && (
                               <a
@@ -300,7 +328,7 @@ export function InvoiceList({
                                 <button
                                   type="button"
                                   onClick={() => setEditingPayment({ invoice, payment })}
-                                  className="p-1 text-yellow-700 hover:text-blue-600"
+                                  className="p-1 text-amber-700 hover:text-blue-600"
                                   title="Edit payment"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
@@ -308,7 +336,7 @@ export function InvoiceList({
                                 <button
                                   type="button"
                                   onClick={() => setDeletingPayment({ invoiceId: invoice.id, paymentId: payment.id })}
-                                  className="p-1 text-yellow-700 hover:text-red-600"
+                                  className="p-1 text-amber-700 hover:text-red-600"
                                   title="Delete payment"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -325,18 +353,17 @@ export function InvoiceList({
                   </div>
                 )}
                 {approvedPayments.length > 0 && (
-                  <div className="mt-4 bg-white rounded border border-gray-200 p-3">
-                    <p className="text-sm font-semibold mb-2">Approved Payments</p>
+                  <div className="mx-5 mb-5 rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">Approved payments</p>
                     <div className="space-y-2">
                       {approvedPayments.map((payment) => (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between text-sm text-gray-600"
+                          className="flex items-center justify-between text-sm text-gray-700"
                         >
-                          <div className="flex items-center gap-2">
-                            <span>
-                              {new Date(payment.paidAt).toLocaleDateString()} —{" "}
-                              {payment.method || "Payment"}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="tabular-nums">
+                              {formatDate(payment.paidAt)} — {payment.method || "Payment"}
                             </span>
                             {payment.receiptUrl && (
                               <a
@@ -387,6 +414,7 @@ export function InvoiceList({
       {editingInvoice && (
         <EditInvoiceModal
           invoice={editingInvoice}
+          clientGuitars={clientGuitars}
           onSave={handleUpdateInvoice}
           onClose={() => setEditingInvoice(null)}
           saving={saving}
@@ -434,12 +462,14 @@ export function InvoiceList({
 
 function EditInvoiceModal({
   invoice,
+  clientGuitars = [],
   onSave,
   onClose,
   saving,
 }: {
   invoice: InvoiceRecord;
-  onSave: (u: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency">>) => void;
+  clientGuitars?: GuitarBuild[];
+  onSave: (u: Partial<Pick<InvoiceRecord, "title" | "amount" | "dueDate" | "description" | "currency" | "guitarId">> & { guitarId?: string | null }) => void;
   onClose: () => void;
   saving: boolean;
 }) {
@@ -450,6 +480,7 @@ function EditInvoiceModal({
   );
   const [description, setDescription] = useState(invoice.description || "");
   const [currency, setCurrency] = useState(invoice.currency || "AUD");
+  const [guitarId, setGuitarId] = useState(invoice.guitarId ?? "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -461,6 +492,7 @@ function EditInvoiceModal({
       dueDate: dueDate ? new Date(dueDate).getTime() : undefined,
       description: description.trim() || undefined,
       currency: currency || "AUD",
+      guitarId: guitarId.trim() ? guitarId.trim() : null,
     });
   };
 
@@ -521,6 +553,24 @@ function EditInvoiceModal({
               placeholder="Optional note"
             />
           </div>
+          {clientGuitars.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Allocate to guitar (optional)</label>
+              <select
+                value={guitarId}
+                onChange={(e) => setGuitarId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="">All guitars (unallocated)</option>
+                {clientGuitars.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {[g.model, g.finish].filter(Boolean).join(" — ") || g.id}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Unallocated invoices apply to all guitars. Allocating links this invoice to one guitar only.</p>
+            </div>
+          )}
           <div className="flex gap-2 justify-end pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
               Cancel
