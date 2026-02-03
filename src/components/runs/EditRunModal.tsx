@@ -36,12 +36,6 @@ export function EditRunModal({
   const [specConstraints, setSpecConstraints] = useState<Run["specConstraints"]>(run.specConstraints || {});
   const [showSpecConstraints, setShowSpecConstraints] = useState(false);
   const [expandedSpecCategories, setExpandedSpecCategories] = useState<Set<string>>(new Set());
-  const runSpecOptions = useRunSpecOptions();
-  const specCategoriesWithOptions = SPEC_CATEGORIES.map(({ key, label, options }) => ({
-    key,
-    label,
-    options: runSpecOptions[key] ?? options,
-  }));
 
   // Reset form when run changes
   useEffect(() => {
@@ -340,6 +334,13 @@ function SpecConstraintsEditor({
   expandedSpecCategories: Set<string>;
   setExpandedSpecCategories: (set: Set<string>) => void;
 }) {
+  const runSpecOptions = useRunSpecOptions();
+  const specCategoriesWithOptions = SPEC_CATEGORIES.map(({ key, label, options }) => ({
+    key,
+    label,
+    options: runSpecOptions[key] ?? options,
+  }));
+
   const toggleSpecCategory = (category: string) => {
     const newExpanded = new Set(expandedSpecCategories);
     if (newExpanded.has(category)) {
