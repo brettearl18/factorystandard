@@ -57,11 +57,6 @@ export function Sidebar() {
       icon: Users,
     },
     {
-      label: "Custom Shop requests",
-      href: "/settings/custom-shop-requests",
-      icon: FileText,
-    },
-    {
       label: "Settings",
       href: "/settings",
       icon: Settings,
@@ -184,6 +179,18 @@ export function Sidebar() {
         {(userRole === "admin" || userRole === "staff") && (
           <div className="mt-4 pt-4 border-t border-slate">
             <p className="text-xs text-textMuted uppercase tracking-[0.2em] mb-2 px-4">Admin</p>
+            <Link
+              href="/settings/custom-shop-requests"
+              onClick={() => setIsMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
+                isActive("/settings/custom-shop-requests")
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "text-textMuted hover:bg-slate/40 border-transparent"
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              <span>Custom Shop requests</span>
+            </Link>
             <Link
               href="/admin/create-user"
               onClick={() => setIsMobileOpen(false)}
