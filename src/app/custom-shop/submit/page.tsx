@@ -131,18 +131,20 @@ export default function CustomShopSubmitPage() {
             ))}
             {inspirationFiles.length < MAX_IMAGES && (
               <div className="flex flex-col gap-2">
-                {/* Gallery: no capture = pick from photos/library on mobile */}
+                {/* Gallery only: no capture = photo library; explicit MIME helps some mobile browsers show gallery not camera */}
                 <input
+                  id="inspiration-gallery"
                   ref={galleryInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/heic"
                   multiple
                   onChange={handleFileChange}
                   className="hidden"
-                  aria-label="Choose from gallery"
+                  aria-label="Add from gallery"
                 />
-                {/* Camera: capture = open camera on mobile */}
+                {/* Camera only: capture = opens camera on mobile */}
                 <input
+                  id="inspiration-camera"
                   ref={cameraInputRef}
                   type="file"
                   accept="image/*"
@@ -153,22 +155,20 @@ export default function CustomShopSubmitPage() {
                   aria-label="Take photo"
                 />
                 <div className="flex gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => galleryInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm transition-colors"
+                  <label
+                    htmlFor="inspiration-gallery"
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-800 font-medium text-sm cursor-pointer hover:bg-amber-100 hover:border-amber-500 transition-colors"
                   >
                     <ImagePlus className="w-5 h-5" />
-                    Choose from gallery
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm transition-colors"
+                    Add from gallery
+                  </label>
+                  <label
+                    htmlFor="inspiration-camera"
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm cursor-pointer transition-colors"
                   >
                     <Camera className="w-5 h-5" />
                     Take photo
-                  </button>
+                  </label>
                 </div>
               </div>
             )}
