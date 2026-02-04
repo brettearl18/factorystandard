@@ -302,3 +302,40 @@ export interface AuditLogEntry {
   createdAt: number; // timestamp (ms or Firestore Timestamp)
 }
 
+/** Custom Shop request – client-submitted idea; staff can approve and convert to run/client/guitar */
+export type CustomShopRequestStatus = "pending" | "approved" | "rejected" | "converted";
+
+export interface CustomShopRequest {
+  id: string;
+  /** Firebase Auth UID of the submitter */
+  submitterUid: string;
+  submitterEmail: string;
+  submitterName?: string;
+  /** Free-text description of the guitar (built from specs + other details, or user-written) */
+  guitarDescription: string;
+  /** Structured spec choices from the questionnaire (optional) */
+  specs?: Partial<GuitarSpecs>;
+  /** Optional model/shape name (e.g. Hype GTR, Goliath) */
+  model?: string;
+  /** Why this build / why now – motivation and commitment (optional) */
+  motivationNotes?: string;
+  /** Optional additional notes (timeline, budget, specific specs, etc.) */
+  additionalNotes?: string;
+  /** Inspiration/reference image URLs (stored in Storage, compressed on upload) */
+  inspirationImageUrls: string[];
+  /** Client agrees to $1000 AUD deposit when submitting */
+  depositAgreed: boolean;
+  depositAmountAUD: number; // 1000
+  status: CustomShopRequestStatus;
+  createdAt: number;
+  updatedAt: number;
+  /** Set when staff approves or rejects */
+  reviewedBy?: string;
+  reviewedAt?: number;
+  rejectionReason?: string;
+  /** When converted: client doc id, guitar id, optional invoice id for deposit */
+  convertedClientId?: string;
+  convertedGuitarId?: string;
+  convertedInvoiceId?: string;
+}
+

@@ -16,22 +16,29 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+export interface WrapHtmlOptions {
+  /** Override the CTA button URL (default: opts.portalUrl). */
+  ctaUrl?: string;
+}
+
 /**
  * Wraps content in a consistent layout: header with logo, content area, Log in button, signature.
  */
 export function wrapHtml(
   opts: TemplateOptions,
   contentHtml: string,
-  ctaText: string = "Log in"
+  ctaText: string = "Log in",
+  wrapOptions?: WrapHtmlOptions
 ): string {
   const brand = escapeHtml(opts.brandName);
   const logoUrl = opts.logoUrl && opts.logoUrl.startsWith("http") ? opts.logoUrl : "";
   const headerContent = logoUrl
     ? `<img src="${escapeHtml(logoUrl)}" alt="${brand}" width="160" height="48" style="display:block;height:48px;width:auto;max-width:200px;" />`
     : `<p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">${brand}</p>`;
+  const ctaHref = (wrapOptions?.ctaUrl && wrapOptions.ctaUrl.startsWith("http")) ? wrapOptions.ctaUrl : opts.portalUrl;
   const ctaHtml =
-    opts.portalUrl && opts.portalUrl.startsWith("http")
-      ? `<a href="${escapeHtml(opts.portalUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px;">${escapeHtml(ctaText)}</a>`
+    ctaHref && ctaHref.startsWith("http")
+      ? `<a href="${escapeHtml(ctaHref)}" style="display:inline-block;background:#2563eb;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px;">${escapeHtml(ctaText)}</a>`
       : escapeHtml(ctaText);
 
   return `
@@ -165,4 +172,45 @@ export function runUpdateHtml(
     <p style="margin:0;color:#6b7280;font-size:14px;">Log in to see the full update and any photos.</p>
   `.trim();
   return wrapHtml(opts, content, "Log in");
+}
+
+/**
+ * Custom Shop: thank-you email to the client after they submit a request.
+ */
+export function customShopThankYouHtml(
+  opts: TemplateOptions,
+  requestNumber: string,
+  viewRequestUrl: string
+): string {
+  const content = `
+    <p style="margin:0 0 16px 0;">Hi,</p>
+    <p style="margin:0 0 16px 0;color:#374151;">Thank you for your Custom Shop request. We've received it and will review it shortly.</p>
+    <p style="margin:0 0 16px 0;color:#374151;">Your request number is <strong>${escapeHtml(requestNumber)}</strong>. You can view the status and details anytime using the link below.</p>
+    <p style="margin:0 0 16px 0;color:#6b7280;font-size:14px;">Builds may start 6–18 months from registration; we'll be in touch once we've reviewed your request.</p>
+  `.trim();
+  return wrapHtml(opts, content, "View your request", { ctaUrl: viewRequestUrl });
+}
+
+/**
+ * Custom Shop: staff notification – new request submitted.
+ */
+export function customShopStaffNotifyHtml(
+  opts: TemplateOptions,
+  submitterName: string | null,
+  submitterEmail: string,
+  requestNumber: string,
+  summary: string
+): string {
+  const nameLine = submitterName
+    ? `<p style="margin:0 0 8px 0;color:#374151;"><strong>From:</strong> ${escapeHtml(submitterName)} &lt;${escapeHtml(submitterEmail)}&gt;</p>`
+    : `<p style="margin:0 0 8px 0;color:#374151;"><strong>From:</strong> ${escapeHtml(submitterEmail)}</p>`;
+  const content = `
+    <p style="margin:0 0 16px 0;">A new Custom Shop request has been submitted.</p>
+    <p style="margin:0 0 8px 0;color:#374151;"><strong>Request:</strong> ${escapeHtml(requestNumber)}</p>
+    ${nameLine}
+    <p style="margin:12px 0 0 0;font-size:14px;color:#374151;"><strong>Summary:</strong></p>
+    <p style="margin:4px 0 0 0;font-size:14px;color:#4b5563;white-space:pre-wrap;">${escapeHtml(summary)}</p>
+    <p style="margin:16px 0 0 0;color:#6b7280;font-size:14px;">Log in to the portal to view and manage Custom Shop requests.</p>
+  `.trim();
+  return wrapHtml(opts, content, "View in portal");
 }

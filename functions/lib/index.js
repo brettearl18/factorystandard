@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onInvoiceUpdated = exports.onRunUpdateCommentCreated = exports.onNoteCommentCreated = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onInvoiceUpdated = exports.onRunUpdateCommentCreated = exports.onNoteCommentCreated = exports.onCustomShopRequestCreated = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Firestore triggers: stage change + run update → email clients via Mailgun
@@ -8,6 +8,9 @@ var onGuitarStageChange_1 = require("./onGuitarStageChange");
 Object.defineProperty(exports, "onGuitarStageChange", { enumerable: true, get: function () { return onGuitarStageChange_1.onGuitarStageChange; } });
 var onRunUpdateCreated_1 = require("./onRunUpdateCreated");
 Object.defineProperty(exports, "onRunUpdateCreated", { enumerable: true, get: function () { return onRunUpdateCreated_1.onRunUpdateCreated; } });
+// Custom Shop: thank-you to client + notify staff
+var onCustomShopRequestCreated_1 = require("./onCustomShopRequestCreated");
+Object.defineProperty(exports, "onCustomShopRequestCreated", { enumerable: true, get: function () { return onCustomShopRequestCreated_1.onCustomShopRequestCreated; } });
 // Firestore triggers: notify staff when comments or payment approvals come in
 var onNoteCommentCreated_1 = require("./onNoteCommentCreated");
 Object.defineProperty(exports, "onNoteCommentCreated", { enumerable: true, get: function () { return onNoteCommentCreated_1.onNoteCommentCreated; } });
@@ -31,15 +34,13 @@ Object.defineProperty(exports, "resetUserPassword", { enumerable: true, get: fun
 var listUsers_1 = require("./listUsers");
 Object.defineProperty(exports, "listUsers", { enumerable: true, get: function () { return listUsers_1.listUsers; } });
 // Export the getUserInfo function
-var getUserInfo_1 = require("./getUserInfo");
+var getUserInfo_1 = require("./getUserInfo"); // Export the setClientRole function
 Object.defineProperty(exports, "getUserInfo", { enumerable: true, get: function () { return getUserInfo_1.getUserInfo; } });
-// Export the setClientRole function
 var setClientRole_1 = require("./setClientRole");
 Object.defineProperty(exports, "setClientRole", { enumerable: true, get: function () { return setClientRole_1.setClientRole; } });
 // Export sendTestEmails (admin only)
-var sendTestEmails_1 = require("./sendTestEmails");
+var sendTestEmails_1 = require("./sendTestEmails"); // Export the backupFirestore function
 Object.defineProperty(exports, "sendTestEmails", { enumerable: true, get: function () { return sendTestEmails_1.sendTestEmails; } });
-// Export the backupFirestore function
 var backupFirestore_1 = require("./backupFirestore");
 Object.defineProperty(exports, "backupFirestore", { enumerable: true, get: function () { return backupFirestore_1.backupFirestore; } });
 // Export the restoreFirestore function

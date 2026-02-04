@@ -156,6 +156,15 @@ service cloud.firestore {
       allow read: if isStaff();
       allow update, delete: if false;
     }
+
+    // Custom Shop requests - any signed-in user can create and read their own; staff can read/write all
+    match /customShopRequests/{requestId} {
+      allow create: if request.auth != null &&
+        request.resource.data.submitterUid == request.auth.uid;
+      allow read: if request.auth != null &&
+        (resource.data.submitterUid == request.auth.uid || isStaff());
+      allow update, delete: if isStaff();
+    }
   }
 }
 

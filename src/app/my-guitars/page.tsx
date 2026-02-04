@@ -8,10 +8,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { useClientInvoices } from "@/hooks/useClientInvoices";
 import { useClientProfile } from "@/hooks/useClientProfile";
-import { subscribeRunStages, subscribeGuitarNotes, recordAuditLog } from "@/lib/firestore";
+import { subscribeRunStages, subscribeGuitarNotes, recordAuditLog, subscribeCustomShopRequestsByUser } from "@/lib/firestore";
 import { InvoiceList } from "@/components/client/InvoiceList";
-import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff, FileText } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
+import type { CustomShopRequest } from "@/types/guitars";
 
 export default function MyGuitarsPage() {
   const { currentUser, userRole, loading } = useAuth();
@@ -26,6 +27,7 @@ export default function MyGuitarsPage() {
   const [guitarStages, setGuitarStages] = useState<Map<string, RunStage>>(new Map());
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
   const [recentNotes, setRecentNotes] = useState<Map<string, GuitarNote>>(new Map());
+  const [customShopRequests, setCustomShopRequests] = useState<CustomShopRequest[]>([]);
 
   useEffect(() => {
     if (loading) return;
@@ -78,6 +80,15 @@ export default function MyGuitarsPage() {
       unsubscribes.forEach((unsub) => unsub());
     };
   }, [guitars]);
+
+  // Load Custom Shop requests for this client (so we can show "pending" when no guitars yet)
+  useEffect(() => {
+    if (clientId != null && clientId === currentUser?.uid) {
+      const unsub = subscribeCustomShopRequestsByUser(clientId, setCustomShopRequests);
+      return () => unsub();
+    }
+    setCustomShopRequests([]);
+  }, [clientId, currentUser?.uid]);
 
   // Load recent notes for each guitar
   useEffect(() => {
@@ -209,20 +220,80 @@ export default function MyGuitarsPage() {
         </div>
 
         {guitars.length === 0 && userRole === "client" ? (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <Guitar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No guitars yet</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Get started by submitting your guitar specifications. Fill out the form to begin your custom build journey.
-            </p>
-            <Link
-              href="/onboard"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              <Guitar className="w-5 h-5" />
-              Submit Guitar Specifications
-              <ArrowRight className="w-5 h-5" />
-            </Link>
+          <div className="space-y-6">
+            {/* Pending Custom Shop requests */}
+            {customShopRequests.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <h2 className="text-lg font-bold text-gray-900">Pending</h2>
+                  <p className="text-sm text-gray-600">Your Custom Shop request(s) — we’ll review and get in touch.</p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {customShopRequests.map((req) => (
+                    <Link
+                      key={req.id}
+                      href={`/custom-shop/requests/${req.id}`}
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group"
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-6 h-6 text-amber-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 group-hover:text-amber-700 truncate">
+                          {req.model
+                            ? req.model
+                            : req.guitarDescription.length > 50
+                              ? req.guitarDescription.slice(0, 50) + "…"
+                              : req.guitarDescription}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Submitted {new Date(req.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                          {" · "}
+                          <span className={
+                            req.status === "pending" ? "text-amber-700 font-medium" :
+                            req.status === "approved" ? "text-green-600" :
+                            req.status === "rejected" ? "text-red-600" :
+                            "text-blue-600"
+                          }>
+                            {req.status === "pending" ? "Under review" : req.status}
+                          </span>
+                        </p>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 flex-shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Empty state / CTAs */}
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+              <Guitar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {customShopRequests.length > 0 ? "No builds in progress yet" : "No guitars yet"}
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                {customShopRequests.length > 0
+                  ? "Your Custom Shop request is pending. Once approved, your build will appear here. You can also submit another request."
+                  : "Get started by submitting your guitar specifications or a Custom Shop request."}
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  href="/custom-shop/submit"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                >
+                  <FileText className="w-5 h-5" />
+                  Custom Shop request
+                </Link>
+                <Link
+                  href="/onboard"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <Guitar className="w-5 h-5" />
+                  Submit guitar specs (run)
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+              </div>
+            </div>
           </div>
         ) : guitars.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-lg shadow-sm border border-gray-200">
@@ -356,6 +427,25 @@ export default function MyGuitarsPage() {
 
               {/* Guitar Cards - Takes 2 columns */}
               <div className="lg:col-span-2">
+                {customShopRequests.length > 0 && (
+                  <div className="mb-4 p-4 rounded-lg border border-amber-200 bg-amber-50">
+                    <h3 className="text-sm font-semibold text-amber-900 mb-2">Pending Custom Shop</h3>
+                    <div className="space-y-2">
+                      {customShopRequests.map((req) => (
+                        <Link
+                          key={req.id}
+                          href={`/custom-shop/requests/${req.id}`}
+                          className="flex items-center justify-between text-sm text-amber-800 hover:text-amber-900"
+                        >
+                          <span className="truncate">
+                            {req.model || req.guitarDescription.slice(0, 40) + (req.guitarDescription.length > 40 ? "…" : "")}
+                          </span>
+                          <ArrowRight className="w-4 h-4 flex-shrink-0 ml-2" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-lg font-bold text-gray-900">My Guitars</h2>
                   <span className="text-sm text-gray-600">{totalGuitars} {totalGuitars === 1 ? 'guitar' : 'guitars'}</span>

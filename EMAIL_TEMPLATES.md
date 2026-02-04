@@ -87,6 +87,45 @@ Log in to the portal for full details.
 
 ---
 
+## 4. Custom Shop request – thank you (client)
+
+**Trigger:** A new document is created in the `customShopRequests` collection (client submits a Custom Shop request).
+
+**Recipient:** The submitter’s email (`submitterEmail` on the document).
+
+**Subject:** `We've received your Custom Shop request (CS-XXXXXX)` (request number is the last 6 chars of the doc id, uppercase).
+
+**HTML content (inside shared layout):**
+- Greeting: "Hi,"
+- Thank you for your Custom Shop request; we've received it and will review it shortly.
+- Your request number is **CS-XXXXXX**. You can view status and details using the link below.
+- Note: Builds may start 6–18 months from registration; we'll be in touch once we've reviewed your request.
+- CTA: "View your request" (button links to portal `/custom-shop/requests/{requestId}`).
+- Signature: "— [From name]"
+
+**Note:** Sent with `noCc` so staff do not receive a copy of this email (they receive a separate staff notification instead).
+
+---
+
+## 5. Custom Shop request – staff notification
+
+**Trigger:** Same as above (on create of `customShopRequests/{requestId}`).
+
+**Recipient:** `guitars@ormsbyguitars.com`.
+
+**Subject:** `New Custom Shop request: CS-XXXXXX from [Name or email]`
+
+**HTML content (inside shared layout):**
+- A new Custom Shop request has been submitted.
+- **Request:** CS-XXXXXX
+- **From:** [Name] &lt;email&gt; or just email
+- **Summary:** First 200–300 chars of the request (model + description or description only).
+- Log in to the portal to view and manage Custom Shop requests.
+- CTA: "View in portal" (button links to `portal_url`).
+- Signature: "— [From name]"
+
+---
+
 ## Optional config
 
 - **Portal URL:** Set `mailgun.portal_url` (e.g. `https://ormsby-factory-standard-runs.web.app`) so "Log in" in the emails is a clickable link. If unset, the CTA is plain text.

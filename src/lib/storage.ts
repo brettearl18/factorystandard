@@ -113,6 +113,23 @@ export async function uploadColorInspirationImage(
 }
 
 /**
+ * Upload an inspiration image for a Custom Shop request.
+ * Path: customShop/{uid}/inspiration/{filename}
+ * Caller should pass compressed/resized file for smaller uploads.
+ */
+export async function uploadCustomShopInspirationImage(
+  userUid: string,
+  file: File
+): Promise<string> {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 9);
+  const filename = `${timestamp}_${randomStr}_${file.name}`;
+  const storageRef = ref(storage, `customShop/${userUid}/inspiration/${filename}`);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
+/**
  * Upload a gallery image for a guitar (client-submitted)
  * Path: guitars/{guitarId}/gallery/{filename}
  */
@@ -222,9 +239,7 @@ export async function deleteGuitarReferenceImage(guitarId: string, imageUrl: str
   if (imageUrl.includes('firebasestorage.googleapis.com')) {
     await deleteImageFromStorage(imageUrl);
   }
-}
-
-/**
+}/**
  * Deletes a photo from a guitar note
  */
 export async function deleteGuitarNotePhoto(guitarId: string, stageId: string, imageUrl: string): Promise<void> {

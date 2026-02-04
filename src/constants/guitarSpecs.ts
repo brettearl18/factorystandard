@@ -437,4 +437,3 @@ export const SPEC_CATEGORIES = [
   { key: "radius" as const, label: "Radius", options: RADIUS_OPTIONS },
   { key: "handedness" as const, label: "Handedness", options: HANDEDNESS_OPTIONS },
 ] as const;
-

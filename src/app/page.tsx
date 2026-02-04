@@ -256,6 +256,25 @@ export default function Home() {
           </Link>
         </div>
 
+        {/* Custom Shop CTA */}
+        <div className="max-w-4xl mx-auto mb-16">
+          <Link
+            href="/custom-shop"
+            className="block bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 hover:border-amber-400 hover:bg-amber-100 transition-all group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-amber-100 group-hover:bg-amber-200 transition-colors">
+                <Guitar className="w-8 h-8 text-amber-700" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900">Custom Shop</h3>
+                <p className="text-gray-600 text-sm">Have a dream spec? Submit your idea and we’ll get in touch.</p>
+              </div>
+              <ArrowRight className="w-5 h-5 text-amber-600 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+        </div>
+
         {/* Features Section */}
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl shadow-md p-8 border border-gray-200">

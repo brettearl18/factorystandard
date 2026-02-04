@@ -686,9 +686,7 @@ function EditPaymentModal({
       </div>
     </div>
   );
-}
-
-function ConfirmModal({
+}function ConfirmModal({
   title,
   message,
   onConfirm,

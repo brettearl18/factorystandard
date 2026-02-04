@@ -6,6 +6,9 @@ admin.initializeApp();
 export { onGuitarStageChange } from "./onGuitarStageChange";
 export { onRunUpdateCreated } from "./onRunUpdateCreated";
 
+// Custom Shop: thank-you to client + notify staff
+export { onCustomShopRequestCreated } from "./onCustomShopRequestCreated";
+
 // Firestore triggers: notify staff when comments or payment approvals come in
 export { onNoteCommentCreated } from "./onNoteCommentCreated";
 export { onRunUpdateCommentCreated } from "./onRunUpdateCommentCreated";
@@ -31,9 +34,7 @@ export { getUserInfo } from "./getUserInfo";// Export the setClientRole function
 export { setClientRole } from "./setClientRole";
 
 // Export sendTestEmails (admin only)
-export { sendTestEmails } from "./sendTestEmails";
-
-// Export the backupFirestore function
+export { sendTestEmails } from "./sendTestEmails";// Export the backupFirestore function
 export { backupFirestore } from "./backupFirestore";
 
 // Export the restoreFirestore function

@@ -57,6 +57,11 @@ export function Sidebar() {
       icon: Users,
     },
     {
+      label: "Custom Shop requests",
+      href: "/settings/custom-shop-requests",
+      icon: FileText,
+    },
+    {
       label: "Settings",
       href: "/settings",
       icon: Settings,

@@ -31,7 +31,7 @@ function getMailgunConfig() {
 /**
  * Send a single email via Mailgun. No-op if Mailgun is not configured.
  */
-async function sendEmail(to, subject, html, text) {
+async function sendEmail(to, subject, html, text, options) {
     const cfg = getMailgunConfig();
     if (!cfg) {
         functions.logger.info("Mailgun not configured; skipping email");
@@ -47,7 +47,7 @@ async function sendEmail(to, subject, html, text) {
     body.set("html", html);
     if (text)
         body.set("text", text);
-    if (cfg.cc)
+    if (cfg.cc && !options?.noCc)
         body.set("cc", cfg.cc);
     try {
         const res = await fetch(url, {

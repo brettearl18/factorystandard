@@ -31,6 +31,7 @@ import {
   Timestamp,
   serverTimestamp,
   QuerySnapshot,
+  DocumentSnapshot,
   DocumentData,
   Unsubscribe,
   setDoc,
@@ -50,6 +51,7 @@ import type {
   InvoicePayment,
   AuditAction,
   AuditLogEntry,
+  CustomShopRequest,
 } from "@/types/guitars";
 import type { AppSettings } from "@/types/settings";
 
@@ -1961,4 +1963,139 @@ export function subscribeAuditLogsByUser(
       callback([]);
     }
   );
+}
+
+// ——— Custom Shop Requests ———
+
+const CUSTOM_SHOP_REQUESTS = "customShopRequests";
+const DEPOSIT_AMOUNT_AUD = 1000;
+
+function mapCustomShopRequestDoc(
+  docSnap: DocumentSnapshot<DocumentData>
+): CustomShopRequest | null {
+  if (!docSnap.exists()) return null;
+  const d = docSnap.data();
+  if (!d) return null;
+  return {
+    id: docSnap.id,
+    submitterUid: d.submitterUid,
+    submitterEmail: d.submitterEmail,
+    submitterName: d.submitterName,
+    guitarDescription: d.guitarDescription,
+    specs: d.specs ?? undefined,
+    model: d.model,
+    motivationNotes: d.motivationNotes,
+    additionalNotes: d.additionalNotes,
+    inspirationImageUrls: d.inspirationImageUrls ?? [],
+    depositAgreed: d.depositAgreed === true,
+    depositAmountAUD: d.depositAmountAUD ?? DEPOSIT_AMOUNT_AUD,
+    status: d.status ?? "pending",
+    createdAt: typeof d.createdAt?.toMillis === "function" ? d.createdAt.toMillis() : d.createdAt,
+    updatedAt: typeof d.updatedAt?.toMillis === "function" ? d.updatedAt.toMillis() : d.updatedAt,
+    reviewedBy: d.reviewedBy,
+    reviewedAt: d.reviewedAt != null ? (typeof d.reviewedAt?.toMillis === "function" ? d.reviewedAt.toMillis() : d.reviewedAt) : undefined,
+    rejectionReason: d.rejectionReason,
+    convertedClientId: d.convertedClientId,
+    convertedGuitarId: d.convertedGuitarId,
+    convertedInvoiceId: d.convertedInvoiceId,
+  } as CustomShopRequest;
+}
+
+export async function createCustomShopRequest(data: {
+  submitterUid: string;
+  submitterEmail: string;
+  submitterName?: string;
+  guitarDescription: string;
+  specs?: Partial<import("@/types/guitars").GuitarSpecs>;
+  model?: string;
+  motivationNotes?: string;
+  additionalNotes?: string;
+  inspirationImageUrls: string[];
+}): Promise<string> {
+  const ref = collection(db, CUSTOM_SHOP_REQUESTS);
+  const now = Timestamp.now();
+  const payload: Record<string, unknown> = {
+    submitterUid: data.submitterUid,
+    submitterEmail: data.submitterEmail,
+    submitterName: data.submitterName,
+    guitarDescription: data.guitarDescription,
+    inspirationImageUrls: data.inspirationImageUrls ?? [],
+    depositAgreed: true,
+    depositAmountAUD: DEPOSIT_AMOUNT_AUD,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (data.specs != null && Object.keys(data.specs).length > 0) payload.specs = data.specs;
+  if (data.model != null && data.model.trim() !== "") payload.model = data.model.trim();
+  if (data.motivationNotes != null && data.motivationNotes.trim() !== "") payload.motivationNotes = data.motivationNotes.trim();
+  if (data.additionalNotes != null && data.additionalNotes.trim() !== "") payload.additionalNotes = data.additionalNotes.trim();
+  const docRef = await addDoc(ref, payload);
+  return docRef.id;
+}
+
+export async function getCustomShopRequest(requestId: string): Promise<CustomShopRequest | null> {
+  const snap = await getDoc(doc(db, CUSTOM_SHOP_REQUESTS, requestId));
+  return mapCustomShopRequestDoc(snap);
+}
+
+export function subscribeCustomShopRequestsByUser(
+  submitterUid: string,
+  callback: (requests: CustomShopRequest[]) => void
+): Unsubscribe {
+  const ref = collection(db, CUSTOM_SHOP_REQUESTS);
+  const q = query(
+    ref,
+    where("submitterUid", "==", submitterUid),
+    orderBy("createdAt", "desc"),
+    limit(50)
+  );
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const requests = snapshot.docs
+        .map((d) => mapCustomShopRequestDoc(d))
+        .filter((r): r is CustomShopRequest => r != null);
+      callback(requests);
+    },
+    (err) => {
+      console.error("Custom shop requests subscription error:", err);
+      callback([]);
+    }
+  );
+}
+
+export function subscribeAllCustomShopRequests(
+  callback: (requests: CustomShopRequest[]) => void
+): Unsubscribe {
+  const ref = collection(db, CUSTOM_SHOP_REQUESTS);
+  const q = query(ref, orderBy("createdAt", "desc"), limit(100));
+  return onSnapshot(
+    q,
+    (snapshot: QuerySnapshot<DocumentData>) => {
+      const requests = snapshot.docs
+        .map((d) => mapCustomShopRequestDoc(d))
+        .filter((r): r is CustomShopRequest => r != null);
+      callback(requests);
+    },
+    (err) => {
+      console.error("Custom shop requests (all) subscription error:", err);
+      callback([]);
+    }
+  );
+}
+
+export async function updateCustomShopRequest(
+  requestId: string,
+  updates: Partial<Pick<CustomShopRequest, "status" | "reviewedBy" | "reviewedAt" | "rejectionReason" | "convertedClientId" | "convertedGuitarId" | "convertedInvoiceId">>
+): Promise<void> {
+  const ref = doc(db, CUSTOM_SHOP_REQUESTS, requestId);
+  const sanitized: Record<string, unknown> = {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  };
+  for (const [k, v] of Object.entries(sanitized)) {
+    if (v === undefined) (sanitized as any)[k] = deleteField();
+  }
+  await updateDoc(ref, sanitized as Record<string, unknown>);
 }

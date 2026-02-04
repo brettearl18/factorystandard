@@ -41,6 +41,11 @@ export function getMailgunConfig(): MailgunConfig | null {
   };
 }
 
+export interface SendEmailOptions {
+  /** If true, do not add the default CC (e.g. for client-facing emails that have a separate staff notification). */
+  noCc?: boolean;
+}
+
 /**
  * Send a single email via Mailgun. No-op if Mailgun is not configured.
  */
@@ -48,7 +53,8 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  text?: string
+  text?: string,
+  options?: SendEmailOptions
 ): Promise<boolean> {
   const cfg = getMailgunConfig();
   if (!cfg) {
@@ -65,7 +71,7 @@ export async function sendEmail(
   body.set("subject", subject);
   body.set("html", html);
   if (text) body.set("text", text);
-  if (cfg.cc) body.set("cc", cfg.cc);
+  if (cfg.cc && !options?.noCc) body.set("cc", cfg.cc);
 
   try {
     const res = await fetch(url, {

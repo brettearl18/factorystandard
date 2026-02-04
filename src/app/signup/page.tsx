@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
 import { Guitar, Mail, Lock, ArrowRight, AlertCircle, CheckCircle, User, ArrowLeft } from "lucide-react";
@@ -17,17 +17,26 @@ function SignupForm() {
   const { signUp, signInWithGoogle, currentUser, userRole, loading: authLoading } = useAuth();
   const branding = useBranding();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const redirectTo = (() => {
+    const r = searchParams.get("redirect");
+    return r?.startsWith("/") && !r.startsWith("//") ? r : null;
+  })();
+  const isCustomShop = redirectTo === "/custom-shop";
 
   // Redirect if already signed in
   useEffect(() => {
     if (!authLoading && currentUser) {
-      if (userRole === "client") {
+      if (redirectTo) {
+        router.push(redirectTo);
+      } else if (userRole === "client") {
         router.push("/onboard");
       } else {
         router.push("/");
       }
     }
-  }, [currentUser, userRole, authLoading, router]);
+  }, [currentUser, userRole, authLoading, router, redirectTo]);
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +59,7 @@ function SignupForm() {
       await signUp(email.trim(), password, displayName.trim());
       // Wait a moment for role to be set, then redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
-      // Redirect to onboard page
-      router.push("/onboard");
+      router.push(redirectTo || "/onboard");
     } catch (err: any) {
       let errorMessage = "Failed to create account";
       
@@ -79,8 +87,7 @@ function SignupForm() {
       await signInWithGoogle();
       // Wait a moment for role to be set, then redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
-      // Redirect to onboard page
-      router.push("/onboard");
+      router.push(redirectTo || "/onboard");
     } catch (err: any) {
       let errorMessage = "Failed to sign up with Google";
       
@@ -126,8 +133,10 @@ function SignupForm() {
                   alt={branding.companyName || "Factory Standards"}
                   className="h-16 w-auto object-contain mb-3"
                 />
-                {branding.companyName && (
-                  <h2 className="text-xl font-semibold text-gray-700 mb-2">{branding.companyName}</h2>
+                {(branding.companyName || isCustomShop) && (
+                  <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                    {isCustomShop ? "CustomShop" : branding.companyName}
+                  </h2>
                 )}
               </>
             ) : (
@@ -142,9 +151,13 @@ function SignupForm() {
               </div>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Your Account</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {isCustomShop ? `Welcome to the ${branding?.companyName || "Ormsby"} CustomShop` : "Create Your Account"}
+          </h1>
           <p className="text-gray-600 text-sm">
-            Sign up to submit your guitar specifications
+            {isCustomShop
+              ? "Create an account to submit your custom guitar idea."
+              : "Sign up to submit your guitar specifications"}
           </p>
         </div>
 
@@ -274,7 +287,10 @@ function SignupForm() {
         <div className="mt-6 pt-6 border-t border-gray-200">
           <p className="text-sm text-gray-600 text-center">
             Already have an account?{" "}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 hover:underline font-medium">
+            <Link
+              href={redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
+              className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
+            >
               Sign in
             </Link>
           </p>

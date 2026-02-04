@@ -23,6 +23,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const redirectTo = searchParams.get("redirect");
+  const isCustomShop = redirectTo === "/custom-shop";
+
   useEffect(() => {
     const role = searchParams.get("role");
     if (role === "client" || role === "admin") {
@@ -38,10 +41,10 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      // Redirect to home - it will handle role-based routing
-      // Small delay to ensure auth state is updated
+      const redirectTo = searchParams.get("redirect");
+      const allowedRedirect = redirectTo?.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : null;
       setTimeout(() => {
-        router.push("/");
+        router.push(allowedRedirect || "/");
       }, 300);
     } catch (err: any) {
       // Provide user-friendly error messages
@@ -120,9 +123,9 @@ function LoginForm() {
                   alt={branding.companyName || "Factory Standards"}
                   className="h-16 w-auto object-contain mb-3"
                 />
-                {branding.companyName && (
-                  <h2 className="text-xl font-semibold text-gray-700 mb-2">{branding.companyName}</h2>
-                )}
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                  Ormsby Guitars CustomShop &amp; Factory Standards
+                </h2>
               </>
             ) : (
               <div 
@@ -142,14 +145,26 @@ function LoginForm() {
               </div>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {isCustomShop
+              ? `Welcome to the ${branding?.companyName || "Ormsby"} CustomShop`
+              : "Welcome Back"}
+          </h1>
           <p className="text-gray-600 text-sm">
-            {loginType === "admin" 
-              ? "Sign in to manage production and track builds"
-              : "Sign in to view your guitar build updates"
+            {isCustomShop
+              ? "Sign in to your account or create one to submit your custom guitar idea."
+              : loginType === "admin"
+                ? "Sign in to manage production and track builds"
+                : "Sign in to view your guitar build updates"
             }
           </p>
-          {loginType && (
+          {isCustomShop && (
+            <div className="inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              <Guitar className="w-3 h-3" />
+              Custom Shop
+            </div>
+          )}
+          {!isCustomShop && loginType && (
             <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium ${
               loginType === "admin" 
                 ? "bg-purple-100 text-purple-700" 
@@ -254,8 +269,39 @@ function LoginForm() {
               </button>
             </form>
 
-            {/* Help Text */}
+            {/* Sign in / Sign up options */}
             <div className="mt-6 pt-6 border-t border-gray-200">
+              {isCustomShop ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700 text-center">New to Custom Shop?</p>
+                  <Link
+                    href={`/signup?redirect=${encodeURIComponent("/custom-shop")}`}
+                    className="block w-full py-3 px-4 rounded-lg border-2 border-amber-500 text-amber-700 font-medium text-center hover:bg-amber-50 transition-colors"
+                  >
+                    Create account — Sign up
+                  </Link>
+                  <p className="text-xs text-gray-500 text-center">
+                    Already have an account? Use the form above to sign in.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">
+                    Don&apos;t have an account?{" "}
+                    <Link
+                      href={redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
+                        ? `/signup?redirect=${encodeURIComponent(redirectTo)}`
+                        : "/signup"}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Sign up
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </div>
+            {/* Help Text */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-xs text-gray-500 text-center">
                 Need help? Contact your factory representative or check your email for account setup instructions.
               </p>
