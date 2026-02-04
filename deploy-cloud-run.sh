@@ -1,7 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-$(node -e "try {console.log(require('./.firebaserc').projects.default)} catch {console.log('')}")}"
+# Run from repo root so .firebaserc is found
+cd "$(dirname "$0")"
+
+PROJECT_ID="${PROJECT_ID:-$(node -e "
+  try {
+    const fs = require('fs');
+    const p = require('path');
+    const j = JSON.parse(fs.readFileSync(p.join(process.cwd(), '.firebaserc'), 'utf8'));
+    console.log(j.projects && j.projects.default ? j.projects.default : '');
+  } catch (e) {
+    console.log('');
+  }
+")}"
 REGION="${REGION:-australia-southeast1}"
 SERVICE_NAME="${SERVICE_NAME:-factory-standards-web}"
 

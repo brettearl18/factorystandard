@@ -66,14 +66,16 @@ chmod +x deploy-vercel.sh
 ./deploy-vercel.sh
 ```
 
-### Option 2: Firebase Hosting
+### Option 2: Firebase Hosting (Cloud Run)
 
 Recommended when you want everything under Firebase/GCP (no Vercel login required).  
 Uses Firebase Hosting (as CDN) + Cloud Run (to run the Next.js server).
 
+**Note:** Pushing to GitHub does **not** update production. To deploy the latest code, run:
+
 ```bash
 chmod +x deploy-cloud-run.sh
-./deploy-cloud-run.sh
+PROJECT_ID=ormsby-factory-standard-runs ./deploy-cloud-run.sh
 ```
 
 This script will:

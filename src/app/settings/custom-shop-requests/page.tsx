@@ -9,6 +9,7 @@ import {
   subscribeAllCustomShopRequests,
   updateCustomShopRequest,
   getCustomShopRequest,
+  deleteCustomShopRequest,
 } from "@/lib/firestore";
 import type { CustomShopRequest } from "@/types/guitars";
 import {
@@ -20,6 +21,7 @@ import {
   X,
   AlertCircle,
   DollarSign,
+  Trash2,
 } from "lucide-react";
 
 const STAFF_REQUEST_DETAIL_URL = (requestId: string) =>
@@ -147,6 +149,22 @@ function CustomShopRequestsAdminContent() {
       closeDetail();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reject");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!detailRequest) return;
+    const requestNum = `CS-${detailRequest.id.slice(-6).toUpperCase()}`;
+    if (!window.confirm(`Remove Custom Shop request ${requestNum}? This cannot be undone.`)) return;
+    setError(null);
+    setActionLoading(true);
+    try {
+      await deleteCustomShopRequest(detailRequest.id);
+      closeDetail();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove request");
     } finally {
       setActionLoading(false);
     }
@@ -384,6 +402,18 @@ function CustomShopRequestsAdminContent() {
                         )}
                       </div>
                     )}
+                    <div className="pt-4 mt-4 border-t border-gray-200">
+                      <button
+                        type="button"
+                        onClick={handleRemove}
+                        disabled={actionLoading}
+                        className="inline-flex items-center gap-2 py-2 px-3 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 hover:border-red-300 transition-colors disabled:opacity-60"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove this request
+                      </button>
+                      <p className="text-xs text-gray-500 mt-1">Permanently delete this Custom Shop request. Cannot be undone.</p>
+                    </div>
                   </div>
                 ) : null}
               </div>

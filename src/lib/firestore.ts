@@ -2099,3 +2099,8 @@ export async function updateCustomShopRequest(
   }
   await updateDoc(ref, sanitized as Record<string, unknown>);
 }
+
+export async function deleteCustomShopRequest(requestId: string): Promise<void> {
+  const ref = doc(db, CUSTOM_SHOP_REQUESTS, requestId);
+  await deleteDoc(ref);
+}
