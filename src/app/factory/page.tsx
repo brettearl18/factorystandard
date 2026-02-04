@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import type { Run, GuitarBuild, RunStage } from "@/types/guitars";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRuns } from "@/hooks/useRuns";
 import { useClientDisplayNames } from "@/hooks/useClientDisplayNames";
 import { subscribeGuitarsForRun, subscribeRunStages, getRun, subscribeGuitarNotes } from "@/lib/firestore";
-import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X, User } from "lucide-react";
+import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X, User, ImagePlus } from "lucide-react";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
+import { compressImageForUpload } from "@/utils/imageCompression";
 import type { GuitarNote } from "@/types/guitars";
 import { MobileGuitarDetailsView } from "./MobileGuitarDetailsView";
 
@@ -284,6 +285,8 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
   const [selectedWorker, setSelectedWorker] = useState<string>("Perry");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Factory workers list
   const factoryWorkers = [
@@ -307,27 +310,23 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
     }
   }, [currentUser]);
 
-  const handlePhotoSelection = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.multiple = true;
-    input.capture = "environment"; // Use back camera on mobile
-    input.onchange = (e) => {
-      const files = Array.from((e.target as HTMLInputElement).files || []);
-      if (files.length > 0) {
-        setPhotos((prev) => [...prev, ...files]);
-        // Create previews for new files
-        files.forEach((file) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            setPhotoPreviews((prev) => [...prev, reader.result as string]);
-          };
-          reader.readAsDataURL(file);
-        });
-      }
-    };
-    input.click();
+  const processNewPhotos = (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return;
+    setPhotos((prev) => [...prev, ...images]);
+    images.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreviews((prev) => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    processNewPhotos(files);
+    e.target.value = "";
   };
 
   const removePhoto = (index: number) => {
@@ -356,13 +355,14 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
         return;
       }
 
-      // Upload all photos with error handling
+      // Upload all photos with error handling (compress first, same as Custom Shop)
       const photoUrls: string[] = [];
       if (photos.length > 0) {
         for (let i = 0; i < photos.length; i++) {
           try {
             const photo = photos[i];
-            const url = await uploadGuitarPhoto(guitar.id, targetStage.id, photo);
+            const compressed = await compressImageForUpload(photo);
+            const url = await uploadGuitarPhoto(guitar.id, targetStage.id, compressed);
             photoUrls.push(url);
             console.log(`Uploaded photo ${i + 1}/${photos.length}`);
           } catch (error) {
@@ -483,6 +483,31 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Photos {photos.length > 0 && `(${photos.length})`}
           </label>
+          {/* Gallery: no capture = photo library on mobile */}
+          <input
+            id="factory-photo-gallery"
+            ref={galleryInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/heic"
+            multiple
+            onChange={handlePhotoChange}
+            className="hidden"
+            aria-label="Add from gallery"
+            disabled={isSubmitting}
+          />
+          {/* Camera: capture = opens camera on mobile */}
+          <input
+            id="factory-photo-camera"
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={handlePhotoChange}
+            className="hidden"
+            aria-label="Take photo"
+            disabled={isSubmitting}
+          />
           {photoPreviews.length > 0 ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
@@ -494,6 +519,7 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
                       className="w-full h-full object-cover"
                     />
                     <button
+                      type="button"
                       onClick={() => removePhoto(index)}
                       className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600"
                       disabled={isSubmitting}
@@ -503,24 +529,43 @@ function MobileCameraView({ guitar, stages, currentStage, onSuccess, onClose }: 
                   </div>
                 ))}
               </div>
-              <button
-                onClick={handlePhotoSelection}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                disabled={isSubmitting}
-              >
-                Add More Photos
-              </button>
+              <div className="flex gap-2 flex-wrap">
+                <label
+                  htmlFor="factory-photo-gallery"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 text-blue-700 font-medium border border-blue-200 cursor-pointer hover:bg-blue-100 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <ImagePlus className="w-5 h-5" />
+                  Add from gallery
+                </label>
+                <label
+                  htmlFor="factory-photo-camera"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-100 text-gray-700 font-medium border border-gray-200 cursor-pointer hover:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <Camera className="w-5 h-5" />
+                  Take photo
+                </label>
+              </div>
             </div>
           ) : (
-            <button
-              onClick={handlePhotoSelection}
-              className="w-full py-12 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-blue-400 transition-colors"
-              disabled={isSubmitting}
-            >
-              <Camera className="w-12 h-12 text-gray-400" />
-              <span className="text-gray-600 font-medium">Tap to Take/Select Photos</span>
-              <span className="text-sm text-gray-500">Use camera or select multiple from gallery</span>
-            </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2 flex-wrap">
+                <label
+                  htmlFor="factory-photo-gallery"
+                  className="flex-1 min-w-[140px] py-4 px-4 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-800 font-medium flex flex-col items-center justify-center gap-2 hover:bg-blue-100 hover:border-blue-400 transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <ImagePlus className="w-10 h-10" />
+                  <span>Add from gallery</span>
+                </label>
+                <label
+                  htmlFor="factory-photo-camera"
+                  className="flex-1 min-w-[140px] py-4 px-4 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2 hover:border-blue-400 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <Camera className="w-10 h-10 text-gray-500" />
+                  <span>Take photo</span>
+                </label>
+              </div>
+              <p className="text-sm text-gray-500 text-center">Choose from your photos or use the camera</p>
+            </div>
           )}
         </div>
 
