@@ -38,7 +38,5 @@ export { sendTestEmails } from "./sendTestEmails";// Export the backupFirestore 
 export { backupFirestore } from "./backupFirestore";
 
 // Export the restoreFirestore function
-export { restoreFirestore } from "./restoreFirestore";
-
-// Export the listBackups function
+export { restoreFirestore } from "./restoreFirestore";// Export the listBackups function
 export { listBackups } from "./listBackups";

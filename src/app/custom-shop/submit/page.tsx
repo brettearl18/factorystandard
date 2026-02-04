@@ -1,13 +1,13 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createCustomShopRequest } from "@/lib/firestore";
 import { uploadCustomShopInspirationImage } from "@/lib/storage";
 import { compressImageForUpload } from "@/utils/imageCompression";
-import { ArrowLeft, Upload, X, Loader2, AlertCircle, ExternalLink, AlertTriangle, ImageIcon } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, ExternalLink, AlertTriangle, Camera, ImagePlus } from "lucide-react";
 
 const DEPOSIT_AUD = 1000;
 const MAX_IMAGES = 6;
@@ -33,6 +33,8 @@ export default function CustomShopSubmitPage() {
   const [depositAgreed, setDepositAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -128,11 +130,47 @@ export default function CustomShopSubmitPage() {
               </div>
             ))}
             {inspirationFiles.length < MAX_IMAGES && (
-              <label className="w-28 h-28 rounded-xl border-2 border-dashed border-amber-300 flex flex-col items-center justify-center cursor-pointer hover:border-amber-500 hover:bg-amber-50/50 transition-colors text-amber-700">
-                <ImageIcon className="w-8 h-8 mb-1" />
-                <span className="text-xs font-medium">Add</span>
-                <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
-              </label>
+              <div className="flex flex-col gap-2">
+                {/* Gallery: no capture = pick from photos/library on mobile */}
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                  aria-label="Choose from gallery"
+                />
+                {/* Camera: capture = open camera on mobile */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                  aria-label="Take photo"
+                />
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm transition-colors"
+                  >
+                    <ImagePlus className="w-5 h-5" />
+                    Choose from gallery
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm transition-colors"
+                  >
+                    <Camera className="w-5 h-5" />
+                    Take photo
+                  </button>
+                </div>
+              </div>
             )}
           </div>
           <p className="text-xs text-gray-500">
