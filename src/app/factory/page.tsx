@@ -125,20 +125,23 @@ export default function FactoryPortalPage() {
             </div>
           ) : (
             activeRuns.map((run) => (
-              <button
+              <div
                 key={run.id}
-                onClick={() => setSelectedRun(run)}
-                className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-left hover:shadow-md transition-shadow"
+                className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center gap-3"
               >
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRun(run)}
+                  className="flex-1 flex items-center gap-3 text-left min-w-0"
+                >
                   {run.thumbnailUrl ? (
                     <img
                       src={run.thumbnailUrl}
                       alt={run.name}
-                      className="w-16 h-16 rounded-lg object-cover"
+                      className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                       <Package className="w-8 h-8 text-gray-400" />
                     </div>
                   )}
@@ -146,9 +149,22 @@ export default function FactoryPortalPage() {
                     <h3 className="font-semibold text-gray-900 truncate">{run.name}</h3>
                     <p className="text-sm text-gray-500">Tap to view guitars</p>
                   </div>
-                  <ArrowLeft className="w-5 h-5 text-gray-400 rotate-180" />
-                </div>
-              </button>
+                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedRun(run);
+                    setShowRunUpdateModal(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-orange-100 text-orange-700 text-sm font-medium hover:bg-orange-200 active:bg-orange-300 flex-shrink-0"
+                  title="Post run update to all clients"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Run update
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -202,9 +218,9 @@ export default function FactoryPortalPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
+      {/* Header + Run update at top */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-4 py-4 flex items-center gap-3">
+        <div className="px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => {
               setSelectedRun(null);
@@ -218,17 +234,19 @@ export default function FactoryPortalPage() {
             <h1 className="text-xl font-bold text-gray-900 truncate">{selectedRun?.name}</h1>
             <p className="text-sm text-gray-500">{guitars.length} guitar{guitars.length !== 1 ? "s" : ""}</p>
           </div>
-          {selectedRun && (
+        </div>
+        {selectedRun && (
+          <div className="px-4 pb-3">
             <button
               type="button"
               onClick={() => setShowRunUpdateModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-600 text-white font-medium text-sm shadow-sm hover:bg-orange-700 active:bg-orange-800"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-orange-600 text-white font-semibold shadow-sm hover:bg-orange-700 active:bg-orange-800"
             >
               <MessageSquare className="w-5 h-5" />
               Run update
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Bulk Run Update Modal */}
