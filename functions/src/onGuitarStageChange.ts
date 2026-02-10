@@ -43,9 +43,10 @@ export const onGuitarStageChange = functions
     type StageData = { id: string; label?: string; clientStatusLabel?: string };
     const stages = stagesSnap.docs.map((d) => ({ id: d.id, ...d.data() } as StageData));
     const newStage = stages.find((s) => s.id === after.stageId);
-    const newStageLabel = newStage?.clientStatusLabel || newStage?.label || (after.stageId as string);
+    // Use label (subcategory e.g. "Body Shaping") so email shows specific stage, not just "In Build"
+    const newStageLabel = newStage?.label || newStage?.clientStatusLabel || (after.stageId as string);
     const oldStage = stages.find((s) => s.id === before.stageId);
-    const oldStageLabel = oldStage?.clientStatusLabel || oldStage?.label || (before.stageId as string);
+    const oldStageLabel = oldStage?.label || oldStage?.clientStatusLabel || (before.stageId as string);
 
     const model = (after.model as string) || "Your guitar";
     const finish = (after.finish as string) || "";

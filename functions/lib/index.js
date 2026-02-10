@@ -44,9 +44,8 @@ Object.defineProperty(exports, "sendTestEmails", { enumerable: true, get: functi
 var backupFirestore_1 = require("./backupFirestore");
 Object.defineProperty(exports, "backupFirestore", { enumerable: true, get: function () { return backupFirestore_1.backupFirestore; } });
 // Export the restoreFirestore function
-var restoreFirestore_1 = require("./restoreFirestore");
+var restoreFirestore_1 = require("./restoreFirestore"); // Export the listBackups function
 Object.defineProperty(exports, "restoreFirestore", { enumerable: true, get: function () { return restoreFirestore_1.restoreFirestore; } });
-// Export the listBackups function
 var listBackups_1 = require("./listBackups");
 Object.defineProperty(exports, "listBackups", { enumerable: true, get: function () { return listBackups_1.listBackups; } });
 //# sourceMappingURL=index.js.map

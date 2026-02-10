@@ -7,11 +7,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRuns } from "@/hooks/useRuns";
 import { useClientDisplayNames } from "@/hooks/useClientDisplayNames";
 import { subscribeGuitarsForRun, subscribeRunStages, getRun, subscribeGuitarNotes } from "@/lib/firestore";
-import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X, User, ImagePlus } from "lucide-react";
+import { Package, Guitar, Camera, ArrowLeft, LogOut, Check, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight, X, User, ImagePlus, MessageSquare } from "lucide-react";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import { compressImageForUpload } from "@/utils/imageCompression";
 import type { GuitarNote } from "@/types/guitars";
 import { MobileGuitarDetailsView } from "./MobileGuitarDetailsView";
+import { RunUpdateModal } from "@/components/runs/RunUpdateModal";
 
 export default function FactoryPortalPage() {
   const { currentUser, userRole, loading, signOut } = useAuth();
@@ -23,6 +24,7 @@ export default function FactoryPortalPage() {
   const [stages, setStages] = useState<RunStage[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const [showGuitarDetails, setShowGuitarDetails] = useState(false);
+  const [showRunUpdateModal, setShowRunUpdateModal] = useState(false);
 
   const clientUidsNeedingNames = useMemo(
     () => guitars.filter((g) => g.clientUid && !g.customerName?.trim()).map((g) => g.clientUid!),
@@ -193,6 +195,10 @@ export default function FactoryPortalPage() {
 
   // Show guitar list for selected run
   const currentStage = selectedGuitar ? stages.find(s => s.id === selectedGuitar.stageId) : null;
+  const runClientCount = useMemo(
+    () => new Set(guitars.map((g) => g.clientUid).filter(Boolean)).size,
+    [guitars]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -212,8 +218,28 @@ export default function FactoryPortalPage() {
             <h1 className="text-xl font-bold text-gray-900 truncate">{selectedRun?.name}</h1>
             <p className="text-sm text-gray-500">{guitars.length} guitar{guitars.length !== 1 ? "s" : ""}</p>
           </div>
+          {selectedRun && (
+            <button
+              type="button"
+              onClick={() => setShowRunUpdateModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-600 text-white font-medium text-sm shadow-sm hover:bg-orange-700 active:bg-orange-800"
+            >
+              <MessageSquare className="w-5 h-5" />
+              Run update
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Bulk Run Update Modal */}
+      {selectedRun && (
+        <RunUpdateModal
+          isOpen={showRunUpdateModal}
+          onClose={() => setShowRunUpdateModal(false)}
+          run={selectedRun}
+          clientCount={runClientCount}
+        />
+      )}
 
       {/* Guitar List */}
       <div className="px-4 py-6 space-y-3">

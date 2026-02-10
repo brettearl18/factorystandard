@@ -42,9 +42,10 @@ exports.onGuitarStageChange = functions
     const stagesSnap = await admin.firestore().collection("runs").doc(runId).collection("stages").get();
     const stages = stagesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const newStage = stages.find((s) => s.id === after.stageId);
-    const newStageLabel = newStage?.clientStatusLabel || newStage?.label || after.stageId;
+    // Use label (subcategory e.g. "Body Shaping") so email shows specific stage, not just "In Build"
+    const newStageLabel = newStage?.label || newStage?.clientStatusLabel || after.stageId;
     const oldStage = stages.find((s) => s.id === before.stageId);
-    const oldStageLabel = oldStage?.clientStatusLabel || oldStage?.label || before.stageId;
+    const oldStageLabel = oldStage?.label || oldStage?.clientStatusLabel || before.stageId;
     const model = after.model || "Your guitar";
     const finish = after.finish || "";
     const guitarLabel = finish ? `${model} – ${finish}` : model;
