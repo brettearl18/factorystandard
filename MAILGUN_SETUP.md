@@ -35,7 +35,7 @@ firebase functions:config:set mailgun.from_name="Ormsby Guitars"
 # From address (default: noreply@<domain>)
 firebase functions:config:set mailgun.from_email="updates@mg.yourdomain.com"
 
-# Portal URL – makes "View in the portal" a clickable button in emails (recommended)
+# Portal URL – required for clickable links in emails (client "View your request", staff "View in portal")
 firebase functions:config:set mailgun.portal_url="https://ormsby-factory-standard-runs.web.app"
 
 # CC on all client emails (default: guitars@ormsbyguitars.com). Set to empty to disable.
@@ -83,9 +83,16 @@ To send sample **stage change** and **run update** emails to any address (e.g. y
 
 Both sample emails use the same HTML layout and content as the real triggers. If Mailgun is not configured, the button will show an error.
 
-## 6. Troubleshooting
+## 6. Verify email and app links
+
+- **Email links** – For "View your request" (Custom Shop) and "View in portal" / "Log in" to be **clickable**, `mailgun.portal_url` must be set to your live app URL (e.g. `https://ormsby-factory-standard-runs.web.app`) and **no trailing slash**. Redeploy functions after setting it.
+- **Portal** – Open the portal URL in a browser to confirm it loads (e.g. after a Cloud Run deploy).
+- **Custom Shop gallery** – The in-app link to **View Custom Shop gallery** uses `https://ormsbyguitars.com/pages/custom-shop`; that page is live and loads.
+
+## 7. Troubleshooting
 
 - **No emails** – Confirm `firebase functions:config:get` shows `mailgun.api_key` and `mailgun.domain`. Redeploy functions after changing config.
 - **Mailgun errors** – Check Cloud Functions logs: Firebase Console → Functions → Logs, or `firebase functions:log`. Mailgun returns 401 for bad API key, 404 for wrong domain.
 - **EU region** – If your Mailgun account is EU, set `mailgun.api_host="https://api.eu.mailgun.net"`.
 - **Domain verification** – Mailgun must show your sending domain as verified; otherwise messages may be refused or go to spam.
+- **Links not clickable** – If the CTA in emails is plain text instead of a button, `mailgun.portal_url` is missing or not an absolute URL (must start with `http`).

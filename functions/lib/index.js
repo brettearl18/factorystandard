@@ -41,9 +41,8 @@ Object.defineProperty(exports, "setClientRole", { enumerable: true, get: functio
 // Export sendTestEmails (admin only)
 var sendTestEmails_1 = require("./sendTestEmails"); // Export the backupFirestore function
 Object.defineProperty(exports, "sendTestEmails", { enumerable: true, get: function () { return sendTestEmails_1.sendTestEmails; } });
-var backupFirestore_1 = require("./backupFirestore");
+var backupFirestore_1 = require("./backupFirestore"); // Export the restoreFirestore function
 Object.defineProperty(exports, "backupFirestore", { enumerable: true, get: function () { return backupFirestore_1.backupFirestore; } });
-// Export the restoreFirestore function
 var restoreFirestore_1 = require("./restoreFirestore"); // Export the listBackups function
 Object.defineProperty(exports, "restoreFirestore", { enumerable: true, get: function () { return restoreFirestore_1.restoreFirestore; } });
 var listBackups_1 = require("./listBackups");

@@ -25,7 +25,10 @@ function wrapHtml(opts, contentHtml, ctaText = "Log in", wrapOptions) {
     const headerContent = logoUrl
         ? `<img src="${escapeHtml(logoUrl)}" alt="${brand}" width="160" height="48" style="display:block;height:48px;width:auto;max-width:200px;" />`
         : `<p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">${brand}</p>`;
-    const ctaHref = (wrapOptions?.ctaUrl && wrapOptions.ctaUrl.startsWith("http")) ? wrapOptions.ctaUrl : opts.portalUrl;
+    // Only use as link if we have an absolute URL (so email clients open it correctly)
+    const ctaHref = (wrapOptions?.ctaUrl && wrapOptions.ctaUrl.startsWith("http"))
+        ? wrapOptions.ctaUrl
+        : (opts.portalUrl && opts.portalUrl.startsWith("http") ? opts.portalUrl : "");
     const ctaHtml = ctaHref && ctaHref.startsWith("http")
         ? `<a href="${escapeHtml(ctaHref)}" style="display:inline-block;background:#2563eb;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px;">${escapeHtml(ctaText)}</a>`
         : escapeHtml(ctaText);
@@ -167,6 +170,10 @@ function customShopStaffNotifyHtml(opts, submitterName, submitterEmail, requestN
     <p style="margin:4px 0 0 0;font-size:14px;color:#4b5563;white-space:pre-wrap;">${escapeHtml(summary)}</p>
     <p style="margin:16px 0 0 0;color:#6b7280;font-size:14px;">Log in to the portal to view and manage Custom Shop requests.</p>
   `.trim();
-    return wrapHtml(opts, content, "View in portal");
+    // Link directly to Custom Shop requests page when portal URL is set
+    const viewRequestsUrl = opts.portalUrl && opts.portalUrl.startsWith("http")
+        ? `${opts.portalUrl.replace(/\/$/, "")}/settings/custom-shop-requests`
+        : "";
+    return wrapHtml(opts, content, "View in portal", viewRequestsUrl ? { ctaUrl: viewRequestsUrl } : undefined);
 }
 //# sourceMappingURL=emailTemplates.js.map

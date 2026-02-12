@@ -30,7 +30,7 @@ export function RunUpdateModal({
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || !run?.id) return null;
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -159,7 +159,7 @@ export function RunUpdateModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+        <form id="run-update-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-4">
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -292,6 +292,7 @@ export function RunUpdateModal({
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             disabled={isSubmitting}
@@ -299,7 +300,8 @@ export function RunUpdateModal({
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
+            type="submit"
+            form="run-update-form"
             disabled={isSubmitting || !title.trim() || !message.trim() || uploadingImages}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
