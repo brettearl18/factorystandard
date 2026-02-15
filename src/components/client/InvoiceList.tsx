@@ -601,9 +601,7 @@ function EditPaymentModal({
   const [note, setNote] = useState(payment.note || "");
   const [paidAt, setPaidAt] = useState(
     payment.paidAt ? new Date(payment.paidAt).toISOString().slice(0, 10) : ""
-  );
-
-  const handleSubmit = (e: React.FormEvent) => {
+  );  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseFloat(amount);
     if (isNaN(num) || num < 0) return;

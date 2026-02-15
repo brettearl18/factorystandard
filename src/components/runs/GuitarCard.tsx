@@ -21,8 +21,10 @@ export function GuitarCard({ guitar, onDragStart, onClick }: GuitarCardProps) {
       draggable
       onDragStart={(e) => {
         onDragStart();
-        // Prevent click when dragging
-        e.dataTransfer.effectAllowed = "move";
+        // Prevent click when dragging; guard for mobile (dataTransfer can be missing in touch contexts)
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "move";
+        }
       }}
       onClick={handleClick}
       className="group bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-lg transition-all duration-200 border border-gray-200 hover:border-blue-300 hover:-translate-y-0.5"
