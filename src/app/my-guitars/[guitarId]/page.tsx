@@ -774,8 +774,8 @@ export default function GuitarDetailPage({
               <>
                 <InvoiceList
                   invoices={filteredInvoices}
-                  canManage={userRole === "staff" || userRole === "admin"}
-                  canEditDelete={userRole === "staff" || userRole === "admin"}
+                  canManage={!clientViewMode && (userRole === "staff" || userRole === "admin")}
+                  canEditDelete={!clientViewMode && (userRole === "staff" || userRole === "admin")}
                   clientUid={guitar?.clientUid}
                   clientGuitars={clientGuitars}
                   totalOrderAmount={clientProfile?.totalOrderAmount}
