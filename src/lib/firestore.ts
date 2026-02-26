@@ -86,10 +86,15 @@ export function subscribeRuns(
 
 export async function createRun(runData: Omit<Run, "id">): Promise<string> {
   const runsRef = collection(db, "runs");
-  const docRef = await addDoc(runsRef, {
+  // Firestore does not accept undefined; omit undefined fields
+  const payload: Record<string, unknown> = {
     ...runData,
     startsAt: Timestamp.now().toMillis(),
-  });
+  };
+  const sanitized = Object.fromEntries(
+    Object.entries(payload).filter(([, v]) => v !== undefined)
+  );
+  const docRef = await addDoc(runsRef, sanitized);
   
   // Notify all staff about new run (non-blocking)
   notifyAllStaff({
