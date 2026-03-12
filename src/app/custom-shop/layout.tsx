@@ -4,15 +4,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import { Guitar, ArrowLeft } from "lucide-react";
+import { Guitar, LogOut } from "lucide-react";
 
 export default function CustomShopLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, signOut } = useAuth();
   const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace("/login?redirect=/custom-shop");
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -52,13 +57,14 @@ export default function CustomShopLayout({
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">{currentUser.email}</span>
-            <Link
-              href="/"
+            <button
+              type="button"
+              onClick={handleSignOut}
               className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back to site
-            </Link>
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
           </div>
         </div>
       </header>
