@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ClientContactCard } from "@/components/client/ClientContactCard";
 import { InvoiceList } from "@/components/client/InvoiceList";
-import { UploadInvoiceModal } from "@/components/client/UploadInvoiceModal";
-import { RecordPaymentModal } from "@/components/client/RecordPaymentModal";
 import { useClientProfile } from "@/hooks/useClientProfile";
 import { useClientInvoices } from "@/hooks/useClientInvoices";
 import { useClientGuitars } from "@/hooks/useClientGuitars";
 import { updateClientProfile } from "@/lib/firestore";
-import type { ClientProfile, InvoiceRecord } from "@/types/guitars";
+import type { ClientProfile } from "@/types/guitars";
 
 export default function ClientSettingsPage() {
   const { currentUser, userRole, loading } = useAuth();
@@ -21,10 +19,6 @@ export default function ClientSettingsPage() {
   const profile = useClientProfile(isClient ? currentUser?.uid || null : null);
   const invoices = useClientInvoices(isClient ? currentUser?.uid || null : null);
   const clientGuitars = useClientGuitars(isClient ? currentUser?.uid || null : null);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [paymentInvoice, setPaymentInvoice] = useState<InvoiceRecord | null>(null);
-
-  const canManageInvoices = userRole === "staff" || userRole === "admin";
 
   useEffect(() => {
     if (loading) return;
@@ -66,36 +60,18 @@ export default function ClientSettingsPage() {
           canEdit={true}
         />
 
+        {/* TEMP: invoices hidden from client view for now
         <InvoiceList
           invoices={invoices}
-          canManage={canManageInvoices}
-          canEditDelete={canManageInvoices}
+          canManage={false}
+          canEditDelete={false}
           clientUid={currentUser?.uid}
           clientGuitars={clientGuitars}
           totalOrderAmount={profile?.totalOrderAmount}
           totalOrderCurrency={profile?.totalOrderCurrency || "AUD"}
-          onUploadInvoice={() => setIsUploadModalOpen(true)}
-          onRecordPayment={(invoice) => setPaymentInvoice(invoice)}
         />
+        */}
       </div>
-
-      {canManageInvoices && currentUser && (
-        <UploadInvoiceModal
-          clientUid={currentUser.uid}
-          uploadedBy={currentUser.uid}
-          isOpen={isUploadModalOpen}
-          onClose={() => setIsUploadModalOpen(false)}
-        />
-      )}
-
-      {canManageInvoices && (
-        <RecordPaymentModal
-          clientUid={currentUser.uid}
-          invoice={paymentInvoice}
-          isOpen={Boolean(paymentInvoice)}
-          onClose={() => setPaymentInvoice(null)}
-        />
-      )}
     </AppLayout>
   );
 }

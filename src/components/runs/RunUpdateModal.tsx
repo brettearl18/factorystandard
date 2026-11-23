@@ -93,7 +93,7 @@ export function RunUpdateModal({
     }
 
     setIsSubmitting(true);
-    setUploadingImages(true);
+    setUploadingImages(imageFiles.length > 0);
     setError(null);
 
     try {
@@ -290,7 +290,13 @@ export function RunUpdateModal({
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+        <div className="px-6 py-4 border-t border-gray-200">
+          {error && (
+            <p className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -317,6 +323,7 @@ export function RunUpdateModal({
               </>
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>

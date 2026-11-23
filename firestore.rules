@@ -53,23 +53,18 @@ service cloud.firestore {
                     resource.data.clientUid == request.auth.uid;
       // Accounting can read guitars to manage invoices
       allow read: if isAccounting();
-      // Allow clients to create guitars (for onboarding)
-      // Security: Only allow if clientUid matches the authenticated user
-      allow create: if isClient() &&
-                     request.resource.data.clientUid == request.auth.uid &&
-                     // Ensure required fields are present
-                     request.resource.data.runId != null &&
-                     request.resource.data.stageId != null &&
-                     request.resource.data.orderNumber != null &&
-                     request.resource.data.model != null &&
-                     request.resource.data.finish != null;
-      // Allow clients to update referenceImages on their own guitars (for gallery uploads)
+      // Guitars are created by staff (run board / add client flow), not by clients
+      // Allow clients to update gallery images on their own guitars
       allow update: if isClient() &&
                      resource.data.clientUid != null &&
                      resource.data.clientUid == request.auth.uid &&
-                     // Only allow updating referenceImages and updatedAt
-                     // Check that only allowed fields are being changed
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referenceImages', 'updatedAt']);
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                       'referenceImages',
+                       'updatedAt',
+                       'lastGalleryUploadBy',
+                       'lastGalleryUploadAt',
+                       'lastGalleryUploadAdded'
+                     ]);
       
       match /notes/{noteId} {
         allow read, create, delete: if isStaff();
@@ -130,7 +125,10 @@ service cloud.firestore {
     // This allows accounting users to query all invoices across all clients
     // Also allows clients to read invoices for guitars they own
     match /{path=**}/invoices/{invoiceId} {
-      allow read: if isAccounting();
+      // Staff/admin/accounting: run financial report, guitar invoice manager, accounting dashboard
+      allow read: if isAccounting() ||
+        (request.auth != null &&
+          (request.auth.token.role == "staff" || request.auth.token.role == "admin"));
       allow write: if isAccounting();
       // Allow clients to read invoices for their own guitars
       // Security: Check if the invoice's guitarId belongs to the client
@@ -164,6 +162,18 @@ service cloud.firestore {
       allow read: if request.auth != null &&
         (resource.data.submitterUid == request.auth.uid || isStaff());
       allow update, delete: if isStaff();
+    }
+
+    // Custom Shop spec catalog (options, upgrade prices, conflict rules) — staff edit; any signed-in user can read for wizard
+    match /customShopSpecSettings/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isStaff();
+    }
+
+    // Public cover URLs for Claude/ChatGPT report imports (cover URL only — no private client data)
+    match /publicGuitarProfiles/{guitarId} {
+      allow read: if true;
+      allow write: if isStaff();
     }
   }
 }

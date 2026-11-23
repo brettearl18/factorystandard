@@ -37,6 +37,11 @@ import {
 } from "@/constants/guitarSpecs";
 import { Guitar, Upload, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
+const inputClass =
+  "w-full h-11 px-3 border border-slate-200 rounded-2xl bg-white text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40 transition-colors disabled:opacity-50";
+const cardClass = "rounded-2xl border border-slate-200 bg-white shadow-sm p-6";
+const labelClass = "block text-sm font-medium text-slate-700 mb-2";
+
 export default function OnboardPage() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -63,6 +68,13 @@ export default function OnboardPage() {
 
   // Notes
   const [customNotes, setCustomNotes] = useState("");
+
+  // Redirect clients — run guitars are added by staff, not self-service
+  useEffect(() => {
+    if (!authLoading && userRole === "client") {
+      router.replace("/my-guitars");
+    }
+  }, [authLoading, userRole, router]);
 
   // Redirect if not authenticated or not a client
   useEffect(() => {
@@ -172,7 +184,7 @@ export default function OnboardPage() {
           type="text"
           value={options[0]}
           readOnly
-          className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 cursor-not-allowed"
+          className={`${inputClass} bg-slate-50 text-slate-700 cursor-not-allowed`}
         />
       );
     }
@@ -181,7 +193,7 @@ export default function OnboardPage() {
       <select
         value={currentValue}
         onChange={(e) => setSpecs({ ...specs, [specKey]: e.target.value || undefined })}
-        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className={inputClass}
         disabled={submitting}
       >
         <option value="">{placeholder}</option>
@@ -366,46 +378,45 @@ export default function OnboardPage() {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || userRole === "client") {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
       </div>
     );
   }
 
   if (success) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Submission Successful!</h2>
-          <p className="text-gray-600 mb-4">
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-8 max-w-md w-full mx-4 text-center">
+          <CheckCircle className="w-16 h-16 text-teal mx-auto mb-4" />
+          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Submission Successful!</h2>
+          <p className="text-slate-600 mb-4">
             Your guitar specifications have been submitted and are now in the Design & Planning stage.
           </p>
-          <p className="text-sm text-gray-500">Redirecting to your guitars...</p>
+          <p className="text-sm text-slate-500">Redirecting to your guitars...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-bg py-8">
       <div className="max-w-4xl mx-auto px-4">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className={`${cardClass} mb-6`}>
           <div className="flex items-center gap-3 mb-2">
-            <Guitar className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Guitar Specification Form</h1>
+            <Guitar className="w-8 h-8 text-accent" />
+            <h1 className="text-2xl font-semibold text-slate-900">Guitar Specification Form</h1>
           </div>
-          <p className="text-gray-600">
+          <p className="text-sm text-slate-500">
             Fill out the form below to submit your guitar specifications. Your guitar will be placed in the Design & Planning stage.
           </p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-start gap-2">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-start gap-2">
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium">Error</p>
@@ -422,18 +433,18 @@ export default function OnboardPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Basic Information</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h2>
             {selectedRun && constraints && Object.keys(constraints).length > 0 && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">
+              <div className="mb-4 p-3 bg-accent/5 border border-accent/20 rounded-2xl">
+                <p className="text-sm text-slate-700">
                   <strong>Note:</strong> This run has spec constraints. Only selected options will be available in the form below.
                 </p>
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={labelClass}>
                   Run <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -443,7 +454,7 @@ export default function OnboardPage() {
                     // Clear specs when run changes to avoid invalid selections
                     setSpecs({});
                   }}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={inputClass}
                   required
                   disabled={submitting}
                 >
@@ -456,41 +467,41 @@ export default function OnboardPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={labelClass}>
                   Order Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={orderNumber}
                   onChange={(e) => setOrderNumber(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={inputClass}
                   required
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={labelClass}>
                   Model <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={inputClass}
                   placeholder="e.g., Hype GTR"
                   required
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={labelClass}>
                   Finish <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={finish}
                   onChange={(e) => setFinish(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={inputClass}
                   placeholder="e.g., Interstellar Blue"
                   required
                   disabled={submitting}
@@ -500,158 +511,158 @@ export default function OnboardPage() {
           </div>
 
           {/* Timber/Wood Specs */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Timber / Wood</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Timber / Wood</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Body Wood</label>
+                <label className={labelClass}>Body Wood</label>
                 {renderSpecField("bodyWood", "bodyWood", BODY_WOOD_OPTIONS, "Select body wood", "Body Wood")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Top Wood</label>
+                <label className={labelClass}>Top Wood</label>
                 {renderSpecField("topWood", "topWood", TOP_WOOD_OPTIONS, "Select top wood", "Top Wood")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Neck Wood</label>
+                <label className={labelClass}>Neck Wood</label>
                 {renderSpecField("neckWood", "neckWood", NECK_WOOD_OPTIONS, "Select neck wood", "Neck Wood")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Fretboard Wood</label>
+                <label className={labelClass}>Fretboard Wood</label>
                 {renderSpecField("fretboardWood", "fretboardWood", FRETBOARD_WOOD_OPTIONS, "Select fretboard wood", "Fretboard Wood")}
               </div>
             </div>
           </div>
 
           {/* Hardware */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Hardware</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Hardware</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Bridge</label>
+                <label className={labelClass}>Bridge</label>
                 {renderSpecField("bridge", "bridge", BRIDGE_OPTIONS, "Select bridge", "Bridge")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tuners</label>
+                <label className={labelClass}>Tuners</label>
                 {renderSpecField("tuners", "tuners", TUNER_OPTIONS, "Select tuners", "Tuners")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nut</label>
+                <label className={labelClass}>Nut</label>
                 {renderSpecField("nut", "nut", NUT_OPTIONS, "Select nut", "Nut")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Pickguard</label>
+                <label className={labelClass}>Pickguard</label>
                 {renderSpecField("pickguard", "pickguard", PICKGUARD_OPTIONS, "Select pickguard", "Pickguard")}
               </div>
             </div>
           </div>
 
           {/* Electronics */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Electronics</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Electronics</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Configuration</label>
+                <label className={labelClass}>Pickup Configuration</label>
                 {renderSpecField("pickupConfiguration", "pickupConfiguration", PICKUP_CONFIGURATION_OPTIONS, "Select configuration", "Pickup Configuration")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Neck Pickup</label>
+                <label className={labelClass}>Neck Pickup</label>
                 {renderSpecField("pickupNeck", "pickupNeck", PICKUP_NECK_OPTIONS, "Select neck pickup", "Neck Pickup")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Bridge Pickup</label>
+                <label className={labelClass}>Bridge Pickup</label>
                 {renderSpecField("pickupBridge", "pickupBridge", PICKUP_BRIDGE_OPTIONS, "Select bridge pickup", "Bridge Pickup")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Controls</label>
+                <label className={labelClass}>Controls</label>
                 {renderSpecField("controls", "controls", CONTROLS_OPTIONS, "Select controls", "Controls")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Switch</label>
+                <label className={labelClass}>Switch</label>
                 {renderSpecField("switch", "switch", SWITCH_OPTIONS, "Select switch", "Switch")}
               </div>
             </div>
           </div>
 
           {/* Strings & Setup */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Strings & Setup</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Strings & Setup</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">String Count</label>
+                <label className={labelClass}>String Count</label>
                 {renderSpecField("strings", "strings", STRING_COUNT_OPTIONS, "Select string count", "String Count")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">String Gauge</label>
+                <label className={labelClass}>String Gauge</label>
                 {renderSpecField("stringGauge", "stringGauge", STRING_GAUGE_OPTIONS, "Select string gauge", "String Gauge")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Scale Length</label>
+                <label className={labelClass}>Scale Length</label>
                 {renderSpecField("scaleLength", "scaleLength", SCALE_LENGTH_OPTIONS, "Select scale length", "Scale Length")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Action</label>
+                <label className={labelClass}>Action</label>
                 {renderSpecField("action", "action", ACTION_OPTIONS, "Select action", "Action")}
               </div>
             </div>
           </div>
 
           {/* Finish & Appearance */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Finish & Appearance</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Finish & Appearance</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Finish Color</label>
+                <label className={labelClass}>Finish Color</label>
                 <input
                   type="text"
                   value={specs.finishColor || ""}
                   onChange={(e) => setSpecs({ ...specs, finishColor: e.target.value || undefined })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={inputClass}
                   placeholder="e.g., Interstellar Blue"
                   disabled={submitting}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Finish Type</label>
+                <label className={labelClass}>Finish Type</label>
                 {renderSpecField("finishType", "finishType", FINISH_TYPE_OPTIONS, "Select finish type", "Finish Type")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Binding</label>
+                <label className={labelClass}>Binding</label>
                 {renderSpecField("binding", "binding", BINDING_OPTIONS, "Select binding", "Binding")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Inlay Style</label>
+                <label className={labelClass}>Inlay Style</label>
                 {renderSpecField("inlays", "inlays", INLAY_STYLE_OPTIONS, "Select inlay style", "Inlay Style")}
               </div>
             </div>
           </div>
 
           {/* Other Specs */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Other Specifications</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Other Specifications</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Fret Count</label>
+                <label className={labelClass}>Fret Count</label>
                 {renderSpecField("frets", "frets", FRET_COUNT_OPTIONS, "Select fret count", "Fret Count")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Neck Profile</label>
+                <label className={labelClass}>Neck Profile</label>
                 {renderSpecField("neckProfile", "neckProfile", NECK_PROFILE_OPTIONS, "Select neck profile", "Neck Profile")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Radius</label>
+                <label className={labelClass}>Radius</label>
                 {renderSpecField("radius", "radius", RADIUS_OPTIONS, "Select radius", "Radius")}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Handedness</label>
+                <label className={labelClass}>Handedness</label>
                 {renderSpecField("handedness", "handedness", HANDEDNESS_OPTIONS, "Select handedness", "Handedness")}
               </div>
             </div>
           </div>
 
           {/* Color Inspiration Images */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Color Inspiration Images</h2>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Color Inspiration Images</h2>
+            <p className="text-sm text-slate-500 mb-4">
               Upload images that show the colors, finishes, or styles you'd like for your guitar (max 10 images)
             </p>
             <div className="space-y-4">
@@ -665,12 +676,12 @@ export default function OnboardPage() {
                     className="hidden"
                     disabled={submitting || colorImages.length >= 10}
                   />
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center hover:border-accent/40 transition-colors">
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="text-sm text-slate-600">
                       Click to upload images
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-slate-500 mt-1">
                       {colorImages.length}/10 images selected
                     </p>
                   </div>
@@ -701,13 +712,13 @@ export default function OnboardPage() {
           </div>
 
           {/* Notes */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Additional Notes</h2>
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Additional Notes</h2>
             <textarea
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
               rows={6}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`${inputClass} h-auto py-3`}
               placeholder="Any additional notes, special requests, or details about your guitar..."
               disabled={submitting}
             />
@@ -718,7 +729,7 @@ export default function OnboardPage() {
             <button
               type="button"
               onClick={() => router.push("/my-guitars")}
-              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
               disabled={submitting}
             >
               Cancel
@@ -726,7 +737,7 @@ export default function OnboardPage() {
             <button
               type="submit"
               disabled={submitting || uploadingImages}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+              className="px-6 py-3 rounded-2xl bg-accent text-accent-foreground hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
             >
               {submitting || uploadingImages ? (
                 <>

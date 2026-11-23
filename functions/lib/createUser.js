@@ -20,7 +20,7 @@ exports.createUser = functions.runWith(callableOpts).https.onCall(async (data, c
     if (userRole !== "staff" && userRole !== "admin") {
         throw new functions.https.HttpsError("permission-denied", "Only staff and admins can create users");
     }
-    const { email, password, displayName, role } = data;
+    const { email, password, displayName, role, sendWelcomeEmail } = data;
     if (!email || typeof email !== "string") {
         throw new functions.https.HttpsError("invalid-argument", "Email is required");
     }
@@ -87,8 +87,8 @@ exports.createUser = functions.runWith(callableOpts).https.onCall(async (data, c
                 console.error("Failed to generate password reset link:", resetError);
             }
         }
-        // Send welcome "you have a login and password" email to new clients (Mailgun)
-        if (userRole === "client") {
+        // Optional: staff must opt in — default is no email (manual copy from portal)
+        if (userRole === "client" && sendWelcomeEmail === true) {
             const mailCfg = (0, mailgun_1.getMailgunConfig)();
             if (mailCfg) {
                 const html = (0, emailTemplates_1.welcomeLoginHtml)({

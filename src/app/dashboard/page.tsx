@@ -6,9 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { subscribeRuns, subscribeRunStages } from "@/lib/firestore";
-import { collection, query, onSnapshot, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useBranding } from "@/hooks/useBranding";
+import { useAllGuitars } from "@/hooks/useAllGuitars";
 import {
   Guitar,
   Package,
@@ -20,17 +19,22 @@ import {
   Circle,
   Image as ImageIcon,
   Sparkles,
+  DollarSign,
 } from "lucide-react";
 import type { Run, RunStage, GuitarBuild } from "@/types/guitars";
+import { computeRunGuitarTotals, formatMoneyCompactOrDash } from "@/lib/runFinancialReport";
 
 export default function DashboardPage() {
   const { currentUser, userRole, loading } = useAuth();
   const router = useRouter();
   const branding = useBranding();
   const [runs, setRuns] = useState<Run[]>([]);
-  const [allGuitars, setAllGuitars] = useState<GuitarBuild[]>([]);
+  const canLoadDashboard = Boolean(
+    currentUser && (userRole === "staff" || userRole === "admin")
+  );
+  const { guitars: allGuitars, loading: loadingGuitars } = useAllGuitars(canLoadDashboard);
   const [runStagesMap, setRunStagesMap] = useState<Map<string, RunStage[]>>(new Map());
-  const [loadingData, setLoadingData] = useState(true);
+  const loadingData = loadingGuitars;
 
   useEffect(() => {
     if (loading) return;
@@ -55,25 +59,6 @@ export default function DashboardPage() {
     });
 
     return () => unsubscribeRuns();
-  }, [currentUser, userRole]);
-
-  // Load recent guitars (limit to 100 for cost optimization)
-  useEffect(() => {
-    if (!currentUser || (userRole !== "staff" && userRole !== "admin")) return;
-
-    const guitarsRef = collection(db, "guitars");
-    const q = query(guitarsRef, orderBy("createdAt", "desc"), limit(100));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const guitars = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as GuitarBuild[];
-      setAllGuitars(guitars);
-      setLoadingData(false);
-    });
-
-    return () => unsubscribe();
   }, [currentUser, userRole]);
 
   // Load stages for all runs
@@ -118,16 +103,32 @@ export default function DashboardPage() {
     return stage?.id !== lastStage?.id;
   }).length;
   const guitarsCompleted = totalGuitars - guitarsInProgress;
+  const allRunTotals = computeRunGuitarTotals(allGuitars);
+  const totalValueLabel =
+    allRunTotals.pricedCount === 0
+      ? "—"
+      : formatMoneyCompactOrDash(allRunTotals.totalValue, allRunTotals.currency);
 
   // Get recent guitars (last 10)
   const recentGuitars = allGuitars.slice(0, 10);
 
-  const statCards = [
+  const statCards: {
+    label: string;
+    value: string | number;
+    icon: typeof Guitar;
+    iconBg: string;
+  }[] = [
     {
       label: "Total Guitars",
       value: totalGuitars,
       icon: Guitar,
       iconBg: "bg-shell text-primary",
+    },
+    {
+      label: "Total Value",
+      value: totalValueLabel,
+      icon: DollarSign,
+      iconBg: "bg-shell text-accentGreen",
     },
     {
       label: "Active Runs",
@@ -167,107 +168,57 @@ export default function DashboardPage() {
     guitarsByRun.set(guitar.runId, [...existing, guitar]);
   });
 
+  const statIconWells = [
+    { bg: "bg-teal/15", text: "text-teal" },
+    { bg: "bg-accent/25", text: "text-accent-foreground" },
+    { bg: "bg-surface-alt", text: "text-sidebar" },
+    { bg: "bg-accent/15", text: "text-sidebar" },
+    { bg: "bg-teal/15", text: "text-teal" },
+  ];
+
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto">
-        {/* Branded Hero Section */}
-        <div className="relative mb-10 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/10 border border-primary/20 p-8 lg:p-12">
-          {/* Background Image with 30% opacity */}
-          {branding.backgroundImage && (
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{
-                backgroundImage: `url(${branding.backgroundImage})`,
-                opacity: 0.3,
-                zIndex: 0,
-              }}
-            />
-          )}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-          
-          <div className="relative z-10">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-4">
-                  {branding.companyLogo ? (
-                    <img
-                      src={branding.companyLogo}
-                      alt={branding.companyName}
-                      className="h-16 w-auto object-contain"
-                    />
-                  ) : (
-                    <div 
-                      className="h-16 w-16 rounded-xl flex items-center justify-center text-white shadow-lg"
-                      style={{ backgroundColor: branding.primaryColor || "#F97316" }}
-                    >
-                      <Guitar className="w-8 h-8" />
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-textMuted font-medium">
-                      Control Room
-                    </p>
-                    <h1 className="text-4xl lg:text-5xl font-display mt-2 text-textPrimary">
-                      {branding.companyName || "Factory Standards"}
-                    </h1>
-                  </div>
-                </div>
-                <p className="text-lg text-textMuted mb-4">
-                  Production Dashboard
-                </p>
-                <div className="flex items-center gap-2 text-sm text-textMuted">
-                  <Sparkles className="w-4 h-4" />
-                  <span>Real-time production tracking and management</span>
-                </div>
-              </div>
-            </div>
-            <div 
-              className="w-full h-1 rounded-full mt-6"
-              style={{
-                background: `linear-gradient(to right, ${branding.primaryColor || "#F97316"}, ${branding.secondaryColor || "#3B82F6"}, ${branding.accentColor || "#10B981"})`
-              }}
-            />
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Welcome hero */}
+        <div className="border border-border bg-surface overflow-hidden">
+          <div className="p-5 lg:p-6 border-l-4 border-accent">
+            <p className="wo-label">Control Room</p>
+            <h1 className="mt-2 wo-heading text-[32px] lg:text-[40px] leading-none">
+              {branding.companyName || "Australian Production"}
+            </h1>
+            <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-text-muted">
+              Production dashboard — real-time tracking and management
+            </p>
           </div>
         </div>
 
-        {/* Stats Cards with Branding */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {statCards.map((card, index) => {
             const Icon = card.icon;
-            const colors = [
-              branding.primaryColor || "#F97316",
-              branding.secondaryColor || "#3B82F6",
-              branding.primaryColor || "#F97316",
-              branding.accentColor || "#10B981",
-            ];
-            const cardColor = colors[index % colors.length];
-            
+            const well = statIconWells[index % statIconWells.length];
+            const isMoneyCard = card.label === "Total Value";
+
             return (
-              <div 
-                key={card.label} 
-                className="stat-card group hover:shadow-lg transition-all duration-300 border-2 border-transparent hover:border-primary/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs uppercase tracking-[0.3em] text-textMuted font-medium">
-                      {card.label}
-                    </p>
-                    <p 
-                      className="text-3xl font-display mt-3 font-bold"
-                      style={{ color: cardColor }}
+              <div key={card.label} className="stat-card min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="wo-label">{card.label}</div>
+                    <div
+                      className={`mt-1 font-display font-bold uppercase tabular-nums text-text leading-tight break-words ${
+                        isMoneyCard ? "text-2xl" : "text-3xl"
+                      }`}
                     >
                       {card.value}
-                    </p>
+                    </div>
+                    {isMoneyCard && allRunTotals.pricedCount > 0 && allRunTotals.pricedCount < allRunTotals.count && (
+                      <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mt-1">
+                        {allRunTotals.count - allRunTotals.pricedCount} unpriced
+                      </p>
+                    )}
                   </div>
-                  <div 
-                    className="p-3 rounded-xl shadow-sm group-hover:scale-110 transition-transform duration-300"
-                    style={{ 
-                      backgroundColor: `${cardColor}15`,
-                      color: cardColor
-                    }}
-                  >
-                    <Icon className="w-6 h-6" />
+                  <div className={`h-10 w-10 shrink-0 border border-border flex items-center justify-center ${well.bg}`}>
+                    <Icon className={`h-5 w-5 ${well.text}`} />
                   </div>
                 </div>
               </div>
@@ -279,20 +230,20 @@ export default function DashboardPage() {
           <div className="panel lg:col-span-2 p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-textMuted">Runs</p>
-                <h2 className="text-2xl font-display mt-2">Active Production</h2>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Runs</p>
+                <h2 className="text-xl font-semibold text-slate-900 mt-1">Active Production</h2>
               </div>
               <Link
                 href="/runs"
-                className="flex items-center gap-2 text-sm text-primary hover:text-textPrimary transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-light transition-colors"
               >
                 View All <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
             {runs.filter((r) => r.isActive).length === 0 ? (
-              <div className="text-center py-8 text-textMuted">
+              <div className="text-center py-8 text-slate-500">
                 <p>No active runs</p>
-                <Link href="/runs/new" className="text-primary hover:text-textPrimary mt-2 inline-block">
+                <Link href="/runs/new" className="text-accent hover:text-accent-light mt-2 inline-block font-medium">
                   Create your first run
                 </Link>
               </div>
@@ -302,15 +253,20 @@ export default function DashboardPage() {
                   .filter((r) => r.isActive)
                   .map((run) => {
                     const guitarsInRun = guitarsByRun.get(run.id) || [];
+                    const runTotals = computeRunGuitarTotals(guitarsInRun);
+                    const runValueLabel =
+                      runTotals.pricedCount === 0
+                        ? null
+                        : formatMoneyCompactOrDash(runTotals.totalValue, runTotals.currency);
+
                     return (
                       <Link
                         key={run.id}
                         href={`/runs/${run.id}/board`}
-                        className="block p-4 border border-white/5 rounded-2xl bg-white/5 hover:bg-white/10 transition-all"
+                        className="block p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-all"
                       >
                         <div className="flex items-center gap-4">
-                          {/* Thumbnail */}
-                          <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-white/5 border border-white/5">
+                          <div className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
                             {run.thumbnailUrl ? (
                               <img
                                 src={run.thumbnailUrl}
@@ -319,25 +275,29 @@ export default function DashboardPage() {
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <ImageIcon className="w-8 h-8 text-textMuted" />
+                                <ImageIcon className="w-8 h-8 text-slate-400" />
                               </div>
                             )}
                           </div>
                           
-                          {/* Run Info */}
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-display text-lg truncate">{run.name}</h3>
-                            <p className="text-sm text-textMuted mt-1">
+                            <h3 className="font-semibold text-slate-900 truncate">{run.name}</h3>
+                            <p className="text-sm text-slate-500 mt-1">
                               {guitarsInRun.length} guitar{guitarsInRun.length !== 1 ? "s" : ""}
+                              {runValueLabel && (
+                                <>
+                                  {" · "}
+                                  <span className="text-slate-700 tabular-nums">{runValueLabel}</span>
+                                </>
+                              )}
                             </p>
                           </div>
-                          
-                          {/* Status Badge */}
+
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="px-2 py-1 bg-primary/15 text-primary text-xs font-semibold rounded-full">
+                            <span className="px-2 py-1 bg-accent/10 text-accent text-xs font-semibold rounded-xl">
                               Active
                             </span>
-                            <ArrowRight className="w-4 h-4 text-textMuted" />
+                            <ArrowRight className="w-4 h-4 text-slate-400" />
                           </div>
                         </div>
                       </Link>
@@ -363,7 +323,7 @@ export default function DashboardPage() {
                     <div key={stage} className="flex items-center justify-between">
                       <span className="text-sm truncate flex-1">{stage}</span>
                       <div className="flex items-center gap-2 ml-2">
-                        <div className="w-28 bg-slate rounded-full h-2 overflow-hidden">
+                        <div className="w-28 bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
                             className="bg-gradient-to-r from-primary to-accentBlue h-2"
                             style={{ width: `${(count / totalGuitars) * 100}%` }}
@@ -393,7 +353,7 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="text-xs uppercase tracking-[0.2em] text-textMuted">
-                  <tr className="border-b border-slate">
+                  <tr className="border-b border-slate-200">
                     <th className="text-left py-3 px-4">Model</th>
                     <th className="text-left py-3 px-4">Finish</th>
                     <th className="text-left py-3 px-4">Order</th>
@@ -408,7 +368,7 @@ export default function DashboardPage() {
                     const runStages = runStagesMap.get(guitar.runId) || [];
                     const stage = runStages.find((s) => s.id === guitar.stageId);
                     return (
-                      <tr key={guitar.id} className="border-b border-slate hover:bg-shell">
+                      <tr key={guitar.id} className="border-b border-slate-200 hover:bg-shell">
                         <td className="py-3 px-4">
                           <span className="font-medium text-textPrimary">{guitar.model}</span>
                         </td>

@@ -20,10 +20,13 @@ interface InvoiceListProps {
   canEditDelete?: boolean;
   /** Client UID whose invoices these are (required for edit/delete). */
   clientUid?: string;
-  /** Total order amount (guitars) – deposits/payments are calculated against this. */
+  /** Total order amount (client profile) – used on account/settings when no single guitar price. */
   totalOrderAmount?: number;
   /** Currency for order total and overall balance summary. */
   totalOrderCurrency?: string;
+  /** This guitar's price – preferred on the guitar detail page for the summary cards. */
+  guitarPrice?: number;
+  guitarCurrency?: string;
   /** Client's guitars – for allocating an invoice to a specific guitar when editing/creating. */
   clientGuitars?: GuitarBuild[];
 }
@@ -57,16 +60,33 @@ export function InvoiceList({
   clientUid,
   totalOrderAmount,
   totalOrderCurrency = "AUD",
+  guitarPrice,
+  guitarCurrency,
   clientGuitars = [],
 }: InvoiceListProps) {
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
 
   const totalPaymentsReceived = invoices.reduce((sum, inv) => {
     const payments = inv.payments || [];
-    const approved = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
+    const approved = payments.filter(
+      (p) =>
+        p.approvalStatus !== "rejected" &&
+        (p.approvalStatus === "approved" || p.approvalStatus === undefined)
+    );
     return sum + approved.reduce((s, p) => s + (p.amount || 0), 0);
   }, 0);
-  const overallBalance = totalOrderAmount != null ? Math.max((totalOrderAmount - totalPaymentsReceived), 0) : null;
+
+  const currency = guitarCurrency || totalOrderCurrency || "AUD";
+  const totalDue =
+    guitarPrice != null && guitarPrice > 0
+      ? guitarPrice
+      : totalOrderAmount != null && totalOrderAmount > 0
+        ? totalOrderAmount
+        : null;
+  const isGuitarSummary = guitarPrice != null && guitarPrice > 0;
+  const balanceRemaining =
+    totalDue != null ? Math.max(totalDue - totalPaymentsReceived, 0) : null;
+  const showSummary = totalDue != null || totalPaymentsReceived > 0;
   const [editingPayment, setEditingPayment] = useState<{ invoice: InvoiceRecord; payment: InvoicePayment } | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [deletingPayment, setDeletingPayment] = useState<{ invoiceId: string; paymentId: string } | null>(null);
@@ -132,11 +152,11 @@ export function InvoiceList({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-5 min-w-0 overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Invoices & payments</h2>
-          <p className="text-sm text-gray-500 mt-1 max-w-xl">
+          <h2 className="text-lg font-bold text-gray-900">Invoices & payments</h2>
+          <p className="text-xs text-gray-500 mt-0.5 max-w-xl">
             View invoices and payment history. Approved payments and balance remaining are shown below.
           </p>
         </div>
@@ -156,21 +176,56 @@ export function InvoiceList({
         </div>
       )}
 
-      {totalOrderAmount != null && totalOrderAmount > 0 && (
-        <div className="mb-8">
-          <p className="text-sm font-medium text-gray-500 mb-3">Summary</p>
-          <div className="grid grid-cols-1 gap-3">
-            <div className="bg-emerald-50 rounded-xl border border-emerald-200 px-5 py-4">
-              <p className="text-sm font-medium text-emerald-800/80">Total order (guitars)</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-900 tabular-nums">{formatCurrency(totalOrderAmount, totalOrderCurrency)}</p>
+      {showSummary && (
+        <div className="mb-4 min-w-0">
+          <p className="text-xs font-medium text-gray-500 mb-2">Your build — payment summary</p>
+          <div className="grid grid-cols-1 gap-2">
+            <div className="min-w-0 bg-gray-50 rounded-lg border border-gray-200 px-3 py-2.5">
+              <p className="text-xs font-medium text-gray-600">
+                {isGuitarSummary ? "Total amount" : "Total order"}
+              </p>
+              <p className="mt-0.5 text-base font-bold text-gray-900 tabular-nums leading-tight break-words">
+                {totalDue != null ? formatCurrency(totalDue, currency) : "—"}
+              </p>
+              {totalDue == null && (
+                <p className="text-[10px] text-gray-500 mt-0.5">Price not set yet</p>
+              )}
             </div>
-            <div className="bg-blue-50 rounded-xl border border-blue-200 px-5 py-4">
-              <p className="text-sm font-medium text-blue-800/80">Payments received & approved</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 tabular-nums">{formatCurrency(totalPaymentsReceived, totalOrderCurrency)}</p>
+            <div className="min-w-0 bg-green-50 rounded-lg border border-green-200 px-3 py-2.5">
+              <p className="text-xs font-medium text-green-800/80">Payments received</p>
+              <p className="mt-0.5 text-base font-bold text-green-800 tabular-nums leading-tight break-words">
+                {formatCurrency(totalPaymentsReceived, currency)}
+              </p>
             </div>
-            <div className="bg-amber-50 rounded-xl border border-amber-200 px-5 py-4">
-              <p className="text-sm font-medium text-amber-800/80">Balance remaining</p>
-              <p className="mt-1 text-2xl font-bold text-amber-900 tabular-nums">{formatCurrency(overallBalance ?? 0, totalOrderCurrency)}</p>
+            <div
+              className={`min-w-0 rounded-lg border px-3 py-2.5 ${
+                balanceRemaining != null && balanceRemaining > 0
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-emerald-50 border-emerald-200"
+              }`}
+            >
+              <p
+                className={`text-xs font-medium ${
+                  balanceRemaining != null && balanceRemaining > 0
+                    ? "text-amber-800/80"
+                    : "text-emerald-800/80"
+                }`}
+              >
+                {balanceRemaining != null && balanceRemaining <= 0 && totalDue != null
+                  ? "Paid in full"
+                  : "Balance remaining"}
+              </p>
+              <p
+                className={`mt-0.5 text-base font-bold tabular-nums leading-tight break-words ${
+                  balanceRemaining != null && balanceRemaining > 0
+                    ? "text-amber-900"
+                    : "text-emerald-900"
+                }`}
+              >
+                {balanceRemaining != null
+                  ? formatCurrency(balanceRemaining, currency)
+                  : "—"}
+              </p>
             </div>
           </div>
         </div>
@@ -182,8 +237,8 @@ export function InvoiceList({
           <p className="text-sm mt-1">Invoices and deposits will appear here once added.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          <p className="text-sm font-medium text-gray-500">Invoices & deposits</p>
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Invoices & deposits</p>
           {invoices.map((invoice) => {
             const payments = invoice.payments || [];
             const approvedPayments = payments.filter(p => p.approvalStatus !== "rejected" && (p.approvalStatus === "approved" || p.approvalStatus === undefined));
@@ -191,137 +246,140 @@ export function InvoiceList({
             const outstanding = Math.max(invoice.amount - paidAmount, 0);
             const pendingPayments = payments.filter(p => p.approvalStatus === "pending");
             const guitarLabel = clientGuitars.length > 0 ? getGuitarLabel(invoice.guitarId, clientGuitars) : null;
+            const hasActions = Boolean(invoice.downloadUrl || invoice.paymentLink || onRecordPayment);
 
             return (
-              <div key={invoice.id} className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden">
-                {/* Header row: title, guitar, amount, status, actions */}
-                <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-4 bg-gray-50/80 border-b border-gray-100">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{invoice.title}</h3>
-                      {guitarLabel && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200/90 text-gray-700">
-                          <Guitar className="w-3.5 h-3.5" />
-                          {guitarLabel}
+              <div key={invoice.id} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                <div className="px-3 py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="text-sm font-semibold text-gray-900 leading-snug">{invoice.title}</h3>
+                        <span
+                          className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                            invoice.status === "paid"
+                              ? "bg-green-100 text-green-800"
+                              : invoice.status === "overdue"
+                              ? "bg-red-100 text-red-800"
+                              : invoice.status === "partial"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {invoice.status}
                         </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
+                        {guitarLabel && (
+                          <span className="inline-flex items-center gap-1">
+                            <Guitar className="w-3 h-3 shrink-0" />
+                            {guitarLabel}
+                          </span>
+                        )}
+                        {invoice.description && (
+                          <span className="text-gray-600">{invoice.description}</span>
+                        )}
+                        <span>Due {invoice.dueDate ? formatDate(invoice.dueDate) : "N/A"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-1 shrink-0">
+                      <p className="text-base font-bold text-gray-900 tabular-nums leading-none pt-0.5">
+                        {formatCurrency(invoice.amount, invoice.currency)}
+                      </p>
+                      {canEdit && (
+                        <div className="flex flex-col -mr-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingInvoice(invoice)}
+                            className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                            title="Edit invoice"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingInvoiceId(invoice.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                            title="Delete invoice"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
-                    {invoice.description && (
-                      <p className="text-sm text-gray-500 mt-1">{invoice.description}</p>
-                    )}
-                    <p className="text-sm text-gray-500 mt-1">
-                      Due {invoice.dueDate ? formatDate(invoice.dueDate) : "N/A"}
-                    </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Amount</p>
-                      <p className="text-xl font-bold text-gray-900 tabular-nums">{formatCurrency(invoice.amount, invoice.currency)}</p>
-                      <span
-                        className={`inline-flex mt-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                          invoice.status === "paid"
-                            ? "bg-green-100 text-green-800"
-                            : invoice.status === "overdue"
-                            ? "bg-red-100 text-red-800"
-                            : invoice.status === "partial"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {invoice.status.replace(/^\w/, (c) => c.toUpperCase())}
+
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+                    <span>
+                      <span className="text-gray-400">Received</span>{" "}
+                      <span className="font-medium tabular-nums">{formatCurrency(paidAmount, invoice.currency)}</span>
+                    </span>
+                    <span>
+                      <span className="text-gray-400">Balance</span>{" "}
+                      <span className={`font-medium tabular-nums ${outstanding > 0 ? "text-amber-700" : "text-green-700"}`}>
+                        {formatCurrency(outstanding, invoice.currency)}
                       </span>
-                    </div>
-                    {canEdit && (
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setEditingInvoice(invoice)}
-                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit invoice"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingInvoiceId(invoice.id)}
-                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete invoice"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    </span>
+                    <span>
+                      <span className="text-gray-400">Updated</span> {formatDate(invoice.uploadedAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {hasActions && (
+                  <div className="px-3 py-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
+                    {invoice.downloadUrl && (
+                      <a
+                        href={invoice.downloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline"
+                      >
+                        Download
+                      </a>
+                    )}
+                    {invoice.paymentLink && (
+                      <a
+                        href={invoice.paymentLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200 hover:bg-green-100"
+                      >
+                        Pay now
+                      </a>
+                    )}
+                    {onRecordPayment && (
+                      <button
+                        onClick={() => onRecordPayment(invoice)}
+                        className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100"
+                      >
+                        Record payment
+                      </button>
                     )}
                   </div>
-                </div>
-
-                {/* Summary row for this invoice */}
-                <div className="px-5 py-4 grid grid-cols-1 gap-3">
-                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Payments received & approved</p>
-                    <p className="mt-1 text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(paidAmount, invoice.currency)}</p>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Balance remaining</p>
-                    <p className="mt-1 text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(outstanding, invoice.currency)}</p>
-                  </div>
-                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last updated</p>
-                    <p className="mt-1 text-base font-medium text-gray-700">{formatDate(invoice.uploadedAt)}</p>
-                  </div>
-                </div>
-
-                <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
-                  {invoice.downloadUrl && (
-                    <a
-                      href={invoice.downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 underline"
-                    >
-                      📄 Download invoice
-                    </a>
-                  )}
-                  {invoice.paymentLink && (
-                    <a
-                      href={invoice.paymentLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-green-700 bg-green-50 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100"
-                    >
-                      💳 Pay now
-                    </a>
-                  )}
-                  {onRecordPayment && (
-                    <button
-                      onClick={() => onRecordPayment(invoice)}
-                      className="text-sm font-medium text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 hover:bg-blue-100"
-                    >
-                      Record payment
-                    </button>
-                  )}
-                </div>
+                )}
 
                 {pendingPayments.length > 0 && (
-                  <div className="mx-5 mb-4 bg-amber-50 rounded-lg border border-amber-200 px-4 py-3">
-                    <p className="text-sm font-semibold text-amber-900 mb-2">Pending approval</p>
-                    <div className="space-y-2">
+                  <div className="px-3 py-2 border-t border-amber-100 bg-amber-50/60">
+                    <p className="text-[10px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Pending approval</p>
+                    <div className="space-y-1">
                       {pendingPayments.map((payment) => (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between text-sm text-amber-800"
+                          className="flex items-center justify-between gap-2 text-xs text-amber-900"
                         >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span>
-                              {formatDate(payment.paidAt)} — {payment.method || "Payment"} (awaiting approval)
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <span className="tabular-nums truncate">
+                              {formatDate(payment.paidAt)} — {payment.method || "Payment"}
                             </span>
                             {payment.receiptUrl && (
                               <a
                                 href={payment.receiptUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-700 underline text-xs"
+                                className="text-blue-600 hover:text-blue-700 underline shrink-0"
                               >
-                                View Receipt
+                                Receipt
                               </a>
                             )}
                             {canEdit && (
@@ -329,23 +387,23 @@ export function InvoiceList({
                                 <button
                                   type="button"
                                   onClick={() => setEditingPayment({ invoice, payment })}
-                                  className="p-1 text-amber-700 hover:text-blue-600"
+                                  className="p-0.5 text-amber-700 hover:text-blue-600"
                                   title="Edit payment"
                                 >
-                                  <Pencil className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3 h-3" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setDeletingPayment({ invoiceId: invoice.id, paymentId: payment.id })}
-                                  className="p-1 text-amber-700 hover:text-red-600"
+                                  className="p-0.5 text-amber-700 hover:text-red-600"
                                   title="Delete payment"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3 h-3" />
                                 </button>
                               </>
                             )}
                           </div>
-                          <span className="font-semibold">
+                          <span className="font-semibold tabular-nums shrink-0">
                             {formatCurrency(payment.amount, payment.currency)}
                           </span>
                         </div>
@@ -354,16 +412,16 @@ export function InvoiceList({
                   </div>
                 )}
                 {approvedPayments.length > 0 && (
-                  <div className="mx-5 mb-5 rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3">
-                    <p className="text-sm font-semibold text-gray-700 mb-3">Approved payments</p>
-                    <div className="space-y-2">
+                  <div className="px-3 py-2 border-t border-gray-100">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Payments</p>
+                    <div className="space-y-1">
                       {approvedPayments.map((payment) => (
                         <div
                           key={payment.id}
-                          className="flex items-center justify-between text-sm text-gray-700"
+                          className="flex items-center justify-between gap-2 text-xs text-gray-700"
                         >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="tabular-nums">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <span className="tabular-nums truncate">
                               {formatDate(payment.paidAt)} — {payment.method || "Payment"}
                             </span>
                             {payment.receiptUrl && (
@@ -371,9 +429,9 @@ export function InvoiceList({
                                 href={payment.receiptUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-700 underline text-xs"
+                                className="text-blue-600 hover:text-blue-700 underline shrink-0"
                               >
-                                View Receipt
+                                Receipt
                               </a>
                             )}
                             {canEdit && (
@@ -381,23 +439,23 @@ export function InvoiceList({
                                 <button
                                   type="button"
                                   onClick={() => setEditingPayment({ invoice, payment })}
-                                  className="p-1 text-gray-500 hover:text-blue-600"
+                                  className="p-0.5 text-gray-400 hover:text-blue-600"
                                   title="Edit payment"
                                 >
-                                  <Pencil className="w-3.5 h-3.5" />
+                                  <Pencil className="w-3 h-3" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setDeletingPayment({ invoiceId: invoice.id, paymentId: payment.id })}
-                                  className="p-1 text-gray-500 hover:text-red-600"
+                                  className="p-0.5 text-gray-400 hover:text-red-600"
                                   title="Delete payment"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3 h-3" />
                                 </button>
                               </>
                             )}
                           </div>
-                          <span className="font-semibold">
+                          <span className="font-semibold tabular-nums shrink-0">
                             {formatCurrency(payment.amount, payment.currency)}
                           </span>
                         </div>
@@ -481,9 +539,7 @@ function EditInvoiceModal({
   );
   const [description, setDescription] = useState(invoice.description || "");
   const [currency, setCurrency] = useState(invoice.currency || "AUD");
-  const [guitarId, setGuitarId] = useState(invoice.guitarId ?? "");
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const [guitarId, setGuitarId] = useState(invoice.guitarId ?? "");  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseFloat(amount);
     if (isNaN(num) || num < 0) return;

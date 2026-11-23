@@ -29,6 +29,16 @@
       ]
     },
     {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "guitarId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "customShopRequests",
       "queryScope": "COLLECTION",
       "fields": [

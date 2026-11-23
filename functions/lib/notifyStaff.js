@@ -7,6 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStaffUids = getStaffUids;
 exports.notifyAllStaff = notifyAllStaff;
+exports.notifyUser = notifyUser;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 /**
@@ -61,6 +62,32 @@ async function notifyAllStaff(payload) {
     }
     catch (err) {
         functions.logger.error("notifyAllStaff failed", err);
+    }
+}
+/**
+ * Create a notification for a single user. Non-blocking; logs errors.
+ */
+async function notifyUser(userId, payload) {
+    if (!userId)
+        return;
+    try {
+        const db = admin.firestore();
+        await db.collection("notifications").add({
+            userId,
+            type: payload.type,
+            title: payload.title,
+            message: payload.message,
+            read: false,
+            createdAt: Date.now(),
+            ...(payload.guitarId && { guitarId: payload.guitarId }),
+            ...(payload.runId && { runId: payload.runId }),
+            ...(payload.noteId && { noteId: payload.noteId }),
+            ...(payload.metadata && Object.keys(payload.metadata).length > 0 && { metadata: payload.metadata }),
+        });
+        functions.logger.info("Notified user", { userId, type: payload.type });
+    }
+    catch (err) {
+        functions.logger.error("notifyUser failed", err);
     }
 }
 //# sourceMappingURL=notifyStaff.js.map

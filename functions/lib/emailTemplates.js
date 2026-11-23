@@ -9,6 +9,7 @@ exports.welcomeLoginHtml = welcomeLoginHtml;
 exports.runUpdateHtml = runUpdateHtml;
 exports.customShopThankYouHtml = customShopThankYouHtml;
 exports.customShopStaffNotifyHtml = customShopStaffNotifyHtml;
+exports.clientActivityStaffNotifyHtml = clientActivityStaffNotifyHtml;
 function escapeHtml(s) {
     return s
         .replace(/&/g, "&amp;")
@@ -95,7 +96,7 @@ function stageChangeHtml(opts, guitarLabel, runName, oldStageLabel, newStageLabe
     return wrapHtml(opts, content, "Log in");
 }
 /**
- * Welcome / login intro email: sent when staff create a new client account.
+ * Welcome / login intro email: sent only when staff explicitly opt in via createUser({ sendWelcomeEmail: true }).
  * Tells the user they have a login and password (or set-password link) and points them to the portal.
  */
 function welcomeLoginHtml(opts, loginEmail, password, setPasswordLink) {
@@ -175,5 +176,22 @@ function customShopStaffNotifyHtml(opts, submitterName, submitterEmail, requestN
         ? `${opts.portalUrl.replace(/\/$/, "")}/settings/custom-shop-requests`
         : "";
     return wrapHtml(opts, content, "View in portal", viewRequestsUrl ? { ctaUrl: viewRequestsUrl } : undefined);
+}
+/**
+ * Staff alert: client commented on a guitar update or uploaded gallery images.
+ */
+function clientActivityStaffNotifyHtml(opts, activityLabel, guitarLabel, customerName, clientEmail, detail, ctaUrl) {
+    const who = customerName && clientEmail
+        ? `${escapeHtml(customerName)} &lt;${escapeHtml(clientEmail)}&gt;`
+        : escapeHtml(customerName || clientEmail || "Client");
+    const content = `
+    <p style="margin:0 0 16px 0;">${escapeHtml(activityLabel)}</p>
+    <p style="margin:0 0 8px 0;color:#374151;"><strong>Guitar:</strong> ${escapeHtml(guitarLabel)}</p>
+    <p style="margin:0 0 8px 0;color:#374151;"><strong>Client:</strong> ${who}</p>
+    <p style="margin:12px 0 0 0;font-size:14px;color:#374151;"><strong>Details:</strong></p>
+    <p style="margin:4px 0 0 0;font-size:14px;color:#4b5563;white-space:pre-wrap;">${escapeHtml(detail)}</p>
+    <p style="margin:16px 0 0 0;color:#6b7280;font-size:14px;">Log in to the portal to review and reply.</p>
+  `.trim();
+    return wrapHtml(opts, content, "View in portal", ctaUrl && ctaUrl.startsWith("http") ? { ctaUrl } : undefined);
 }
 //# sourceMappingURL=emailTemplates.js.map

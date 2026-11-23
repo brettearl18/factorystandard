@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/useBranding";
-import { Guitar, Mail, Lock, ArrowRight, AlertCircle, CheckCircle, User, ArrowLeft } from "lucide-react";
+import { Guitar, Mail, Lock, ArrowRight, AlertCircle, User, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 function SignupForm() {
@@ -25,13 +25,12 @@ function SignupForm() {
   })();
   const isCustomShop = redirectTo === "/custom-shop";
 
-  // Redirect if already signed in
   useEffect(() => {
     if (!authLoading && currentUser) {
       if (redirectTo) {
         router.push(redirectTo);
       } else if (userRole === "client") {
-        router.push("/onboard");
+        router.push("/my-guitars");
       } else {
         router.push("/");
       }
@@ -57,9 +56,8 @@ function SignupForm() {
 
     try {
       await signUp(email.trim(), password, displayName.trim());
-      // Wait a moment for role to be set, then redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
-      router.push(redirectTo || "/onboard");
+      router.push(redirectTo || "/my-guitars");
     } catch (err: any) {
       let errorMessage = "Failed to create account";
       
@@ -85,9 +83,8 @@ function SignupForm() {
 
     try {
       await signInWithGoogle();
-      // Wait a moment for role to be set, then redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
-      router.push(redirectTo || "/onboard");
+      router.push(redirectTo || "/my-guitars");
     } catch (err: any) {
       let errorMessage = "Failed to sign up with Google";
       
@@ -107,20 +104,22 @@ function SignupForm() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="text-lg text-slate-600">Loading...</div>
       </div>
     );
   }
 
+  const inputClass =
+    "w-full h-11 px-3 border border-slate-200 rounded-2xl bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40 transition-colors";
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
-        {/* Header */}
+    <div className="flex items-center justify-center min-h-screen bg-bg px-4 py-10">
+      <div className="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md border border-slate-200">
         <div className="text-center mb-8">
           <Link
             href="/"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900 mb-4 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to home
@@ -130,40 +129,45 @@ function SignupForm() {
               <>
                 <img
                   src={branding.companyLogo}
-                  alt={branding.companyName || "Factory Standards"}
+                  alt={branding.companyName || "Australian Production"}
                   className="h-16 w-auto object-contain mb-3"
                 />
                 {(branding.companyName || isCustomShop) && (
-                  <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                  <h2 className="text-xl font-semibold text-slate-700 mb-2">
                     {isCustomShop ? "CustomShop" : branding.companyName}
                   </h2>
                 )}
               </>
             ) : (
-              <div 
-                className="p-3 rounded-full bg-blue-100"
+              <div
+                className="p-3 rounded-2xl bg-accent/10"
                 style={branding?.primaryColor ? { backgroundColor: `${branding.primaryColor}20` } : {}}
               >
-                <Guitar 
-                  className="w-8 h-8" 
-                  style={branding?.primaryColor ? { color: branding.primaryColor } : { color: "#3B82F6" }}
+                <Guitar
+                  className="w-8 h-8 text-accent"
+                  style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
                 />
               </div>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-semibold text-slate-900 mb-2">
             {isCustomShop ? `Welcome to the ${branding?.companyName || "Ormsby"} CustomShop` : "Create Your Account"}
           </h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-slate-500 text-sm">
             {isCustomShop
               ? "Create an account to submit your custom guitar idea."
               : "Sign up to submit your guitar specifications"}
           </p>
+          {isCustomShop && (
+            <div className="inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-xl text-xs font-medium bg-accent/10 text-accent">
+              <Guitar className="w-3 h-3" />
+              Custom Shop
+            </div>
+          )}
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-start gap-2">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-start gap-2">
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium">Error</p>
@@ -172,10 +176,9 @@ function SignupForm() {
           </div>
         )}
 
-        {/* Signup Form */}
         <form onSubmit={handleEmailSignup} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
               <User className="w-4 h-4" />
               Full Name
             </label>
@@ -183,14 +186,14 @@ function SignupForm() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              className={inputClass}
               placeholder="John Doe"
               required
               disabled={loading}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
               <Mail className="w-4 h-4" />
               Email Address
             </label>
@@ -198,14 +201,14 @@ function SignupForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              className={inputClass}
               placeholder="your.email@example.com"
               required
               disabled={loading}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
               <Lock className="w-4 h-4" />
               Password
             </label>
@@ -214,7 +217,7 @@ function SignupForm() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors pr-10"
+                className={`${inputClass} pr-10`}
                 placeholder="At least 6 characters"
                 required
                 disabled={loading}
@@ -223,7 +226,7 @@ function SignupForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
                 disabled={loading}
               >
                 {showPassword ? "👁️" : "👁️‍🗨️"}
@@ -233,7 +236,7 @@ function SignupForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+            className="w-full h-11 bg-accent text-accent-foreground rounded-2xl hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -249,18 +252,16 @@ function SignupForm() {
           </button>
         </form>
 
-        {/* Divider */}
         <div className="my-6 flex items-center">
-          <div className="flex-1 border-t border-gray-300"></div>
-          <span className="px-4 text-sm text-gray-500">or</span>
-          <div className="flex-1 border-t border-gray-300"></div>
+          <div className="flex-1 border-t border-slate-200" />
+          <span className="px-4 text-sm text-slate-500">or</span>
+          <div className="flex-1 border-t border-slate-200" />
         </div>
 
-        {/* Google Sign Up */}
         <button
           onClick={handleGoogleSignup}
           disabled={loading}
-          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+          className="w-full h-11 bg-white border border-slate-200 text-slate-700 rounded-2xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -283,13 +284,12 @@ function SignupForm() {
           Sign up with Google
         </button>
 
-        {/* Sign In Link */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-600 text-center">
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <p className="text-sm text-slate-600 text-center">
             Already have an account?{" "}
             <Link
               href={redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
-              className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
+              className="text-accent hover:text-accent-light font-medium transition-colors"
             >
               Sign in
             </Link>
@@ -303,12 +303,11 @@ function SignupForm() {
 export default function SignupPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="text-lg text-slate-600">Loading...</div>
       </div>
     }>
       <SignupForm />
     </Suspense>
   );
 }
-

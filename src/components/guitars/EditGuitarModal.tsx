@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Upload, Image as ImageIcon, Search, Check, UserPlus, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateGuitar, subscribeRunStages } from "@/lib/firestore";
-import { uploadReferenceImage, deleteGuitarReferenceImage, isGoogleDriveLink } from "@/lib/storage";
+import { uploadReferenceImage, deleteGuitarReferenceImage, isExternalShareLink } from "@/lib/storage";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { GuitarBuild, GuitarSpecs, RunStage } from "@/types/guitars";
 import { useRunSpecOptions } from "@/hooks/useRunSpecOptions";
@@ -115,7 +115,7 @@ export function EditGuitarModal({
     const imageToRemove = existingReferenceImages[index];
     setExistingReferenceImages((prev) => prev.filter((_, i) => i !== index));
     // Track removed images for deletion from storage
-    if (imageToRemove && !isGoogleDriveLink(imageToRemove)) {
+    if (imageToRemove && !isExternalShareLink(imageToRemove)) {
       setRemovedReferenceImages((prev) => [...prev, imageToRemove]);
     }
   };
@@ -447,7 +447,7 @@ export function EditGuitarModal({
                           >
                             <ExternalLink className="w-4 h-4 text-blue-600" />
                             <span className="text-sm text-blue-700 font-medium flex-1 truncate">
-                              Google Drive Folder
+                              Click here to view
                             </span>
                           </a>
                           <button

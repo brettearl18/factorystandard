@@ -1,17 +1,15 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Ensure native SWC for Alpine (musl) — optional deps may be skipped in CI
+RUN npm ci && npm install @next/swc-linux-x64-musl@16.1.6 --no-save
 
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Disable Next telemetry during build
-ENV NEXT_TELEMETRY_DISABLED 1
-# If you keep a separate production env file, copy it before build:
-# COPY .env.production .env.production
-RUN npm run build
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build -- --webpack
 
 FROM node:20-alpine AS runner
 WORKDIR /app

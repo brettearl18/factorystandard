@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { X, ExternalLink, CheckCircle, AlertCircle, Flag, TrendingUp, Info } from "lucide-react";
+import { X, CheckCircle, AlertCircle, Flag, TrendingUp, Info } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { addGuitarNote, updateGuitarPhotoInfo } from "@/lib/firestore";
-import { uploadGuitarPhoto, isGoogleDriveLink } from "@/lib/storage";
+import { uploadGuitarPhoto } from "@/lib/storage";
+import { ExternalShareLink } from "@/components/shared/ExternalShareLink";
 import { updateGuitarStage } from "@/lib/firestore";
 import type { GuitarBuild, RunStage, NoteType } from "@/types/guitars";
 
@@ -96,7 +97,7 @@ export function GuitarNoteDrawer({
         const url = await uploadGuitarPhoto(guitar.id, stage.id, photo);
         uploadedUrls.push(url);
       }
-      // Combine uploaded URLs with Google Drive links
+      // Combine uploaded URLs with share links (Drive / Dropbox / etc.)
       const allPhotoUrls = [...uploadedUrls, ...photoUrls];
 
       // Update guitar stage only if not skipping stage update
@@ -119,14 +120,14 @@ export function GuitarNoteDrawer({
         photoUrls: allPhotoUrls.length > 0 ? allPhotoUrls : undefined,
       });
 
-      // Update guitar photo info only if photos were added
-      if (allPhotoUrls.length > 0) {
-        const coverPhotoUrl = guitar.coverPhotoUrl || allPhotoUrls[0];
+      // Cover photo: only use real uploaded images, never share links
+      if (uploadedUrls.length > 0) {
+        const coverPhotoUrl = guitar.coverPhotoUrl || uploadedUrls[0];
         const currentPhotoCount = guitar.photoCount || 0;
         await updateGuitarPhotoInfo(
           guitar.id,
           coverPhotoUrl,
-          currentPhotoCount + allPhotoUrls.length
+          currentPhotoCount + uploadedUrls.length
         );
       }
 
@@ -268,15 +269,17 @@ export function GuitarNoteDrawer({
               </div>
             )}
             
-            {/* Google Drive Link Input */}
+            {/* Share link (Drive / Dropbox / etc.) — opens in a new tab; not an image embed */}
             <div className="mt-2">
-              <label className="block text-xs font-medium mb-1 text-gray-600">Or add Google Drive folder link</label>
+              <label className="block text-xs font-medium mb-1 text-gray-600">
+                Or paste a view link (Google Drive, Dropbox, …)
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={driveLinkInput}
                   onChange={(e) => setDriveLinkInput(e.target.value)}
-                  placeholder="Paste Google Drive folder link..."
+                  placeholder="Paste link clients can open…"
                   className="flex-1 p-2 border rounded-md text-sm"
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {
@@ -294,24 +297,17 @@ export function GuitarNoteDrawer({
                   Add
                 </button>
               </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Shown as “Click here to view” — not pulled in as a photo.
+              </p>
             </div>
 
-            {/* Preview Google Drive links */}
+            {/* Preview share links */}
             {photoUrls.length > 0 && (
               <div className="mt-2 space-y-2">
                 {photoUrls.map((url, index) => (
-                  <div key={index} className="relative group">
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm text-blue-700 font-medium flex-1 truncate">
-                        Google Drive Folder
-                      </span>
-                    </a>
+                  <div key={index} className="relative group pr-8">
+                    <ExternalShareLink url={url} compact />
                     <button
                       type="button"
                       onClick={() => removePhotoUrl(index)}

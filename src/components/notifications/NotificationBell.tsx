@@ -63,11 +63,21 @@ export function NotificationBell() {
       return;
     }
 
-    // Staff/Admin navigation
     if (notification.type === "payment_pending_approval") {
       router.push("/accounting");
       return;
     }
+
+    if (userRole === "accounting") {
+      if (notification.runId) {
+        router.push(`/runs/${notification.runId}/financials`);
+      } else if (notification.guitarId) {
+        router.push(`/guitars/${notification.guitarId}#finance`);
+      }
+      return;
+    }
+
+    // Staff/Admin navigation
     if (notification.runId) {
       router.push(`/runs/${notification.runId}/board`);
     } else if (notification.guitarId) {
@@ -112,6 +122,8 @@ export function NotificationBell() {
         return "📝";
       case "guitar_note_comment":
         return "💬";
+      case "guitar_gallery_upload":
+        return "📷";
       case "guitar_created":
         return "✨";
       case "guitar_assigned":

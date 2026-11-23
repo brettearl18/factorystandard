@@ -179,7 +179,7 @@ export default function Home() {
             {branding && branding.companyLogo ? (
               <img
                 src={branding.companyLogo}
-                alt={branding.companyName || "Factory Standards"}
+                alt={branding.companyName || "Australian Production"}
                 className="h-20 w-auto object-contain"
               />
             ) : (
@@ -192,7 +192,7 @@ export default function Home() {
             )}
           </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            {branding?.companyName || "Ormsby Factory Standards"}
+            {branding?.companyName || "Australian Production"}
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Track your guitar build progress and stay updated on every stage of production

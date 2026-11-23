@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign, Copy, Check, FileText, LogIn, Guitar, MessageSquare } from "lucide-react";
-import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote, subscribeAuditLogsByGuitar, subscribeAuditLogsByUser, subscribeGuitarNoteComments } from "@/lib/firestore";
+import { X, Camera, User, Mail, Package, Hash, Calendar, Settings, TreePine, Zap, Music, Palette, Plus, Edit, Image as ImageIcon, ExternalLink, Archive, ArchiveRestore, Eye, EyeOff, Trash2, DollarSign, Copy, Check, FileText, LogIn, Guitar, MessageSquare, Loader2 } from "lucide-react";
+import { subscribeGuitarNotes, getRun, subscribeRunStages, archiveGuitar, unarchiveGuitar, updateGuitar, updateGuitarNote, subscribeAuditLogsByGuitar, subscribeAuditLogsByUser, subscribeGuitarNoteComments, addGuitarNoteComment } from "@/lib/firestore";
 import { GuitarNoteDrawer } from "./GuitarNoteDrawer";
 import { EditGuitarModal } from "./EditGuitarModal";
 import { GuitarInvoiceManager } from "./GuitarInvoiceManager";
 import { useAuth } from "@/contexts/AuthContext";
 import { useClientProfile } from "@/hooks/useClientProfile";
-import { isGoogleDriveLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
+import { isExternalShareLink, deleteGuitarReferenceImage, deleteGuitarNotePhoto } from "@/lib/storage";
+import { ExternalShareLink } from "@/components/shared/ExternalShareLink";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
-import type { GuitarBuild, GuitarNote, RunStage, AuditLogEntry, AuditAction, NoteComment } from "@/types/guitars";
+import { canViewRunFinancials } from "@/lib/runFinancialAccess";
+import type { GuitarBuild, GuitarNote, NoteType, RunStage, AuditLogEntry, AuditAction, NoteComment } from "@/types/guitars";
 
 interface GuitarDetailModalProps {
   guitar: GuitarBuild;
@@ -38,7 +40,16 @@ export function GuitarDetailModal({
   const [guitarActivity, setGuitarActivity] = useState<AuditLogEntry[]>([]);
   const [clientActivity, setClientActivity] = useState<AuditLogEntry[]>([]);
   const [noteCommentMap, setNoteCommentMap] = useState<Record<string, NoteComment[]>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editMessage, setEditMessage] = useState("");
+  const [editNoteType, setEditNoteType] = useState<NoteType>("update");
+  const [editVisibleToClient, setEditVisibleToClient] = useState(true);
+  const [savingNote, setSavingNote] = useState(false);
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
+  const [submittingCommentNoteId, setSubmittingCommentNoteId] = useState<string | null>(null);
+  const financeSectionRef = useRef<HTMLDivElement>(null);
   const { userRole } = useAuth();
+  const canViewFinance = canViewRunFinancials(userRole);
 
   const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
     login: "Login",
@@ -62,11 +73,11 @@ export function GuitarDetailModal({
     const password = clientProfile?.initialPassword || "[Set via Reset Password on client profile]";
     const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://factorystandards.com";
     const loginUrl = `${siteUrl}/login`;
-    return `Subject: Your Factory Standards Account
+    return `Subject: Your Australian Production Account
 
 Hi ${name},
 
-Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+Your account has been created for Australian Production. You can now log in to track your guitar build progress.
 
 Login Details:
 Email: ${email}
@@ -79,7 +90,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`;
+Australian Production Team`;
   };
 
   const handleDeleteReferenceImage = async (imageUrl: string, index: number) => {
@@ -88,7 +99,7 @@ Factory Standards Team`;
     setDeletingImage(imageUrl);
     try {
       // Delete from storage if it's a Firebase Storage URL
-      if (!isGoogleDriveLink(imageUrl)) {
+      if (!isExternalShareLink(imageUrl)) {
         await deleteGuitarReferenceImage(guitar.id, imageUrl);
       }
       
@@ -116,7 +127,7 @@ Factory Standards Team`;
       if (!note || !note.photoUrls) return;
       
       // Delete from storage if it's a Firebase Storage URL
-      if (!isGoogleDriveLink(imageUrl)) {
+      if (!isExternalShareLink(imageUrl)) {
         await deleteGuitarNotePhoto(guitar.id, note.stageId, imageUrl);
       }
       
@@ -130,6 +141,57 @@ Factory Standards Team`;
       alert("Failed to delete photo. Please try again.");
     } finally {
       setDeletingImage(null);
+    }
+  };
+
+  const startEditNote = (note: GuitarNote) => {
+    setEditingNoteId(note.id);
+    setEditMessage(note.message || "");
+    setEditNoteType(note.type || "update");
+    setEditVisibleToClient(note.visibleToClient !== false);
+  };
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditMessage("");
+    setEditNoteType("update");
+    setEditVisibleToClient(true);
+    setSavingNote(false);
+  };
+
+  const postNoteComment = async (noteId: string) => {
+    const msg = (commentDraft[noteId] ?? "").trim();
+    if (!msg || submittingCommentNoteId === noteId) return;
+    setSubmittingCommentNoteId(noteId);
+    try {
+      await addGuitarNoteComment(guitar.id, noteId, msg);
+      setCommentDraft((prev) => ({ ...prev, [noteId]: "" }));
+    } catch (error) {
+      console.error("Error posting reply:", error);
+      alert("Failed to post reply. Please try again.");
+    } finally {
+      setSubmittingCommentNoteId(null);
+    }
+  };
+
+  const saveEditNote = async () => {
+    if (!editingNoteId) return;
+    if (!editMessage.trim()) {
+      alert("Update message cannot be empty.");
+      return;
+    }
+    setSavingNote(true);
+    try {
+      await updateGuitarNote(guitar.id, editingNoteId, {
+        message: editMessage.trim(),
+        type: editNoteType,
+        visibleToClient: editVisibleToClient,
+      });
+      cancelEditNote();
+    } catch (error) {
+      console.error("Error updating note:", error);
+      alert("Failed to save update. Please try again.");
+      setSavingNote(false);
     }
   };
 
@@ -219,15 +281,46 @@ Factory Standards Team`;
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-surface shadow-modal w-full max-w-6xl max-h-[90vh] flex flex-col border border-border">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{guitar.model}</h2>
-            <p className="text-gray-600 mt-1">{guitar.finish}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-border bg-sidebar text-text-onDark">
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl font-bold uppercase tracking-wide truncate">
+              {guitar.model}
+            </h2>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-text-onDark/65 mt-1">
+              {guitar.finish}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {canViewFinance && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    financeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="wo-btn-outline bg-transparent text-text-onDark border-white/25 hover:bg-white/10"
+                  title="Jump to invoices and payments"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Invoices & payments
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    router.push(`/guitars/${guitar.id}#finance`);
+                  }}
+                  className="wo-btn-outline bg-transparent text-text-onDark border-white/25 hover:bg-white/10"
+                  title="Open full-page finance view"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Full page
+                </button>
+              </>
+            )}
             {/* View as Client: open the real client guitar page (with thumbs up, comments) */}
             {isAdminViewing && (
               <button
@@ -235,7 +328,7 @@ Factory Standards Team`;
                   onClose();
                   router.push(`/my-guitars/${guitar.id}?viewAsClient=1`);
                 }}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                className="wo-btn-primary"
                 title="View as Client (opens client page)"
               >
                 <Eye className="w-4 h-4" />
@@ -264,11 +357,11 @@ Factory Standards Team`;
                     }
                   }}
                   disabled={isArchiving}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  className={
                     guitar.archived
-                      ? "bg-green-600 text-white hover:bg-green-700"
-                      : "bg-gray-600 text-white hover:bg-gray-700"
-                  } disabled:opacity-50`}
+                      ? "wo-btn-secondary"
+                      : "wo-btn-outline bg-transparent text-text-onDark border-white/25 hover:bg-white/10"
+                  }
                 >
                   {isArchiving ? (
                     "Processing..."
@@ -286,7 +379,7 @@ Factory Standards Team`;
                 </button>
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="wo-btn-primary"
                 >
                   <Edit className="w-4 h-4" />
                   Edit
@@ -295,7 +388,7 @@ Factory Standards Team`;
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-white/10 text-text-onDark transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -306,87 +399,93 @@ Factory Standards Team`;
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {loading ? (
             <div className="text-center py-12">
-              <div className="text-gray-500">Loading details...</div>
+              <div className="text-slate-500">Loading details...</div>
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column - Main Info */}
               <div className="space-y-6">
-                {/* Cover Photo */}
-                {guitar.coverPhotoUrl && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Cover Photo
-                    </label>
+                {/* Cover Photo — always show real photo or truthful empty state */}
+                <div>
+                  <label className="wo-label mb-2 block">Cover Photo</label>
+                  {guitar.coverPhotoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={guitar.coverPhotoUrl}
                       alt={guitar.model}
-                      className="w-full h-64 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                      className="w-full h-64 object-contain bg-surface-alt border border-border cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setSelectedImage(guitar.coverPhotoUrl || null)}
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="w-full h-64 border border-border bg-surface-alt flex flex-col items-center justify-center gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                        No guitar photo yet
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Guitar Details */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <div className="bg-surface-alt border border-border p-4 space-y-3">
+                  <h3 className="font-display text-lg font-bold uppercase tracking-wide text-text mb-3 flex items-center gap-2">
                     <Package className="w-5 h-5" />
                     Guitar Details
                   </h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 flex items-center gap-2">
+                      <span className="text-slate-500 flex items-center gap-2">
                         <Hash className="w-4 h-4" />
                         Order Number
                       </span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-slate-900">
                         {guitar.orderNumber}
                       </span>
                     </div>
                     {guitar.serial && (
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500 flex items-center gap-2">
+                        <span className="text-slate-500 flex items-center gap-2">
                           <Hash className="w-4 h-4" />
                           Serial Number
                         </span>
-                        <span className="font-mono text-gray-900">
+                        <span className="font-mono text-slate-900">
                           {guitar.serial}
                         </span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 flex items-center gap-2">
+                      <span className="text-slate-500 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         Created
                       </span>
-                      <span className="text-gray-900">
+                      <span className="text-slate-900">
                         {new Date(guitar.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 flex items-center gap-2">
+                      <span className="text-slate-500 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         Last Updated
                       </span>
-                      <span className="text-gray-900">
+                      <span className="text-slate-900">
                         {new Date(guitar.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
                     {guitar.price !== undefined && guitar.price > 0 && (
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                        <span className="text-gray-500 flex items-center gap-2">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                        <span className="text-slate-500 flex items-center gap-2">
                           <DollarSign className="w-4 h-4" />
                           Price
                         </span>
-                        <span className="font-semibold text-gray-900">
+                        <span className="font-semibold text-slate-900">
                           {guitar.currency || "AUD"} ${guitar.price.toLocaleString()}
                         </span>
                       </div>
                     )}
                     {stage && (
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Current Stage</span>
-                        <span className="font-semibold text-blue-600">
+                        <span className="text-slate-500">Current Stage</span>
+                        <span className="font-semibold text-accent">
                           {stage.label}
                         </span>
                       </div>
@@ -395,35 +494,35 @@ Factory Standards Team`;
                 </div>
 
                 {/* Client Information */}
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                  <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                     <User className="w-5 h-5" />
                     Client Information
                   </h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 flex items-center gap-2">
+                      <span className="text-slate-500 flex items-center gap-2">
                         <User className="w-4 h-4" />
                         Name
                       </span>
-                      <span className="font-semibold text-gray-900">
+                      <span className="font-semibold text-slate-900">
                         {guitar.customerName || "No customer assigned"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-500 flex items-center gap-2">
+                      <span className="text-slate-500 flex items-center gap-2">
                         <Mail className="w-4 h-4" />
                         Email
                       </span>
                       <a
                         href={guitar.customerEmail ? `mailto:${guitar.customerEmail}` : undefined}
-                        className={guitar.customerEmail ? "text-blue-600 hover:text-blue-700 hover:underline" : "text-gray-400"}
+                        className={guitar.customerEmail ? "text-accent hover:text-accent hover:underline" : "text-slate-400"}
                       >
                         {guitar.customerEmail || "No email assigned"}
                       </a>
                     </div>
                     {isAdminViewing && (guitar.clientUid || guitar.customerEmail) && (
-                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200 mt-3">
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 mt-3">
                         <button
                           type="button"
                           onClick={() => {
@@ -433,7 +532,7 @@ Factory Standards Team`;
                             router.push(`/settings/clients/${profileId}`);
                             onClose();
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-medium"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-accent text-accent-foreground hover:bg-accent-light text-xs font-medium"
                         >
                           <User className="w-3.5 h-3.5" />
                           View profile
@@ -458,7 +557,7 @@ Factory Standards Team`;
                                 setTimeout(() => setEmailCopied(false), 2000);
                               }
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-600 text-white hover:bg-gray-700 text-xs font-medium"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-medium"
                           >
                             {emailCopied ? (
                               <>
@@ -480,8 +579,8 @@ Factory Standards Team`;
 
                 {/* Build Specifications */}
                 {guitar.specs && (
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-4">
+                    <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                       <Settings className="w-5 h-5" />
                       Build Specifications
                     </h3>
@@ -489,33 +588,33 @@ Factory Standards Team`;
                     {/* Timber/Wood Section */}
                     {(guitar.specs.bodyWood || guitar.specs.neckWood || guitar.specs.fretboardWood || guitar.specs.topWood) && (
                       <div>
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                           <TreePine className="w-4 h-4" />
                           Timber & Wood
                         </h4>
                         <div className="space-y-1.5 text-sm">
                           {guitar.specs.bodyWood && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Body</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.bodyWood}</span>
+                              <span className="text-slate-600">Body</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.bodyWood}</span>
                             </div>
                           )}
                           {guitar.specs.topWood && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Top</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.topWood}</span>
+                              <span className="text-slate-600">Top</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.topWood}</span>
                             </div>
                           )}
                           {guitar.specs.neckWood && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Neck</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.neckWood}</span>
+                              <span className="text-slate-600">Neck</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.neckWood}</span>
                             </div>
                           )}
                           {guitar.specs.fretboardWood && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Fretboard</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.fretboardWood}</span>
+                              <span className="text-slate-600">Fretboard</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.fretboardWood}</span>
                             </div>
                           )}
                         </div>
@@ -524,8 +623,8 @@ Factory Standards Team`;
 
                     {/* Electronics Section */}
                     {(guitar.specs.pickupNeck || guitar.specs.pickupBridge || guitar.specs.pickups || guitar.specs.pickupConfiguration || guitar.specs.controls || guitar.specs.switch) && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                           <Zap className="w-4 h-4" />
                           Electronics
                         </h4>
@@ -534,41 +633,41 @@ Factory Standards Team`;
                             <>
                               {guitar.specs.pickupNeck && (
                                 <div className="flex justify-between">
-                                  <span className="text-gray-600">Neck Pickup</span>
-                                  <span className="font-medium text-gray-900">{guitar.specs.pickupNeck}</span>
+                                  <span className="text-slate-600">Neck Pickup</span>
+                                  <span className="font-medium text-slate-900">{guitar.specs.pickupNeck}</span>
                                 </div>
                               )}
                               {guitar.specs.pickupBridge && (
                                 <div className="flex justify-between">
-                                  <span className="text-gray-600">Bridge Pickup</span>
-                                  <span className="font-medium text-gray-900">{guitar.specs.pickupBridge}</span>
+                                  <span className="text-slate-600">Bridge Pickup</span>
+                                  <span className="font-medium text-slate-900">{guitar.specs.pickupBridge}</span>
                                 </div>
                               )}
                               {/* Legacy support - show old pickups field if new fields aren't set */}
                               {!guitar.specs.pickupNeck && !guitar.specs.pickupBridge && guitar.specs.pickups && (
                                 <div className="flex justify-between">
-                                  <span className="text-gray-600">Pickups</span>
-                                  <span className="font-medium text-gray-900">{guitar.specs.pickups}</span>
+                                  <span className="text-slate-600">Pickups</span>
+                                  <span className="font-medium text-slate-900">{guitar.specs.pickups}</span>
                                 </div>
                               )}
                             </>
                           )}
                           {guitar.specs.pickupConfiguration && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Configuration</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.pickupConfiguration}</span>
+                              <span className="text-slate-600">Configuration</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.pickupConfiguration}</span>
                             </div>
                           )}
                           {guitar.specs.controls && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Controls</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.controls}</span>
+                              <span className="text-slate-600">Controls</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.controls}</span>
                             </div>
                           )}
                           {guitar.specs.switch && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Switch</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.switch}</span>
+                              <span className="text-slate-600">Switch</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.switch}</span>
                             </div>
                           )}
                         </div>
@@ -577,34 +676,34 @@ Factory Standards Team`;
 
                     {/* Hardware Section */}
                     {(guitar.specs.bridge || guitar.specs.tuners || guitar.specs.nut || guitar.specs.pickguard) && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                           <Settings className="w-4 h-4" />
                           Hardware
                         </h4>
                         <div className="space-y-1.5 text-sm">
                           {guitar.specs.bridge && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Bridge</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.bridge}</span>
+                              <span className="text-slate-600">Bridge</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.bridge}</span>
                             </div>
                           )}
                           {guitar.specs.tuners && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Tuners</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.tuners}</span>
+                              <span className="text-slate-600">Tuners</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.tuners}</span>
                             </div>
                           )}
                           {guitar.specs.nut && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Nut</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.nut}</span>
+                              <span className="text-slate-600">Nut</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.nut}</span>
                             </div>
                           )}
                           {guitar.specs.pickguard && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Pickguard</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.pickguard}</span>
+                              <span className="text-slate-600">Pickguard</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.pickguard}</span>
                             </div>
                           )}
                         </div>
@@ -613,34 +712,34 @@ Factory Standards Team`;
 
                     {/* Strings & Setup Section */}
                     {(guitar.specs.strings || guitar.specs.stringGauge || guitar.specs.scaleLength || guitar.specs.action) && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                           <Music className="w-4 h-4" />
                           Strings & Setup
                         </h4>
                         <div className="space-y-1.5 text-sm">
                           {guitar.specs.strings && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Strings</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.strings}</span>
+                              <span className="text-slate-600">Strings</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.strings}</span>
                             </div>
                           )}
                           {guitar.specs.stringGauge && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Gauge</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.stringGauge}</span>
+                              <span className="text-slate-600">Gauge</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.stringGauge}</span>
                             </div>
                           )}
                           {guitar.specs.scaleLength && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Scale Length</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.scaleLength}</span>
+                              <span className="text-slate-600">Scale Length</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.scaleLength}</span>
                             </div>
                           )}
                           {guitar.specs.action && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Action</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.action}</span>
+                              <span className="text-slate-600">Action</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.action}</span>
                             </div>
                           )}
                         </div>
@@ -649,34 +748,34 @@ Factory Standards Team`;
 
                     {/* Finish & Appearance Section */}
                     {(guitar.specs.finishColor || guitar.specs.finishType || guitar.specs.binding || guitar.specs.inlays) && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                           <Palette className="w-4 h-4" />
                           Finish & Appearance
                         </h4>
                         <div className="space-y-1.5 text-sm">
                           {guitar.specs.finishColor && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Color</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.finishColor}</span>
+                              <span className="text-slate-600">Color</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.finishColor}</span>
                             </div>
                           )}
                           {guitar.specs.finishType && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Finish Type</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.finishType}</span>
+                              <span className="text-slate-600">Finish Type</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.finishType}</span>
                             </div>
                           )}
                           {guitar.specs.binding && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Binding</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.binding}</span>
+                              <span className="text-slate-600">Binding</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.binding}</span>
                             </div>
                           )}
                           {guitar.specs.inlays && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Inlays</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.inlays}</span>
+                              <span className="text-slate-600">Inlays</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.inlays}</span>
                             </div>
                           )}
                         </div>
@@ -685,25 +784,25 @@ Factory Standards Team`;
 
                     {/* Neck Details Section */}
                     {(guitar.specs.frets || guitar.specs.neckProfile || guitar.specs.radius) && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Neck Details</h4>
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2">Neck Details</h4>
                         <div className="space-y-1.5 text-sm">
                           {guitar.specs.frets && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Frets</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.frets}</span>
+                              <span className="text-slate-600">Frets</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.frets}</span>
                             </div>
                           )}
                           {guitar.specs.neckProfile && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Profile</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.neckProfile}</span>
+                              <span className="text-slate-600">Profile</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.neckProfile}</span>
                             </div>
                           )}
                           {guitar.specs.radius && (
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Radius</span>
-                              <span className="font-medium text-gray-900">{guitar.specs.radius}</span>
+                              <span className="text-slate-600">Radius</span>
+                              <span className="font-medium text-slate-900">{guitar.specs.radius}</span>
                             </div>
                           )}
                         </div>
@@ -712,9 +811,9 @@ Factory Standards Team`;
 
                     {/* Custom Notes */}
                     {guitar.specs.customNotes && (
-                      <div className="pt-3 border-t border-gray-200">
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">Custom Notes</h4>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{guitar.specs.customNotes}</p>
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-semibold text-slate-700 mb-2">Custom Notes</h4>
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{guitar.specs.customNotes}</p>
                       </div>
                     )}
                   </div>
@@ -726,38 +825,24 @@ Factory Standards Team`;
                 {/* Reference Images */}
                 {guitar.referenceImages && guitar.referenceImages.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
                       <ImageIcon className="w-5 h-5" />
                       Reference Images ({guitar.referenceImages.length})
                     </label>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-slate-500 mb-2">
                       Initial reference images uploaded when creating this guitar
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       {guitar.referenceImages.map((url, idx) => {
-                        const isDriveLink = isGoogleDriveLink(url);
-                        if (isDriveLink) {
-                          return (
-                            <a
-                              key={idx}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            >
-                              <ExternalLink className="w-4 h-4 text-blue-600" />
-                              <span className="text-sm text-blue-700 font-medium">
-                                Google Drive Folder
-                              </span>
-                            </a>
-                          );
+                        if (isExternalShareLink(url)) {
+                          return <ExternalShareLink key={idx} url={url} />;
                         }
                         return (
                           <div key={idx} className="relative group">
                             <img
                               src={url}
                               alt={`Reference ${idx + 1}`}
-                              className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                              className="w-full h-32 object-cover rounded-2xl border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={() => setSelectedImage(url)}
                             />
                             {isAdminViewing && (
@@ -783,35 +868,21 @@ Factory Standards Team`;
                 {/* All Photos */}
                 {allPhotos.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
                       <Camera className="w-5 h-5" />
                       All Photos ({allPhotos.length})
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {allPhotos.map((url, idx) => {
-                        const isDriveLink = isGoogleDriveLink(url);
-                        if (isDriveLink) {
-                          return (
-                            <a
-                              key={idx}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            >
-                              <ExternalLink className="w-4 h-4 text-blue-600" />
-                              <span className="text-sm text-blue-700 font-medium">
-                                Google Drive Folder
-                              </span>
-                            </a>
-                          );
+                        if (isExternalShareLink(url)) {
+                          return <ExternalShareLink key={idx} url={url} />;
                         }
                         return (
                           <img
                             key={idx}
                             src={url}
                             alt={`Photo ${idx + 1}`}
-                            className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-full h-32 object-cover rounded-2xl border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => setSelectedImage(url)}
                           />
                         );
@@ -823,13 +894,13 @@ Factory Standards Team`;
                 {/* Notes Timeline */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-slate-700">
                       Notes & Updates ({notes.length})
                     </label>
                     {stage && (
                       <button
                         onClick={() => setIsNoteDrawerOpen(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-foreground text-sm rounded-2xl hover:bg-accent-light transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                         Add Update
@@ -837,12 +908,12 @@ Factory Standards Team`;
                     )}
                   </div>
                   {notes.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 text-sm bg-gray-50 rounded-lg">
+                    <div className="text-center py-8 text-slate-400 text-sm bg-slate-50 rounded-2xl">
                       <p className="mb-3">No notes yet</p>
                       {stage && (
                         <button
                           onClick={() => setIsNoteDrawerOpen(true)}
-                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                          className="px-4 py-2 bg-accent text-accent-foreground text-sm rounded-2xl hover:bg-accent-light transition-colors"
                         >
                           Add First Update
                         </button>
@@ -855,62 +926,130 @@ Factory Standards Team`;
                         .map((note) => {
                           const NoteIcon = getNoteTypeIcon(note.type);
                           const noteTypeColor = getNoteTypeColor(note.type);
+                          const isEditing = editingNoteId === note.id;
                           return (
                           <div
                             key={note.id}
-                            className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-500"
+                            className="bg-slate-50 rounded-2xl p-4 border-l-4 border-accent"
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-gray-900">
+                            <div className="flex items-center justify-between mb-2 gap-2">
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                <span className="font-semibold text-slate-900">
                                   {note.authorName}
                                 </span>
-                                {note.type && (
+                                {!isEditing && note.type && (
                                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${noteTypeColor}`}>
                                     <NoteIcon className="w-3 h-3" />
                                     {getNoteTypeLabel(note.type)}
                                   </span>
                                 )}
-                                {note.visibleToClient && (
+                                {!isEditing && note.visibleToClient && (
                                   <span className="text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full">
                                     Client Visible
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs text-gray-500">
-                                {new Date(note.createdAt).toLocaleDateString()}{" "}
-                                {new Date(note.createdAt).toLocaleTimeString()}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isAdminViewing && !isEditing && (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditNote(note)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-accent hover:bg-white rounded-xl border border-transparent hover:border-slate-200 transition-colors"
+                                    title="Edit update"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                    Edit
+                                  </button>
+                                )}
+                                <span className="text-xs text-slate-500">
+                                  {new Date(note.createdAt).toLocaleDateString()}{" "}
+                                  {new Date(note.createdAt).toLocaleTimeString()}
+                                </span>
+                              </div>
                             </div>
-                            <p className="text-sm text-gray-700 mb-2">
+
+                            {isEditing ? (
+                              <div className="space-y-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(
+                                    [
+                                      "update",
+                                      "milestone",
+                                      "quality_check",
+                                      "issue",
+                                      "status_change",
+                                      "general",
+                                    ] as NoteType[]
+                                  ).map((t) => (
+                                    <button
+                                      key={t}
+                                      type="button"
+                                      onClick={() => setEditNoteType(t)}
+                                      className={`px-2 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                                        editNoteType === t
+                                          ? "border-accent bg-accent/10 text-accent"
+                                          : "border-slate-200 text-slate-600 hover:bg-white"
+                                      }`}
+                                    >
+                                      {getNoteTypeLabel(t)}
+                                    </button>
+                                  ))}
+                                </div>
+                                <textarea
+                                  value={editMessage}
+                                  onChange={(e) => setEditMessage(e.target.value)}
+                                  rows={4}
+                                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40 resize-y"
+                                  placeholder="Update message…"
+                                  disabled={savingNote}
+                                />
+                                <label className="flex items-center gap-2 text-sm text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={editVisibleToClient}
+                                    onChange={(e) => setEditVisibleToClient(e.target.checked)}
+                                    disabled={savingNote}
+                                    className="rounded border-slate-300 text-accent focus:ring-accent/30"
+                                  />
+                                  Visible to client
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={saveEditNote}
+                                    disabled={savingNote}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-accent text-accent-foreground text-sm font-medium hover:bg-accent-light disabled:opacity-50"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    {savingNote ? "Saving…" : "Save"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditNote}
+                                    disabled={savingNote}
+                                    className="px-3 py-1.5 rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                            <p className="text-sm text-slate-700 mb-2 whitespace-pre-wrap">
                               {note.message}
                             </p>
                             {note.photoUrls && note.photoUrls.length > 0 && (
                               <div className="grid grid-cols-3 gap-2 mt-3">
                                 {note.photoUrls.map((url, idx) => {
-                                  const isDriveLink = isGoogleDriveLink(url);
-                                  if (isDriveLink) {
-                                    return (
-                                      <a
-                                        key={idx}
-                                        href={url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                                      >
-                                        <ExternalLink className="w-4 h-4 text-blue-600" />
-                                        <span className="text-xs text-blue-700 font-medium">
-                                          Google Drive Folder
-                                        </span>
-                                      </a>
-                                    );
+                                  if (isExternalShareLink(url)) {
+                                    return <ExternalShareLink key={idx} url={url} compact />;
                                   }
                                   return (
                                     <div key={idx} className="relative group">
                                       <img
                                         src={url}
                                         alt={`Note photo ${idx + 1}`}
-                                        className="w-full h-20 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                        className="w-full h-20 object-cover rounded border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
                                         onClick={() => setSelectedImage(url)}
                                       />
                                       {isAdminViewing && (
@@ -931,28 +1070,93 @@ Factory Standards Team`;
                                 })}
                               </div>
                             )}
-                            {/* Staff: viewed-by count and client comments */}
-                            {isAdminViewing && note.visibleToClient && (
-                              <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                              </>
+                            )}
+                            {/* Staff: viewed-by count, comments, and reply */}
+                            {isAdminViewing && !isEditing && note.visibleToClient && (
+                              <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-500 space-y-2">
                                 {(note.viewedBy && Object.keys(note.viewedBy).length > 0) && (
                                   <p>Viewed by {Object.keys(note.viewedBy).length} client(s)</p>
                                 )}
-                                {(noteCommentMap[note.id]?.length ?? 0) > 0 && (
-                                  <div>
-                                    <p className="font-medium text-gray-600 mb-1">Comments ({noteCommentMap[note.id].length}):</p>
-                                    <ul className="space-y-1">
-                                      {noteCommentMap[note.id].map((c) => (
-                                        <li key={c.id} className="bg-white rounded px-2 py-1 border border-gray-100">
-                                          <span className="font-medium text-gray-700">{c.authorName}</span>
-                                          <span className="ml-1 text-gray-400">
-                                            {new Date(c.createdAt).toLocaleDateString()} {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                          </span>
-                                          <p className="text-gray-600 mt-0.5">{c.message}</p>
-                                        </li>
-                                      ))}
+                                <div>
+                                  <p className="font-medium text-slate-600 mb-1 flex items-center gap-1">
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    Comments ({noteCommentMap[note.id]?.length ?? 0})
+                                  </p>
+                                  {(noteCommentMap[note.id]?.length ?? 0) > 0 && (
+                                    <ul className="space-y-1.5 mb-2">
+                                      {noteCommentMap[note.id].map((c) => {
+                                        const isClientComment =
+                                          Boolean(guitar.clientUid) && c.authorUid === guitar.clientUid;
+                                        return (
+                                          <li
+                                            key={c.id}
+                                            className={`rounded-xl px-2.5 py-1.5 border ${
+                                              isClientComment
+                                                ? "bg-white border-slate-100"
+                                                : "bg-accent/5 border-accent/20"
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-medium text-slate-700">{c.authorName}</span>
+                                              {!isClientComment && (
+                                                <span className="text-[10px] font-medium uppercase tracking-wide text-accent bg-accent/10 px-1.5 py-0.5 rounded">
+                                                  Staff
+                                                </span>
+                                              )}
+                                              <span className="text-slate-400">
+                                                {new Date(c.createdAt).toLocaleDateString()}{" "}
+                                                {new Date(c.createdAt).toLocaleTimeString([], {
+                                                  hour: "2-digit",
+                                                  minute: "2-digit",
+                                                })}
+                                              </span>
+                                            </div>
+                                            <p className="text-slate-600 mt-0.5 text-sm whitespace-pre-wrap">
+                                              {c.message}
+                                            </p>
+                                          </li>
+                                        );
+                                      })}
                                     </ul>
+                                  )}
+                                  <div className="flex gap-2 mt-1">
+                                    <input
+                                      type="text"
+                                      placeholder="Reply to client…"
+                                      value={commentDraft[note.id] ?? ""}
+                                      onChange={(e) =>
+                                        setCommentDraft((prev) => ({
+                                          ...prev,
+                                          [note.id]: e.target.value,
+                                        }))
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          postNoteComment(note.id);
+                                        }
+                                      }}
+                                      disabled={submittingCommentNoteId === note.id}
+                                      className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40"
+                                    />
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        !(commentDraft[note.id]?.trim()) ||
+                                        submittingCommentNoteId === note.id
+                                      }
+                                      onClick={() => postNoteComment(note.id)}
+                                      className="px-3 py-2 bg-accent text-accent-foreground text-sm font-medium rounded-xl hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                                    >
+                                      {submittingCommentNoteId === note.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        "Reply"
+                                      )}
+                                    </button>
                                   </div>
-                                )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -966,23 +1170,23 @@ Factory Standards Team`;
                 {isAdminViewing && (
                   <>
                     <div className="mt-6">
-                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                         <FileText className="w-5 h-5" />
                         Guitar activity ({guitarActivity.length})
                       </h3>
-                      <p className="text-xs text-gray-500 mb-2">When this guitar was viewed or related actions.</p>
+                      <p className="text-xs text-slate-500 mb-2">When this guitar was viewed or related actions.</p>
                       {guitarActivity.length === 0 ? (
-                        <div className="text-center py-4 text-gray-400 text-sm bg-gray-50 rounded-lg">No activity yet</div>
+                        <div className="text-center py-4 text-slate-400 text-sm bg-slate-50 rounded-2xl">No activity yet</div>
                       ) : (
-                        <ul className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                        <ul className="space-y-2 max-h-48 overflow-y-auto bg-slate-50 rounded-2xl p-3">
                           {guitarActivity.map((entry) => {
                             const Icon = AUDIT_ACTION_ICONS[entry.action];
                             return (
                               <li key={entry.id} className="flex items-center gap-2 text-sm">
-                                <Icon className="w-4 h-4 text-gray-500 shrink-0" />
-                                <span className="text-gray-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
-                                <span className="text-gray-500">— {entry.userEmail ?? "Unknown"}</span>
-                                <span className="text-gray-400 text-xs ml-auto shrink-0">
+                                <Icon className="w-4 h-4 text-slate-500 shrink-0" />
+                                <span className="text-slate-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
+                                <span className="text-slate-500">— {entry.userEmail ?? "Unknown"}</span>
+                                <span className="text-slate-400 text-xs ml-auto shrink-0">
                                   {new Date(entry.createdAt).toLocaleDateString()} {new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </span>
                               </li>
@@ -993,22 +1197,22 @@ Factory Standards Team`;
                     </div>
                     {guitar.clientUid && (
                       <div className="mt-4">
-                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                           <User className="w-5 h-5" />
                           Client activity ({clientActivity.length})
                         </h3>
-                        <p className="text-xs text-gray-500 mb-2">Logins and page views for the purchaser.</p>
+                        <p className="text-xs text-slate-500 mb-2">Logins and page views for the purchaser.</p>
                         {clientActivity.length === 0 ? (
-                          <div className="text-center py-4 text-gray-400 text-sm bg-gray-50 rounded-lg">No activity yet</div>
+                          <div className="text-center py-4 text-slate-400 text-sm bg-slate-50 rounded-2xl">No activity yet</div>
                         ) : (
-                          <ul className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                          <ul className="space-y-2 max-h-48 overflow-y-auto bg-slate-50 rounded-2xl p-3">
                             {clientActivity.map((entry) => {
                               const Icon = AUDIT_ACTION_ICONS[entry.action];
                               return (
                                 <li key={entry.id} className="flex items-center gap-2 text-sm">
-                                  <Icon className="w-4 h-4 text-gray-500 shrink-0" />
-                                  <span className="text-gray-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
-                                  <span className="text-gray-400 text-xs ml-auto shrink-0">
+                                  <Icon className="w-4 h-4 text-slate-500 shrink-0" />
+                                  <span className="text-slate-700">{AUDIT_ACTION_LABELS[entry.action]}</span>
+                                  <span className="text-slate-400 text-xs ml-auto shrink-0">
                                     {new Date(entry.createdAt).toLocaleDateString()} {new Date(entry.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                   </span>
                                 </li>
@@ -1020,20 +1224,24 @@ Factory Standards Team`;
                     )}
                   </>
                 )}
-
-                {/* Invoice Manager - Only for Accounting Users */}
-                {userRole === "accounting" && (
-                  <div className="mt-6">
-                    <GuitarInvoiceManager
-                      guitar={guitar}
-                      onUpdate={() => {
-                        // Refresh guitar data if needed
-                      }}
-                    />
-                  </div>
-                )}
               </div>
             </div>
+
+            {canViewFinance && (
+              <div
+                id="finance"
+                ref={financeSectionRef}
+                className="mt-8 scroll-mt-6 border-t border-slate-200 pt-8"
+              >
+                <GuitarInvoiceManager
+                  guitar={guitar}
+                  onUpdate={() => {
+                    // Guitar data refreshes via parent subscription
+                  }}
+                />
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>

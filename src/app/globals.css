@@ -3,40 +3,137 @@
 @tailwind utilities;
 
 :root {
-  --color-page: #f7f8fb;
-  --color-panel: #ffffff;
-  --color-muted: #6b7280;
-  --color-text: #1f2430;
+  --foreground-rgb: 32, 39, 40;
+  --background-rgb: 215, 219, 216;
+  --color-page: #d7dbd8;
+  --color-panel: #f3f4f0;
+  --color-muted: #53605d;
+  --color-text: #202728;
+  --color-border: #aab1ae;
+  --color-accent: #f2c230;
+  --color-sidebar: #252b2c;
 }
 
 body {
-  font-family: var(--font-body);
-  color: var(--color-text);
-  background: radial-gradient(circle at top, rgba(255, 107, 44, 0.08), transparent 45%),
-    radial-gradient(circle at top right, rgba(38, 125, 255, 0.08), transparent 30%),
-    var(--color-page);
+  font-family: var(--font-body), "Source Sans 3", "Source Sans Pro", Helvetica, sans-serif;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
   min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1,
 h2,
 h3,
 .font-display {
-  font-family: var(--font-display);
-  letter-spacing: 0;
+  font-family: var(--font-display), Oswald, "Arial Narrow", sans-serif;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 1.05;
 }
 
-.panel {
-  @apply bg-card border border-slate rounded-2xl shadow-panel;
+.font-mono {
+  font-family: var(--font-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
 
-.stat-card {
-  @apply rounded-2xl border border-slate p-5 bg-card shadow-soft;
+.font-mono,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-.glow-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.12), transparent);
+/* Work Order shared primitives */
+@layer components {
+  .panel {
+    @apply bg-surface border border-border shadow-none;
+    border-radius: 2px;
+  }
+
+  .stat-card {
+    @apply border border-border bg-surface p-4 shadow-none;
+    border-radius: 2px;
+  }
+
+  .wo-label {
+    @apply font-mono text-[10px] font-semibold uppercase tracking-wider text-text-muted;
+  }
+
+  .wo-heading {
+    font-family: var(--font-display), Oswald, "Arial Narrow", sans-serif;
+    @apply text-4xl sm:text-5xl font-semibold uppercase text-text;
+    letter-spacing: 0.05em;
+    line-height: 0.95;
+  }
+
+  .wo-section {
+    font-family: var(--font-display), Oswald, "Arial Narrow", sans-serif;
+    @apply text-2xl sm:text-[1.75rem] font-semibold uppercase text-text;
+    letter-spacing: 0.06em;
+    line-height: 1.05;
+  }
+
+  .wo-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-accent text-accent-foreground
+      font-semibold text-sm px-3 py-2 border border-accent hover:bg-accent-light
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-accent disabled:opacity-50 disabled:pointer-events-none;
+    border-radius: 2px;
+    min-height: 40px;
+  }
+
+  .wo-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-sidebar text-text-onDark
+      font-semibold text-sm px-3 py-2 border border-sidebar hover:bg-sidebar-light
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-sidebar disabled:opacity-50 disabled:pointer-events-none;
+    border-radius: 2px;
+    min-height: 40px;
+  }
+
+  .wo-btn-outline {
+    @apply inline-flex items-center justify-center gap-2 bg-surface text-text
+      font-medium text-sm px-3 py-2 border border-border hover:bg-surface-alt
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-border disabled:opacity-50 disabled:pointer-events-none;
+    border-radius: 2px;
+    min-height: 40px;
+  }
+
+  .wo-input {
+    @apply w-full border border-border bg-surface text-text px-3 py-2 text-sm
+      placeholder:text-text-muted focus:outline-none focus:border-sidebar
+      focus:ring-1 focus:ring-accent;
+    border-radius: 2px;
+    min-height: 40px;
+  }
+
+  .wo-badge {
+    @apply inline-flex items-center font-mono text-[10px] font-semibold uppercase
+      tracking-wide px-1.5 py-0.5 border;
+    border-radius: 2px;
+  }
+
+  .wo-badge-accent {
+    @apply wo-badge bg-accent text-accent-foreground border-accent;
+  }
+
+  .wo-badge-dark {
+    @apply wo-badge bg-sidebar text-text-onDark border-sidebar;
+  }
+
+  .wo-badge-muted {
+    @apply wo-badge bg-surface-alt text-text-muted border-border;
+  }
+
+  .wo-badge-success {
+    @apply wo-badge bg-status-success text-white border-status-success;
+  }
+
+  .wo-badge-error {
+    @apply wo-badge bg-status-error text-white border-status-error;
+  }
 }
 
 @layer utilities {
@@ -49,17 +146,26 @@ h3,
   }
 
   .board-scroll::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.05);
-    border-radius: 4px;
+    background: rgba(32, 39, 40, 0.06);
+    border-radius: 0;
   }
 
   .board-scroll::-webkit-scrollbar-thumb {
-    background: rgba(38, 125, 255, 0.35);
-    border-radius: 4px;
+    background: rgba(242, 194, 48, 0.55);
+    border-radius: 0;
   }
 
   .board-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(38, 125, 255, 0.55);
+    background: rgba(242, 194, 48, 0.75);
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

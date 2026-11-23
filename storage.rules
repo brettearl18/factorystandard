@@ -51,25 +51,14 @@ service firebase.storage {
     // Guitar photos and reference images
     // Note: gallery/ and temp/ paths are handled by specific matches above
     match /guitars/{guitarId}/{allPaths=**} {
-      // Staff/admin/factory can read and write all guitar files
-      allow read, write: if isStaff();
-      
-      // Clients can read files for their own guitars (but not temp/gallery paths - handled above)
-      // Security: Client access is controlled at the application level
-      // The app only shows guitars that belong to the client, so they can only access
-      // photos for guitars they can see. This is acceptable because:
-      // 1. Storage paths are not easily guessable (guitarId is required)
-      // 2. Firestore rules prevent clients from reading other clients' guitar documents
-      // 3. The app UI only displays guitars owned by the client
-      // For stronger security, consider adding custom metadata to storage objects
-      allow read: if isClient() && request.auth != null && guitarId != "temp";
-      
-      // Only allow image file types for staff writes (non-temp/gallery paths)
-      allow write: if isStaff() && 
+      // Public read so Claude/ChatGPT and report links can fetch cover/reference images
+      allow read: if guitarId != "temp";
+
+      // Staff write: keep this simple. Prior contentType checks failed closed for some
+      // WhatsApp / browser uploads (and broke bulk update). Size-cap only.
+      allow write: if isStaff() &&
                      guitarId != "temp" &&
-                     !allPaths.matches("gallery/.*") && // Exclude gallery path
-                     request.resource.size < 10 * 1024 * 1024 && // 10MB max
-                     request.resource.contentType.matches('image/.*');
+                     request.resource.size < 10 * 1024 * 1024;
     }
 
     // Invoice uploads and payment receipts

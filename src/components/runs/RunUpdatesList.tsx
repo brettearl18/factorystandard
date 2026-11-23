@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { subscribeRunUpdates, recordAuditLog, recordRunUpdateViewed, addRunUpdateComment, subscribeRunUpdateComments } from "@/lib/firestore";
-import { MessageSquare, Calendar, Image as ImageIcon, ThumbsUp, Loader2 } from "lucide-react";
-import type { RunUpdate, RunUpdateComment } from "@/types/guitars";
+import { deleteRunUpdate, subscribeRunUpdates, recordAuditLog, recordRunUpdateViewed } from "@/lib/firestore";
+import { deleteRunUpdateImages } from "@/lib/storage";
+import { MessageSquare, Calendar, Image as ImageIcon, ThumbsUp, Info, Trash2 } from "lucide-react";
+import type { RunUpdate } from "@/types/guitars";
 
 interface RunUpdatesListProps {
   runId: string;
@@ -22,10 +23,30 @@ export function RunUpdatesList({
   const { currentUser, userRole } = useAuth();
   const [updates, setUpdates] = useState<RunUpdate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [commentMap, setCommentMap] = useState<Record<string, RunUpdateComment[]>>({});
-  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
-  const [submittingCommentUpdateId, setSubmittingCommentUpdateId] = useState<string | null>(null);
+  const [deletingUpdateId, setDeletingUpdateId] = useState<string | null>(null);
   const loggedViewRunUpdates = useRef(false);
+  const canDelete = userRole === "staff" || userRole === "admin";
+
+  const handleDelete = async (update: RunUpdate) => {
+    if (
+      !confirm(
+        `Delete the run update "${update.title}"?\n\nIt will disappear from every client's portal. Emails already sent cannot be recalled.`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingUpdateId(update.id);
+    try {
+      await deleteRunUpdateImages(update.imageUrls || []);
+      await deleteRunUpdate(runId, update.id);
+    } catch (error) {
+      console.error("Failed to delete run update:", error);
+      alert("Failed to delete the run update. Please try again.");
+    } finally {
+      setDeletingUpdateId(null);
+    }
+  };
 
   // Audit: log when client views run updates (once per mount)
   useEffect(() => {
@@ -53,20 +74,6 @@ export function RunUpdatesList({
     return () => unsubscribe();
   }, [runId, clientOnly, maxUpdates]);
 
-  // Subscribe to comments for each update (when client view and we have updates)
-  useEffect(() => {
-    if (!runId || updates.length === 0) return;
-    const unsubs: (() => void)[] = [];
-    updates.forEach((update) => {
-      unsubs.push(
-        subscribeRunUpdateComments(runId, update.id, (comments) => {
-          setCommentMap((prev) => ({ ...prev, [update.id]: comments }));
-        })
-      );
-    });
-    return () => unsubs.forEach((u) => u());
-  }, [runId, updates.map((u) => u.id).join(",")]);
-
   if (loading) {
     return (
       <div className="text-sm text-gray-500">Loading updates...</div>
@@ -93,13 +100,27 @@ export function RunUpdatesList({
               <MessageSquare className="w-4 h-4 text-blue-600" />
               <h4 className="font-semibold text-gray-900">{update.title}</h4>
             </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <Calendar className="w-3 h-3" />
-              {new Date(update.createdAt).toLocaleDateString("en-AU", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Calendar className="w-3 h-3" />
+                {new Date(update.createdAt).toLocaleDateString("en-AU", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </div>
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(update)}
+                  disabled={deletingUpdateId === update.id}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  title="Delete run update"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deletingUpdateId === update.id ? "Deleting…" : "Delete"}
+                </button>
+              )}
             </div>
           </div>
           
@@ -151,65 +172,26 @@ export function RunUpdatesList({
             </div>
           )}
 
-          {/* Comments */}
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs font-medium text-gray-500 mb-2">
-              Comments ({(commentMap[update.id] ?? []).length})
-            </p>
-            {(commentMap[update.id] ?? []).length > 0 && (
-              <ul className="space-y-2 mb-3">
-                {(commentMap[update.id] ?? []).map((c) => (
-                  <li key={c.id} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
-                    <span className="font-medium text-gray-900">{c.authorName}</span>
-                    <span className="text-gray-500 text-xs ml-2">
-                      {new Date(c.createdAt).toLocaleDateString()}{" "}
-                      {new Date(c.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                    <p className="text-gray-700 mt-0.5">{c.message}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {currentUser && (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Add a comment..."
-                  value={commentDraft[update.id] ?? ""}
-                  onChange={(e) => setCommentDraft((prev) => ({ ...prev, [update.id]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const msg = (commentDraft[update.id] ?? "").trim();
-                      if (msg && submittingCommentUpdateId !== update.id) {
-                        setSubmittingCommentUpdateId(update.id);
-                        addRunUpdateComment(runId, update.id, msg)
-                          .then(() => setCommentDraft((prev) => ({ ...prev, [update.id]: "" })))
-                          .catch((err) => console.error(err))
-                          .finally(() => setSubmittingCommentUpdateId(null));
-                      }
-                    }
-                  }}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  disabled={!(commentDraft[update.id]?.trim()) || submittingCommentUpdateId === update.id}
-                  onClick={() => {
-                    const msg = (commentDraft[update.id] ?? "").trim();
-                    if (!msg || submittingCommentUpdateId === update.id) return;
-                    setSubmittingCommentUpdateId(update.id);
-                    addRunUpdateComment(runId, update.id, msg)
-                      .then(() => setCommentDraft((prev) => ({ ...prev, [update.id]: "" })))
-                      .catch((err) => console.error(err))
-                      .finally(() => setSubmittingCommentUpdateId(null));
-                  }}
-                  className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submittingCommentUpdateId === update.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Post"}
-                </button>
-              </div>
-            )}
-          </div>
+          {clientOnly && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex gap-2">
+                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden />
+                <span>
+                  Run updates are factory announcements only. The Ormsby team does not monitor
+                  comments here. To reply to a build update, use{" "}
+                  <strong>Updates &amp; Progress</strong> on this page. For any{" "}
+                  <strong>spec changes</strong>, email{" "}
+                  <a
+                    href="mailto:guitars@ormsbyguitars.com"
+                    className="font-semibold underline underline-offset-2 text-amber-900"
+                  >
+                    guitars@ormsbyguitars.com
+                  </a>
+                  .
+                </span>
+              </p>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t border-gray-100">
             <p className="text-xs text-gray-500">

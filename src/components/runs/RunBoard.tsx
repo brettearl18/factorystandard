@@ -70,20 +70,20 @@ export function RunBoard({ runId }: RunBoardProps) {
   const handleDragOver = (e: React.DragEvent, stage: RunStage) => {
     e.preventDefault();
     const target = e.currentTarget as HTMLElement;
-    target.classList.add("ring-2", "ring-blue-400", "ring-offset-2");
-    target.style.backgroundColor = "#eff6ff";
+    target.classList.add("ring-2", "ring-accent", "ring-offset-1");
+    target.style.backgroundColor = "rgba(242, 194, 48, 0.12)";
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     const target = e.currentTarget as HTMLElement;
-    target.classList.remove("ring-2", "ring-blue-400", "ring-offset-2");
+    target.classList.remove("ring-2", "ring-accent", "ring-offset-1");
     target.style.backgroundColor = "";
   };
 
   const handleDrop = async (e: React.DragEvent, stage: RunStage) => {
     e.preventDefault();
     const target = e.currentTarget as HTMLElement;
-    target.classList.remove("ring-2", "ring-blue-400", "ring-offset-2");
+    target.classList.remove("ring-2", "ring-accent", "ring-offset-1");
     target.style.backgroundColor = "";
 
     if (!draggedGuitar || draggedGuitar.stageId === stage.id) {
@@ -122,107 +122,109 @@ export function RunBoard({ runId }: RunBoardProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
           <Link
             href="/runs"
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="mt-1 p-2 text-text-muted hover:bg-surface hover:text-text border border-transparent hover:border-border transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {run?.name || "Loading..."}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {guitarsForBoard.length} guitar{guitarsForBoard.length !== 1 ? "s" : ""} in this run
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsRunUpdateModalOpen(true)}
-                className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
-                title="Send update to all clients in this run"
-              >
-                <MessageSquare className="w-4 h-4" />
-                Run Update
-              </button>
-              <button
-                onClick={() => setIsAddGuitarModalOpen(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                Add Guitar
-              </button>
-            </div>
+          <div className="min-w-0">
+            <h1 className="wo-heading truncate text-[28px] sm:text-[36px] leading-none">
+              {run?.name || "Loading…"}
+            </h1>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-text-muted mt-1.5">
+              {guitarsForBoard.length} guitar{guitarsForBoard.length !== 1 ? "s" : ""} in this run
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {run && (
             <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                run.isActive
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-800"
-              }`}
+              className={
+                run.isActive ? "wo-badge-accent" : "wo-badge-muted"
+              }
             >
               {run.isActive ? "Active" : "Inactive"}
             </span>
           )}
+          <Link
+            href={`/runs/${runId}/financials`}
+            className="wo-btn-outline text-teal border-teal/40"
+            title="Financial report for this run"
+          >
+            <DollarSign className="w-4 h-4" />
+            Financial report
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIsRunUpdateModalOpen(true)}
+            className="wo-btn-outline"
+            title="Send update to all clients in this run"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Run update
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAddGuitarModalOpen(true)}
+            className="wo-btn-primary"
+          >
+            <Plus className="w-4 h-4" />
+            Add guitar
+          </button>
         </div>
       </div>
 
-      {/* Board */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full p-6 overflow-x-auto">
-          <div className="flex gap-4 h-full pb-4">
+      <div className="overflow-x-auto pb-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+        <div className="flex gap-3 min-h-[calc(100vh-14rem)] pb-4">
             {stages.map((stage) => {
               const stageGuitars = getGuitarsForStage(stage.id);
               return (
                 <div
                   key={stage.id}
-                  className="flex-shrink-0 w-80 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col transition-all duration-200"
+                  className="flex-shrink-0 w-72 sm:w-80 border border-border bg-surface-alt flex flex-col"
                   onDragOver={(e) => handleDragOver(e, stage)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, stage)}
                 >
-                  {/* Column Header */}
-                  <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-semibold text-base text-gray-900">
+                  <div className="px-3 py-3 border-b border-border bg-sidebar text-text-onDark">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="font-display text-sm font-bold uppercase tracking-wide leading-snug">
                         {stage.label}
                       </h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
                         {stage.invoiceSchedule?.enabled && (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-100 text-green-800 rounded-full" title={`Invoice: ${stage.invoiceSchedule.currency || 'AUD'} ${stage.invoiceSchedule.amount}`}>
+                          <span
+                            className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 bg-teal/25 text-text-onDark border border-teal/40 font-medium"
+                            title={`Invoice: ${stage.invoiceSchedule.currency || "AUD"} ${stage.invoiceSchedule.amount}`}
+                          >
                             <DollarSign className="w-3 h-3" />
-                            {stage.invoiceSchedule.currency || 'AUD'} {stage.invoiceSchedule.amount}
+                            {stage.invoiceSchedule.currency || "AUD"} {stage.invoiceSchedule.amount}
                           </span>
                         )}
                         {stage.internalOnly && (
-                          <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 bg-accent text-accent-foreground font-semibold uppercase">
                             Internal
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                      <span className="inline-flex items-center justify-center min-w-[1.75rem] h-6 px-1.5 bg-accent text-accent-foreground font-display text-sm font-bold tabular-nums">
                         {stageGuitars.length}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-text-onDark/60">
                         guitar{stageGuitars.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                   </div>
 
-                  {/* Cards Container */}
-                  <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0 board-scroll">
+                  <div className="flex-1 overflow-y-auto px-2.5 py-2.5 space-y-2.5 min-h-[120px] board-scroll">
                     {stageGuitars.length === 0 ? (
-                      <div className="text-center py-8 text-gray-400 text-sm">
+                      <div className="text-center py-8 text-text-muted text-sm border border-dashed border-border">
                         Drop guitars here
                       </div>
                     ) : (
@@ -242,7 +244,6 @@ export function RunBoard({ runId }: RunBoardProps) {
                 </div>
               );
             })}
-          </div>
         </div>
       </div>
 

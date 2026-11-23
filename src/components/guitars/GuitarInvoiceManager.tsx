@@ -1,21 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, DollarSign, Calendar, FileText, X, AlertCircle, CheckSquare, Square, Edit2, Save } from "lucide-react";
+import { Plus, DollarSign, Calendar, FileText, X, AlertCircle, CheckSquare, Square, Edit2, Save, Receipt } from "lucide-react";
 import { subscribeGuitarInvoices, createInvoiceRecord, calculateGuitarTotalPaid, subscribeGuitar, subscribeRunStages, updateGuitar } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { GuitarRecordPaymentModal } from "@/components/guitars/GuitarRecordPaymentModal";
 import type { InvoiceRecord, GuitarBuild, RunStage } from "@/types/guitars";
+
+function sumApprovedPaid(invoices: InvoiceRecord[]): number {
+  return invoices.reduce((sum, inv) => {
+    const payments = inv.payments || [];
+    const approved = payments.filter(
+      (p) =>
+        p.approvalStatus !== "rejected" &&
+        (p.approvalStatus === "approved" || p.approvalStatus === undefined)
+    );
+    return sum + approved.reduce((pSum, p) => pSum + (p.amount || 0), 0);
+  }, 0);
+}
 
 interface GuitarInvoiceManagerProps {
   guitar: GuitarBuild;
   onUpdate?: () => void;
+  /** Open the add-invoice modal on mount (e.g. from ?addInvoice=1). */
+  openAddInvoiceOnMount?: boolean;
 }
 
-export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerProps) {
-  const { currentUser } = useAuth();
+export function GuitarInvoiceManager({
+  guitar,
+  onUpdate,
+  openAddInvoiceOnMount = false,
+}: GuitarInvoiceManagerProps) {
+  const { currentUser, userRole } = useAuth();
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(openAddInvoiceOnMount && !!guitar.clientUid);
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [recordPaymentInvoiceId, setRecordPaymentInvoiceId] = useState<string | null>(null);
+
+  const canRecordPayment =
+    userRole === "accounting" || userRole === "staff" || userRole === "admin";
   const [stages, setStages] = useState<RunStage[]>([]);
   const [totalPaid, setTotalPaid] = useState(0);
   const [isEditingPrice, setIsEditingPrice] = useState(false);
@@ -30,13 +54,7 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
     const unsubscribeInvoices = subscribeGuitarInvoices(guitar.id, (loadedInvoices) => {
       setInvoices(loadedInvoices);
       setLoading(false);
-      
-      // Calculate total paid
-      const paid = loadedInvoices.reduce((sum, inv) => {
-        const payments = inv.payments || [];
-        return sum + payments.reduce((pSum, p) => pSum + (p.amount || 0), 0);
-      }, 0);
-      setTotalPaid(paid);
+      setTotalPaid(sumApprovedPaid(loadedInvoices));
     });
 
     // Load stages for trigger stage selection
@@ -49,6 +67,12 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
       unsubscribeStages();
     };
   }, [guitar.id, guitar.runId]);
+
+  useEffect(() => {
+    if (openAddInvoiceOnMount && guitar.clientUid && !loading) {
+      setShowAddModal(true);
+    }
+  }, [openAddInvoiceOnMount, guitar.clientUid, loading]);
 
   const price = guitar.price || 0;
   const currency = guitar.currency || "AUD";
@@ -101,18 +125,48 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Invoices & Payments</h2>
-              <p className="text-sm text-gray-500">Manage invoice reminders for this guitar</p>
+              <p className="text-sm text-gray-500">
+                Invoices, reminders, and manual payments (cash, in-store, etc.)
+              </p>
             </div>
-            {guitar.clientUid && (
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Invoice Reminder
-              </button>
+            {guitar.clientUid ? (
+              <div className="flex flex-wrap gap-2">
+                {canRecordPayment && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecordPaymentInvoiceId(null);
+                      setShowRecordPaymentModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    Record payment
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add invoice reminder
+                </button>
+              </div>
+            ) : (
+              <span className="text-sm text-amber-700 font-medium">Client required</span>
             )}
           </div>
+
+      {!guitar.clientUid && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">No client assigned to this guitar</p>
+          <p className="mt-1 text-amber-800">
+            Invoices are stored on the client profile. Ask staff to assign a client on the run
+            board before you can add invoice reminders here.
+          </p>
+        </div>
+      )}
 
       {/* Financial Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -244,7 +298,13 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
         </h3>
         {invoices.length === 0 ? (
           <div className="text-center text-gray-500 py-8 border border-dashed rounded-lg">
-            No invoices yet. Add an invoice to get started.
+            <p>No invoices yet.</p>
+            {canRecordPayment && (
+              <p className="text-sm mt-2">
+                Use <strong>Record payment</strong> for cash or in-store payments — an invoice
+                entry will be created automatically.
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -272,19 +332,33 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
                         </p>
                       )}
                     </div>
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                        invoice.status === "paid"
-                          ? "bg-green-100 text-green-700"
-                          : invoice.status === "overdue"
-                          ? "bg-red-100 text-red-700"
-                          : invoice.status === "partial"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {invoice.status}
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
+                          invoice.status === "paid"
+                            ? "bg-green-100 text-green-700"
+                            : invoice.status === "overdue"
+                            ? "bg-red-100 text-red-700"
+                            : invoice.status === "partial"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {invoice.status}
+                      </span>
+                      {canRecordPayment && guitar.clientUid && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRecordPaymentInvoiceId(invoice.id);
+                            setShowRecordPaymentModal(true);
+                          }}
+                          className="text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                        >
+                          Record payment
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
@@ -327,6 +401,9 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
                           >
                             <span>
                               {new Date(payment.paidAt).toLocaleDateString()} - {payment.method}
+                              {payment.receiptNumber && (
+                                <span className="text-gray-500"> · #{payment.receiptNumber}</span>
+                              )}
                             </span>
                             <span className="font-semibold">
                               {currency} ${payment.amount.toLocaleString()}
@@ -352,6 +429,22 @@ export function GuitarInvoiceManager({ guitar, onUpdate }: GuitarInvoiceManagerP
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
+            onUpdate?.();
+          }}
+        />
+      )}
+
+      {canRecordPayment && guitar.clientUid && (
+        <GuitarRecordPaymentModal
+          guitar={guitar}
+          invoices={invoices}
+          initialInvoiceId={recordPaymentInvoiceId}
+          isOpen={showRecordPaymentModal}
+          onClose={() => {
+            setShowRecordPaymentModal(false);
+            setRecordPaymentInvoiceId(null);
+          }}
+          onSuccess={() => {
             onUpdate?.();
           }}
         />
@@ -560,40 +653,6 @@ function AddInvoiceModal({
                   <option value="GBP">GBP</option>
                 </select>
               </div>
-            </div>
-
-            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <input
-                type="checkbox"
-                id="finalBalance"
-                checked={isFinalBalance}
-                onChange={(e) => {
-                  setIsFinalBalance(e.target.checked);
-                  if (e.target.checked) {
-                    setAmount(remainingBalance.toFixed(2));
-                  }
-                }}
-                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="finalBalance" className="flex-1 cursor-pointer">
-                <span className="text-sm font-medium text-gray-900 block">
-                  Final Balance Invoice
-                </span>
-                <span className="text-xs text-gray-600 block mt-1">
-                  Automatically calculate amount as remaining balance (Guitar Price - Total Paid). 
-                  This will be the final invoice covering whatever is left to pay.
-                </span>
-                {isFinalBalance && remainingBalance > 0 && (
-                  <span className="text-xs text-blue-700 block mt-1 font-semibold">
-                    Amount will be set to {currency} ${remainingBalance.toLocaleString()}
-                  </span>
-                )}
-                {isFinalBalance && remainingBalance <= 0 && (
-                  <span className="text-xs text-red-600 block mt-1 font-semibold">
-                    No remaining balance - guitar is fully paid
-                  </span>
-                )}
-              </label>
             </div>
 
             <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">

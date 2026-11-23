@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { subscribeAllInvoices, recordInvoicePayment, approvePayment, type InvoiceWithClient } from "@/lib/firestore";
+import { useRuns } from "@/hooks/useRuns";
+import { AccountingGuitarsFinancialTable } from "@/components/accounting/AccountingGuitarsFinancialTable";
 import type { InvoiceRecord, InvoicePayment } from "@/types/guitars";
 import {
   DollarSign,
@@ -30,6 +33,9 @@ export default function AccountingPage() {
   const [dateTo, setDateTo] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithClient | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<"guitars" | "invoices">("guitars");
+  const [runFilter, setRunFilter] = useState<string>("all");
+  const runs = useRuns();
 
   useEffect(() => {
     if (loading) return;
@@ -197,7 +203,7 @@ export default function AccountingPage() {
     document.body.removeChild(link);
   };
 
-  if (loading || loadingInvoices) {
+  if (loading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">
@@ -213,24 +219,65 @@ export default function AccountingPage() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div
+        className={`container mx-auto px-4 py-8 ${activeTab === "guitars" ? "max-w-[1600px]" : "max-w-7xl"}`}
+      >
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Accounting & Finance</h1>
-              <p className="text-gray-600">Manage invoices, payments, and financial reports</p>
+              <p className="text-gray-600">
+                All guitars by run — status, invoices, due dates, and payments
+              </p>
             </div>
+            {activeTab === "invoices" && (
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Export invoice CSV
+              </button>
+            )}
+          </div>
+
+          <div className="mt-6 flex gap-1 border-b border-gray-200">
             <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              type="button"
+              onClick={() => setActiveTab("guitars")}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === "guitars"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
             >
-              <Download className="w-4 h-4" />
-              Export CSV
+              Guitars by run
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("invoices")}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === "invoices"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              All invoices
             </button>
           </div>
         </div>
 
+        {activeTab === "guitars" ? (
+          <AccountingGuitarsFinancialTable
+            runs={runs}
+            runFilter={runFilter}
+            onRunFilterChange={setRunFilter}
+          />
+        ) : loadingInvoices ? (
+          <div className="flex justify-center py-16 text-gray-500">Loading invoices…</div>
+        ) : (
+          <>
         {/* Financial Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -450,6 +497,14 @@ export default function AccountingPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <div className="flex flex-col gap-1">
+                            {invoice.guitarId && (
+                              <Link
+                                href={`/guitars/${invoice.guitarId}?addInvoice=1#finance`}
+                                className="text-emerald-700 hover:text-emerald-900 font-medium"
+                              >
+                                Add invoice
+                              </Link>
+                            )}
                             <button
                               onClick={() => {
                                 setSelectedInvoice(invoice);
@@ -480,10 +535,11 @@ export default function AccountingPage() {
             </table>
           </div>
         </div>
+          </>
+        )}
       </div>
 
-      {/* Payment Modal */}
-      {showPaymentModal && selectedInvoice && (
+      {activeTab === "invoices" && showPaymentModal && selectedInvoice && (
         <RecordPaymentModal
           invoice={selectedInvoice}
           isOpen={showPaymentModal}
@@ -509,6 +565,7 @@ function RecordPaymentModal({
 }) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("bank transfer");
+  const [receiptNumber, setReceiptNumber] = useState("");
   const [note, setNote] = useState("");
   const [paidAt, setPaidAt] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -547,6 +604,7 @@ function RecordPaymentModal({
         amount: amountValue,
         currency: invoice.currency,
         method,
+        receiptNumber: receiptNumber.trim() || undefined,
         note: note || undefined,
         recordedBy: "accounting",
         paidAt: paidAt ? new Date(paidAt).getTime() : undefined,
@@ -554,6 +612,7 @@ function RecordPaymentModal({
 
       setAmount("");
       setMethod("bank transfer");
+      setReceiptNumber("");
       setNote("");
       setPaidAt("");
       onClose();
@@ -616,6 +675,7 @@ function RecordPaymentModal({
                         </div>
                         <div className="text-xs text-gray-600">
                           {new Date(payment.paidAt).toLocaleDateString()} — {payment.method || "Payment"}
+                          {payment.receiptNumber && ` · #${payment.receiptNumber}`}
                         </div>
                         {payment.note && (
                           <div className="text-xs text-gray-500 mt-1">{payment.note}</div>
@@ -706,10 +766,25 @@ function RecordPaymentModal({
                 <option value="credit card">Credit Card</option>
                 <option value="paypal">PayPal</option>
                 <option value="stripe">Stripe</option>
+                <option value="Shopify">Shopify</option>
+                <option value="Xero Invoice">Xero Invoice</option>
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
                 <option value="other">Other</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Receipt number (optional)
+              </label>
+              <input
+                type="text"
+                value={receiptNumber}
+                onChange={(e) => setReceiptNumber(e.target.value)}
+                placeholder="Shopify order #, Xero invoice #, store receipt…"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
 
             <div>

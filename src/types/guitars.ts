@@ -197,6 +197,7 @@ export interface InvoicePayment {
   currency: string;
   method: string;
   note?: string;
+  receiptNumber?: string; // Receipt / reference number (Shopify, Xero, in-store, etc.)
   paidAt: number;
   recordedBy: string;
   receiptUrl?: string; // Screenshot/receipt image URL
@@ -253,6 +254,7 @@ export type NotificationType =
   | "guitar_stage_changed"
   | "guitar_note_added"
   | "guitar_note_comment"
+  | "guitar_gallery_upload"
   | "guitar_created"
   | "guitar_assigned"
   | "run_created"
@@ -315,6 +317,15 @@ export interface CustomShopRequest {
   guitarDescription: string;
   /** Structured spec choices from the questionnaire (optional) */
   specs?: Partial<GuitarSpecs>;
+  /** Standard vs future campaign form */
+  formId?: string;
+  formVersion?: string;
+  /** Guitar or bass (standard wizard) */
+  instrumentType?: "guitar" | "bass";
+  /** Client-selected budget band (optional) */
+  budgetRange?: string;
+  /** Indicative total AUD at submit (base + option add-ons); not a quote */
+  estimatedTotalAUD?: number;
   /** Optional model/shape name (e.g. Hype GTR, Goliath) */
   model?: string;
   /** Why this build / why now – motivation and commitment (optional) */

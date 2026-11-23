@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Camera, Info, FileText, TreePine, Zap, Settings, Palette, Clock, ChevronRight } from "lucide-react";
 import { subscribeGuitarNotes } from "@/lib/firestore";
+import { isExternalShareLink } from "@/lib/storage";
+import { ExternalShareLink } from "@/components/shared/ExternalShareLink";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
 import type { GuitarBuild, GuitarNote, RunStage } from "@/types/guitars";
 
@@ -308,15 +310,20 @@ export function MobileGuitarDetailsView({ guitar, stages, onClose, onUpdate }: M
                     </div>
                     {note.photoUrls && note.photoUrls.length > 0 && (
                       <div className="grid grid-cols-2 gap-2 mt-2">
-                        {note.photoUrls.map((photoUrl, idx) => (
-                          <div key={idx} className="relative aspect-square rounded overflow-hidden bg-gray-100">
-                            <img
-                              src={photoUrl}
-                              alt={`Note photo ${idx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ))}
+                        {note.photoUrls.map((photoUrl, idx) => {
+                          if (isExternalShareLink(photoUrl)) {
+                            return <ExternalShareLink key={idx} url={photoUrl} compact />;
+                          }
+                          return (
+                            <div key={idx} className="relative aspect-square rounded overflow-hidden bg-gray-100">
+                              <img
+                                src={photoUrl}
+                                alt={`Note photo ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

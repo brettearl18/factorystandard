@@ -67,7 +67,7 @@ export default function AdminSettingsPage() {
         // Initialize with defaults if no settings exist
         const defaultSettings: AppSettings = {
           branding: {
-            companyName: "Factory Standards",
+            companyName: "Australian Production",
             primaryColor: "#F97316",
             secondaryColor: "#3B82F6",
             accentColor: "#10B981",
@@ -361,7 +361,7 @@ function BrandingSection({
           value={formData.companyName || ""}
           onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Factory Standards"
+          placeholder="Australian Production"
         />
       </div>
 
@@ -613,7 +613,7 @@ function BrandingSection({
           value={formData.footerText || ""}
           onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="© 2025 Factory Standards. All rights reserved."
+          placeholder="© 2025 Australian Production. All rights reserved."
         />
       </div>
 
@@ -872,7 +872,7 @@ function EmailSection({
           value={formData.fromName || ""}
           onChange={(e) => setFormData({ ...formData, fromName: e.target.value })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Factory Standards"
+          placeholder="Australian Production"
         />
       </div>
 

@@ -2,25 +2,20 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { sendEmail, getMailgunConfig } from "./mailgun";
 import { runUpdateHtml } from "./emailTemplates";
+import { notifyAllStaff, notifyUser } from "./notifyStaff";
 
 const opts = { memory: "256MB" as const, timeoutSeconds: 60 };
 
 /**
- * Triggered when a run update document is created. If visibleToClients is true,
- * email all clients who have guitars in this run (via Mailgun if configured).
+ * Triggered when a run update document is created. Handles notifications and,
+ * when visible to clients, emails all clients who have guitars in the run.
  */
 export const onRunUpdateCreated = functions
   .runWith(opts)
   .firestore.document("runs/{runId}/updates/{updateId}")
   .onCreate(async (snap, context) => {
-    const cfg = getMailgunConfig();
-    if (!cfg) return null;
-
     const data = snap.data();
     const runId = context.params.runId;
-
-    if (!data.visibleToClients) return null;
-
     const title = (data.title as string) || "Run update";
     const message = (data.message as string) || "";
     const authorName = (data.authorName as string) || "The team";
@@ -39,6 +34,34 @@ export const onRunUpdateCreated = functions
       const uid = d.data().clientUid;
       if (uid) clientUids.add(uid);
     });
+
+    const notificationPayload = {
+      type: "run_update",
+      title,
+      message,
+      runId,
+      metadata: { runName, authorName },
+    };
+
+    const notificationTasks: Promise<void>[] = [
+      notifyAllStaff({
+        ...notificationPayload,
+        title: `Run Update: ${title}`,
+        message: `${authorName} posted an update to ${runName}`,
+      }),
+    ];
+
+    if (data.visibleToClients) {
+      for (const uid of clientUids) {
+        notificationTasks.push(notifyUser(uid, notificationPayload));
+      }
+    }
+    await Promise.all(notificationTasks);
+
+    if (!data.visibleToClients) return null;
+
+    const cfg = getMailgunConfig();
+    if (!cfg) return null;
 
     const emails: string[] = [];
     for (const uid of clientUids) {
@@ -62,9 +85,7 @@ export const onRunUpdateCreated = functions
     );
     const text = `${runName}: ${title}\n\n${authorName}:\n${message}\n\nLog in to the portal for full details.`;
 
-    for (const to of emails) {
-      await sendEmail(to, subject, html, text);
-    }
+    await Promise.all(emails.map((to) => sendEmail(to, subject, html, text)));
 
     return null;
   });

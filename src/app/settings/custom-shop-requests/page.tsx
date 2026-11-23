@@ -296,6 +296,35 @@ function CustomShopRequestsAdminContent() {
                         <p className="text-gray-900">{detailRequest.model}</p>
                       </div>
                     )}
+                    {detailRequest.formId && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Form</p>
+                        <p className="text-gray-900 text-sm">
+                          {detailRequest.formId}
+                          {detailRequest.formVersion ? ` (v${detailRequest.formVersion})` : ""}
+                        </p>
+                      </div>
+                    )}
+                    {detailRequest.instrumentType && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Instrument</p>
+                        <p className="text-gray-900 capitalize">{detailRequest.instrumentType}</p>
+                      </div>
+                    )}
+                    {detailRequest.budgetRange && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Budget band</p>
+                        <p className="text-gray-900 text-sm">{detailRequest.budgetRange}</p>
+                      </div>
+                    )}
+                    {detailRequest.estimatedTotalAUD != null && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Indicative total (at submit)</p>
+                        <p className="text-gray-900 font-medium">
+                          ${detailRequest.estimatedTotalAUD.toLocaleString("en-AU")} AUD
+                        </p>
+                      </div>
+                    )}
                     {detailRequest.specs && Object.keys(detailRequest.specs).length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Specs</p>
@@ -332,7 +361,7 @@ function CustomShopRequestsAdminContent() {
                     )}
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <DollarSign className="w-4 h-4" />
-                      Deposit agreed: $1,000 AUD
+                      Deposit agreed: ${detailRequest.depositAmountAUD.toLocaleString("en-AU")} AUD
                     </div>
                     {detailRequest.inspirationImageUrls.length > 0 && (
                       <div>

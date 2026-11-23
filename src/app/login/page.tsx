@@ -104,13 +104,13 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
+    <div className="flex items-center justify-center min-h-screen bg-bg px-4 py-10">
+      <div className="bg-surface p-8 w-full max-w-md border border-border shadow-modal">
         {/* Header */}
         <div className="text-center mb-8">
           <Link
             href="/"
-            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-sm text-text-muted hover:text-text mb-4 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to home
@@ -120,37 +120,35 @@ function LoginForm() {
               <>
                 <img
                   src={branding.companyLogo}
-                  alt={branding.companyName || "Factory Standards"}
+                  alt={branding.companyName || "Australian Production"}
                   className="h-16 w-auto object-contain mb-3"
                 />
-                <h2 className="text-xl font-semibold text-gray-700 mb-2">
-                  Ormsby Guitars CustomShop &amp; Factory Standards
+                <h2 className="font-display text-lg font-bold uppercase tracking-wide text-text mb-2">
+                  Ormsby Guitars CustomShop &amp; Australian Production
                 </h2>
               </>
             ) : (
-              <div 
-                className={`p-3 rounded-full ${
-                  loginType === "admin" ? "bg-purple-100" : "bg-blue-100"
+              <div
+                className={`p-3 border ${
+                  loginType === "admin"
+                    ? "bg-sidebar border-sidebar"
+                    : "bg-accent/20 border-accent"
                 }`}
-                style={!loginType && branding?.primaryColor ? { backgroundColor: `${branding.primaryColor}20` } : {}}
               >
                 {loginType === "admin" ? (
-                  <Shield className="w-8 h-8 text-purple-600" />
+                  <Shield className="w-8 h-8 text-accent" />
                 ) : (
-                  <Guitar 
-                    className="w-8 h-8" 
-                    style={branding?.primaryColor ? { color: branding.primaryColor } : { color: "#3B82F6" }}
-                  />
+                  <Guitar className="w-8 h-8 text-sidebar" />
                 )}
               </div>
             )}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="wo-heading text-[32px] leading-none mb-2 normal-case">
             {isCustomShop
               ? `Welcome to the ${branding?.companyName || "Ormsby"} CustomShop`
               : "Welcome Back"}
           </h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-text-muted text-sm">
             {isCustomShop
               ? "Sign in to your account or create one to submit your custom guitar idea."
               : loginType === "admin"
@@ -159,17 +157,17 @@ function LoginForm() {
             }
           </p>
           {isCustomShop && (
-            <div className="inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+            <div className="inline-flex items-center gap-2 mt-3 wo-badge-accent">
               <Guitar className="w-3 h-3" />
               Custom Shop
             </div>
           )}
           {!isCustomShop && loginType && (
-            <div className={`inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium ${
-              loginType === "admin" 
-                ? "bg-purple-100 text-purple-700" 
-                : "bg-blue-100 text-blue-700"
-            }`}>
+            <div
+              className={`inline-flex items-center gap-2 mt-3 ${
+                loginType === "admin" ? "wo-badge-dark" : "wo-badge-accent"
+              }`}
+            >
               {loginType === "admin" ? (
                 <>
                   <Shield className="w-3 h-3" />
@@ -187,7 +185,7 @@ function LoginForm() {
 
         {/* Error/Success Messages */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-start gap-2">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-start gap-2">
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium">Error</p>
@@ -197,7 +195,7 @@ function LoginForm() {
         )}
 
         {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-start gap-2">
+          <div className="bg-teal/10 border border-teal/30 text-teal px-4 py-3 rounded-xl mb-4 flex items-start gap-2">
             <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium">Success</p>
@@ -211,7 +209,7 @@ function LoginForm() {
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <label className="wo-label mb-2 flex items-center gap-2">
                   <Mail className="w-4 h-4" />
                   Email Address
                 </label>
@@ -219,14 +217,14 @@ function LoginForm() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="wo-input"
                   placeholder="your.email@example.com"
                   required
                   disabled={loading}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <label className="wo-label mb-2 flex items-center gap-2">
                   <Lock className="w-4 h-4" />
                   Password
                 </label>
@@ -234,7 +232,7 @@ function LoginForm() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="wo-input"
                   placeholder="Enter your password"
                   required
                   disabled={loading}
@@ -244,7 +242,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                  className="text-sm font-semibold text-sidebar hover:underline transition-colors"
                   disabled={loading}
                 >
                   Forgot password?
@@ -253,11 +251,11 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                className="wo-btn-primary w-full"
               >
                 {loading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-accent-foreground border-t-transparent animate-spin" />
                     Signing in...
                   </>
                 ) : (
@@ -270,29 +268,29 @@ function LoginForm() {
             </form>
 
             {/* Sign in / Sign up options */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="mt-6 pt-6 border-t border-slate-200">
               {isCustomShop ? (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700 text-center">New to Custom Shop?</p>
+                  <p className="text-sm font-medium text-slate-700 text-center">New to Custom Shop?</p>
                   <Link
                     href={`/signup?redirect=${encodeURIComponent("/custom-shop")}`}
-                    className="block w-full py-3 px-4 rounded-lg border-2 border-amber-500 text-amber-700 font-medium text-center hover:bg-amber-50 transition-colors"
+                    className="block w-full h-11 leading-[2.75rem] px-4 rounded-2xl border border-accent text-accent font-medium text-center hover:bg-accent/5 transition-colors"
                   >
                     Create account — Sign up
                   </Link>
-                  <p className="text-xs text-gray-500 text-center">
+                  <p className="text-xs text-slate-500 text-center">
                     Already have an account? Use the form above to sign in.
                   </p>
                 </div>
               ) : (
                 <div className="text-center">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-slate-600">
                     Don&apos;t have an account?{" "}
                     <Link
                       href={redirectTo?.startsWith("/") && !redirectTo.startsWith("//")
                         ? `/signup?redirect=${encodeURIComponent(redirectTo)}`
                         : "/signup"}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
+                      className="text-accent hover:text-accent-light font-medium transition-colors"
                     >
                       Sign up
                     </Link>
@@ -301,8 +299,8 @@ function LoginForm() {
               )}
             </div>
             {/* Help Text */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500 text-center">
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <p className="text-xs text-slate-500 text-center">
                 Need help? Contact your factory representative or check your email for account setup instructions.
               </p>
             </div>
@@ -312,13 +310,13 @@ function LoginForm() {
             {/* Forgot Password Form */}
             <form onSubmit={handleForgotPassword} className="space-y-5">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Reset Password</h2>
-                <p className="text-sm text-gray-600 mb-4">
+                <h2 className="text-xl font-semibold text-slate-900 mb-2">Reset Password</h2>
+                <p className="text-sm text-slate-500 mb-4">
                   Enter your email address and we'll send you a link to reset your password.
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                   <Mail className="w-4 h-4" />
                   Email Address
                 </label>
@@ -326,7 +324,7 @@ function LoginForm() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full h-11 px-3 border border-slate-200 rounded-2xl bg-white text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/40 transition-colors"
                   placeholder="your.email@example.com"
                   required
                   disabled={resetLoading}
@@ -340,7 +338,7 @@ function LoginForm() {
                     setError("");
                     setSuccess("");
                   }}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  className="flex-1 h-11 rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors font-medium"
                   disabled={resetLoading}
                 >
                   Back
@@ -348,7 +346,7 @@ function LoginForm() {
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                  className="flex-1 h-11 bg-accent text-accent-foreground rounded-2xl hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                 >
                   {resetLoading ? (
                     <>
@@ -371,8 +369,8 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="text-lg text-slate-600">Loading...</div>
       </div>
     }>
       <LoginForm />

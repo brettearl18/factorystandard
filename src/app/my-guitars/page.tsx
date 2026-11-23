@@ -10,6 +10,7 @@ import { useClientInvoices } from "@/hooks/useClientInvoices";
 import { useClientProfile } from "@/hooks/useClientProfile";
 import { subscribeRunStages, subscribeGuitarNotes, recordAuditLog, subscribeCustomShopRequestsByUser } from "@/lib/firestore";
 import { InvoiceList } from "@/components/client/InvoiceList";
+import { GuitarPhoto } from "@/components/shared/GuitarPhoto";
 import { Calendar, Clock, Guitar, TrendingUp, CheckCircle, Package, Activity, ArrowRight, Eye, EyeOff, FileText } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote } from "@/types/guitars";
 import type { CustomShopRequest } from "@/types/guitars";
@@ -117,8 +118,8 @@ export default function MyGuitarsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-bg">
+        <div className="text-lg text-slate-600">Loading...</div>
       </div>
     );
   }
@@ -131,14 +132,14 @@ export default function MyGuitarsPage() {
   if (isAdminViewing) {
     return (
       <AppLayout>
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
-            <Eye className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-blue-900 mb-2">View Client Dashboard</h2>
-            <p className="text-blue-700 mb-4">To view a client's dashboard, navigate to their guitar detail page and use the "View as Client" button.</p>
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="rounded-2xl border border-accent/20 bg-accent/5 p-8 text-center">
+            <Eye className="w-12 h-12 text-accent mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">View Client Dashboard</h2>
+            <p className="text-slate-600 mb-4">To view a client&apos;s dashboard, navigate to their guitar detail page and use the &quot;View as Client&quot; button.</p>
             <Link
               href="/settings"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-accent text-accent-foreground hover:bg-accent-light transition-colors"
             >
               Go to Settings
             </Link>
@@ -175,18 +176,18 @@ export default function MyGuitarsPage() {
   const getStatusColor = (status: string): string => {
     const statusLower = status.toLowerCase();
     if (statusLower.includes("planning") || statusLower.includes("design")) {
-      return "bg-purple-100 text-purple-800";
+      return "bg-sidebar text-text-onDark border-sidebar";
     }
     if (statusLower.includes("build") || statusLower.includes("progress")) {
-      return "bg-blue-100 text-blue-800";
+      return "bg-accent text-accent-foreground border-accent";
     }
     if (statusLower.includes("finish") || statusLower.includes("paint")) {
-      return "bg-yellow-100 text-yellow-800";
+      return "bg-status-warning text-accent-foreground border-status-warning";
     }
     if (statusLower.includes("ready") || statusLower.includes("complete")) {
-      return "bg-green-100 text-green-800";
+      return "bg-status-success text-white border-status-success";
     }
-    return "bg-gray-100 text-gray-800";
+    return "bg-surface-alt text-text-muted border-border";
   };
 
   // Calculate statistics
@@ -212,159 +213,147 @@ export default function MyGuitarsPage() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Guitar Dashboard</h1>
-          <p className="text-gray-600">Track the progress of your custom builds</p>
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">My Guitar Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Track the progress of your custom builds</p>
         </div>
 
         {guitars.length === 0 && userRole === "client" ? (
           <div className="space-y-6">
             {/* Pending Custom Shop requests */}
             {customShopRequests.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-                  <h2 className="text-lg font-bold text-gray-900">Pending</h2>
-                  <p className="text-sm text-gray-600">Your Custom Shop request(s) — we’ll review and get in touch.</p>
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                  <h2 className="text-lg font-bold text-slate-900">Pending</h2>
+                  <p className="text-sm text-slate-600">Your Custom Shop request(s) — we’ll review and get in touch.</p>
                 </div>
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-slate-100">
                   {customShopRequests.map((req) => (
                     <Link
                       key={req.id}
                       href={`/custom-shop/requests/${req.id}`}
-                      className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group"
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
                     >
-                      <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-6 h-6 text-amber-700" />
+                      <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-6 h-6 text-accent" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 group-hover:text-amber-700 truncate">
+                        <p className="font-medium text-slate-900 group-hover:text-accent truncate">
                           {req.model
                             ? req.model
                             : req.guitarDescription.length > 50
                               ? req.guitarDescription.slice(0, 50) + "…"
                               : req.guitarDescription}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500">
                           Submitted {new Date(req.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
                           {" · "}
                           <span className={
                             req.status === "pending" ? "text-amber-700 font-medium" :
-                            req.status === "approved" ? "text-green-600" :
+                            req.status === "approved" ? "text-teal" :
                             req.status === "rejected" ? "text-red-600" :
-                            "text-blue-600"
+                            "text-accent"
                           }>
                             {req.status === "pending" ? "Under review" : req.status}
                           </span>
                         </p>
                       </div>
-                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-amber-600 flex-shrink-0" />
+                      <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-accent flex-shrink-0" />
                     </Link>
                   ))}
                 </div>
               </div>
             )}
             {/* Empty state / CTAs */}
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <Guitar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-12 text-center">
+              <Guitar className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">
                 {customShopRequests.length > 0 ? "No builds in progress yet" : "No guitars yet"}
               </h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              <p className="text-slate-600 mb-6 max-w-md mx-auto">
                 {customShopRequests.length > 0
                   ? "Your Custom Shop request is pending. Once approved, your build will appear here. You can also submit another request."
-                  : "Get started by submitting your guitar specifications or a Custom Shop request."}
+                  : "Your builds will appear here once our team adds them to a run. You can submit a Custom Shop request anytime."}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/custom-shop/submit"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-accent text-accent-foreground hover:bg-accent-light transition-colors font-medium"
                 >
                   <FileText className="w-5 h-5" />
                   Custom Shop request
-                </Link>
-                <Link
-                  href="/onboard"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  <Guitar className="w-5 h-5" />
-                  Submit guitar specs (run)
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </div>
             </div>
           </div>
         ) : guitars.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="text-center py-16 rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="max-w-md mx-auto">
-              <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No guitars yet</h3>
-              <p className="text-gray-500">Your custom builds will appear here once they're added to the system.</p>
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">No guitars yet</h3>
+              <p className="text-slate-500">Your custom builds will appear here once they're added to the system.</p>
             </div>
           </div>
         ) : (
           <>
             {/* Dashboard Overview Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {/* Total Guitars */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+              <div className="stat-card">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Total Guitars</p>
-                    <p className="text-3xl font-bold text-gray-900">{totalGuitars}</p>
+                    <p className="text-xs font-medium text-slate-500">Total Guitars</p>
+                    <p className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">{totalGuitars}</p>
                   </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Guitar className="w-6 h-6 text-purple-600" />
+                  <div className="w-10 h-10 bg-purple-100 rounded-2xl flex items-center justify-center">
+                    <Guitar className="w-5 h-5 text-purple-600" />
                   </div>
                 </div>
               </div>
 
-              {/* In Progress */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="stat-card">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">In Progress</p>
-                    <p className="text-3xl font-bold text-blue-600">{inProgressGuitars}</p>
+                    <p className="text-xs font-medium text-slate-500">In Progress</p>
+                    <p className="text-2xl font-semibold text-accent mt-1 tabular-nums">{inProgressGuitars}</p>
                   </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  <div className="w-10 h-10 bg-accent/10 rounded-2xl flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-accent" />
                   </div>
                 </div>
               </div>
 
-              {/* Completed */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="stat-card">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Completed</p>
-                    <p className="text-3xl font-bold text-green-600">{completedGuitars}</p>
+                    <p className="text-xs font-medium text-slate-500">Completed</p>
+                    <p className="text-2xl font-semibold text-teal mt-1 tabular-nums">{completedGuitars}</p>
                   </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div className="w-10 h-10 bg-teal/10 rounded-2xl flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-teal" />
                   </div>
                 </div>
               </div>
 
-              {/* Average Progress */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="stat-card">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">Avg. Progress</p>
-                    <p className="text-3xl font-bold text-orange-600">{averageProgress}%</p>
+                    <p className="text-xs font-medium text-slate-500">Avg. Progress</p>
+                    <p className="text-2xl font-semibold text-slate-900 mt-1 tabular-nums">{averageProgress}%</p>
                   </div>
-                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <Package className="w-6 h-6 text-orange-600" />
+                  <div className="w-10 h-10 bg-accent/10 rounded-2xl flex items-center justify-center">
+                    <Package className="w-5 h-5 text-accent" />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Invoices Section */}
+            {/* TEMP: invoices hidden from client dashboard for now
             {invoices.length > 0 && (
               <div className="mb-8">
                 <InvoiceList
@@ -375,15 +364,16 @@ export default function MyGuitarsPage() {
                 />
               </div>
             )}
+            */}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* Recent Activity */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                      <Activity className="w-5 h-5 text-blue-600" />
+                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-accent" />
                       Recent Activity
                     </h2>
                   </div>
@@ -396,29 +386,29 @@ export default function MyGuitarsPage() {
                           <Link
                             key={note.id}
                             href={`/my-guitars/${guitar.id}`}
-                            className="block p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-colors group"
+                            className="block p-3 rounded-2xl border border-slate-100 hover:border-accent/30 hover:bg-accent/5 transition-colors group"
                           >
                             <div className="flex items-start gap-3">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0" />
+                              <div className="w-2 h-2 bg-accent rounded-full mt-2 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 mb-1 group-hover:text-blue-600">
+                                <p className="text-sm font-semibold text-slate-900 mb-1 group-hover:text-accent">
                                   {guitar.model}
                                 </p>
-                                <p className="text-xs text-gray-600 mb-1 line-clamp-2">{note.message}</p>
-                                <p className="text-xs text-gray-400">
+                                <p className="text-xs text-slate-600 mb-1 line-clamp-2">{note.message}</p>
+                                <p className="text-xs text-slate-400">
                                   {new Date(note.createdAt).toLocaleDateString()} at{" "}
                                   {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
-                              <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 flex-shrink-0 mt-1" />
+                              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-accent flex-shrink-0 mt-1" />
                             </div>
                           </Link>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Activity className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <div className="text-center py-8 text-slate-500">
+                      <Activity className="w-12 h-12 mx-auto mb-2 text-slate-300" />
                       <p className="text-sm">No recent activity</p>
                     </div>
                   )}
@@ -428,14 +418,14 @@ export default function MyGuitarsPage() {
               {/* Guitar Cards - Takes 2 columns */}
               <div className="lg:col-span-2">
                 {customShopRequests.length > 0 && (
-                  <div className="mb-4 p-4 rounded-lg border border-amber-200 bg-amber-50">
-                    <h3 className="text-sm font-semibold text-amber-900 mb-2">Pending Custom Shop</h3>
+                  <div className="mb-4 p-4 rounded-2xl border border-accent/20 bg-accent/5">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-2">Pending Custom Shop</h3>
                     <div className="space-y-2">
                       {customShopRequests.map((req) => (
                         <Link
                           key={req.id}
                           href={`/custom-shop/requests/${req.id}`}
-                          className="flex items-center justify-between text-sm text-amber-800 hover:text-amber-900"
+                          className="flex items-center justify-between text-sm text-accent hover:text-accent-light"
                         >
                           <span className="truncate">
                             {req.model || req.guitarDescription.slice(0, 40) + (req.guitarDescription.length > 40 ? "…" : "")}
@@ -447,8 +437,8 @@ export default function MyGuitarsPage() {
                   </div>
                 )}
                 <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">My Guitars</h2>
-                  <span className="text-sm text-gray-600">{totalGuitars} {totalGuitars === 1 ? 'guitar' : 'guitars'}</span>
+                  <h2 className="text-lg font-bold text-slate-900">My Guitars</h2>
+                  <span className="text-sm text-slate-600">{totalGuitars} {totalGuitars === 1 ? 'guitar' : 'guitars'}</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {guitars.map((guitar) => {
@@ -460,51 +450,47 @@ export default function MyGuitarsPage() {
                 <Link
                   key={guitar.id}
                   href={`/my-guitars/${guitar.id}`}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 group"
+                  className="border border-border bg-surface overflow-hidden hover:border-sidebar transition-colors group"
                 >
-                  {/* Cover Image */}
-                  <div className="relative h-48 bg-gray-100 overflow-hidden">
-                    {guitar.coverPhotoUrl ? (
-                      <img
-                        src={guitar.coverPhotoUrl}
-                        alt={guitar.model}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                        <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    )}
+                  {/* Cover Image — authorised client guitar photo only */}
+                  <div className="relative">
+                    <GuitarPhoto
+                      src={guitar.coverPhotoUrl}
+                      alt={guitar.model}
+                      size="card"
+                      fit="contain"
+                      className="border-0 border-b border-border h-48"
+                    />
                     {/* Status Badge */}
-                    <div className="absolute top-3 right-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(status)}`}>
+                    <div className="absolute top-2 right-2">
+                      <span className={`wo-badge ${getStatusColor(status)}`}>
                         {status}
                       </span>
                     </div>
                   </div>
 
                   {/* Content */}
-                  <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{guitar.model}</h3>
-                    <p className="text-gray-600 mb-3">{guitar.finish}</p>
+                  <div className="p-4">
+                    <h3 className="font-display text-xl font-bold uppercase tracking-wide text-text mb-1">
+                      {guitar.model}
+                    </h3>
+                    <p className="text-text-muted mb-3">{guitar.finish}</p>
                     
                     <div className="space-y-3 mb-4">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Order Number</span>
-                        <span className="font-semibold text-gray-900">{guitar.orderNumber}</span>
+                        <span className="wo-label">Order Number</span>
+                        <span className="font-mono font-semibold text-text">{guitar.orderNumber}</span>
                       </div>
                       
                       {/* Progress Bar */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-600">Progress</span>
-                          <span className="text-xs font-semibold text-blue-600">{progress}%</span>
+                          <span className="wo-label">Progress</span>
+                          <span className="font-mono text-xs font-semibold text-sidebar">{progress}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                        <div className="w-full bg-surface-alt border border-border h-2.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-300"
+                            className="bg-accent h-2.5 transition-all duration-300"
                             style={{ width: `${progress}%` }}
                           />
                         </div>
@@ -512,14 +498,14 @@ export default function MyGuitarsPage() {
 
                       {/* Recent Update */}
                       {recentNote && (
-                        <div className="pt-3 border-t border-gray-100">
+                        <div className="pt-3 border-t border-slate-100">
                           <div className="flex items-start gap-2">
-                            <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <Clock className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs text-gray-500 mb-1">
+                              <p className="text-xs text-slate-500 mb-1">
                                 {new Date(recentNote.createdAt).toLocaleDateString()}
                               </p>
-                              <p className="text-sm text-gray-700 line-clamp-2">{recentNote.message}</p>
+                              <p className="text-sm text-slate-700 line-clamp-2">{recentNote.message}</p>
                             </div>
                           </div>
                         </div>
@@ -527,8 +513,8 @@ export default function MyGuitarsPage() {
                     </div>
 
                     {/* View Details Link */}
-                    <div className="pt-4 border-t border-gray-100">
-                      <span className="text-sm font-medium text-blue-600 group-hover:text-blue-700">
+                    <div className="pt-4 border-t border-slate-100">
+                      <span className="text-sm font-medium text-accent group-hover:text-accent-light">
                         View Details →
                       </span>
                     </div>

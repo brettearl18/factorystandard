@@ -1,7 +1,7 @@
 /**
  * Mailgun email helper for Cloud Functions.
  * Configure via Firebase: firebase functions:config:set mailgun.api_key="key" mailgun.domain="mg.example.com"
- * Optional: mailgun.from_name="Factory Standards" mailgun.from_email="noreply@mg.example.com"
+ * Optional: mailgun.from_name="Australian Production" mailgun.from_email="noreply@mg.example.com"
  * EU region: mailgun.api_host="https://api.eu.mailgun.net"
  */
 

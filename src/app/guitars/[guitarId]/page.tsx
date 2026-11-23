@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, use, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { subscribeGuitar, getRun, subscribeRunStages, subscribeGuitarNotes } from "@/lib/firestore";
@@ -15,13 +15,19 @@ export default function GuitarDetailPage({
   params: Promise<{ guitarId: string }>;
 }) {
   const { guitarId } = use(params);
+  const searchParams = useSearchParams();
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
+  const openAddInvoiceOnMount = searchParams.get("addInvoice") === "1";
   const [guitar, setGuitar] = useState<GuitarBuild | null>(null);
   const [notes, setNotes] = useState<GuitarNote[]>([]);
   const [stage, setStage] = useState<RunStage | null>(null);
   const [run, setRun] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const financeSectionRef = useRef<HTMLDivElement>(null);
+
+  const canViewFinance =
+    userRole === "accounting" || userRole === "staff" || userRole === "admin";
 
   useEffect(() => {
     if (authLoading) return;
@@ -72,6 +78,15 @@ export default function GuitarDetailPage({
       unsubscribes.forEach((unsub) => unsub());
     };
   }, [guitarId]);
+
+  useEffect(() => {
+    if (loading || !guitar || typeof window === "undefined") return;
+    if (window.location.hash !== "#finance") return;
+    const t = window.setTimeout(() => {
+      financeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, [loading, guitar]);
 
   if (authLoading || loading) {
     return (
@@ -237,15 +252,18 @@ export default function GuitarDetailPage({
             </div>
           </div>
 
-          {/* Right Column - Invoices & Payments (for accounting) */}
+          {/* Right Column - Invoices & Payments */}
           <div className="space-y-6">
-            {userRole === "accounting" && (
-              <GuitarInvoiceManager
-                guitar={guitar}
-                onUpdate={() => {
-                  // Guitar data will refresh automatically via subscription
-                }}
-              />
+            {canViewFinance && (
+              <div id="finance" ref={financeSectionRef} className="scroll-mt-24">
+                <GuitarInvoiceManager
+                  guitar={guitar}
+                  openAddInvoiceOnMount={openAddInvoiceOnMount}
+                  onUpdate={() => {
+                    // Guitar data will refresh automatically via subscription
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>

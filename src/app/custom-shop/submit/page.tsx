@@ -1,31 +1,51 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createCustomShopRequest } from "@/lib/firestore";
 import { uploadCustomShopInspirationImage } from "@/lib/storage";
 import { compressImageForUpload } from "@/utils/imageCompression";
-import { ArrowLeft, X, Loader2, AlertCircle, ExternalLink, AlertTriangle, Camera, ImagePlus } from "lucide-react";
+import type { GuitarSpecs } from "@/types/guitars";
+import { STANDARD_CUSTOM_SHOP_FORM_ID, STANDARD_CUSTOM_SHOP_FORM_VERSION } from "@/lib/customShopStandardPricing";
+import { buildDefaultCustomShopSpecCatalog } from "@/lib/customShopCatalogDefaults";
+import type { CustomShopSpecCatalogGlobal } from "@/types/customShopSpecCatalog";
+import {
+  buildWizardCategoriesFromCatalog,
+  computeEstimateFromCatalog,
+} from "@/lib/customShopCatalogPricing";
+import { subscribeCustomShopSpecCatalog } from "@/lib/firestoreCustomShopCatalog";
+import { evaluateCustomShopConstraintRules } from "@/lib/customShopSpecConstraintValidation";
+import { validateStandardCustomShopStep } from "@/lib/customShopStandardValidation";
+import {
+  StandardCustomShopWizardBody,
+  STANDARD_CUSTOM_SHOP_STEP_COUNT,
+  standardCustomShopStepTitle,
+} from "@/components/custom-shop/StandardCustomShopWizardBody";
+import { ArrowLeft, Loader2, AlertCircle, ExternalLink, AlertTriangle } from "lucide-react";
 
 const DEPOSIT_AUD = 1000;
 const MAX_IMAGES = 6;
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">{title}</h2>
-      </div>
-      <div className="p-5 space-y-4">{children}</div>
-    </div>
-  );
+function compactSpecs(s: Partial<GuitarSpecs>): Partial<GuitarSpecs> {
+  const out: Partial<GuitarSpecs> = {};
+  for (const [k, v] of Object.entries(s) as [keyof GuitarSpecs, string | undefined][]) {
+    if (v != null && String(v).trim() !== "") {
+      (out as Record<string, string>)[k as string] = String(v).trim();
+    }
+  }
+  return out;
 }
 
 export default function CustomShopSubmitPage() {
   const { currentUser } = useAuth();
   const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [specs, setSpecs] = useState<Partial<GuitarSpecs>>({});
+  const [instrumentType, setInstrumentType] = useState<"" | "guitar" | "bass">("");
+  const [model, setModel] = useState("");
+  const [budgetRange, setBudgetRange] = useState("");
   const [dreamGuitar, setDreamGuitar] = useState("");
   const [motivation, setMotivation] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
@@ -35,6 +55,19 @@ export default function CustomShopSubmitPage() {
   const [error, setError] = useState<string | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [catalog, setCatalog] = useState<CustomShopSpecCatalogGlobal>(() => buildDefaultCustomShopSpecCatalog());
+
+  useEffect(() => {
+    const unsub = subscribeCustomShopSpecCatalog(setCatalog);
+    return () => unsub();
+  }, []);
+
+  const wizardCategories = useMemo(() => buildWizardCategoriesFromCatalog(catalog), [catalog]);
+  const indicativeEstimate = useMemo(() => computeEstimateFromCatalog(specs, catalog), [specs, catalog]);
+
+  const setSpec = useCallback((key: keyof GuitarSpecs, value: string) => {
+    setSpecs((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -47,12 +80,36 @@ export default function CustomShopSubmitPage() {
     setInspirationFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const goNext = () => {
+    setError(null);
+    const err = validateStandardCustomShopStep(step, {
+      instrumentType,
+      specs,
+      dreamGuitar,
+    });
+    if (err) {
+      setError(err);
+      return;
+    }
+    const conflict = evaluateCustomShopConstraintRules(specs, catalog.constraintRules);
+    if (conflict) {
+      setError(conflict);
+      return;
+    }
+    setStep((s) => Math.min(s + 1, STANDARD_CUSTOM_SHOP_STEP_COUNT - 1));
+  };
+
+  const goBack = () => {
+    setError(null);
+    setStep((s) => Math.max(0, s - 1));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const trimmed = dreamGuitar.trim();
-    if (!trimmed) {
-      setError("Please tell us about your dream guitar — we want to hear it in your words.");
+    const v5 = validateStandardCustomShopStep(5, { instrumentType, specs, dreamGuitar });
+    if (v5) {
+      setError(v5);
       return;
     }
     if (!depositAgreed) {
@@ -65,6 +122,22 @@ export default function CustomShopSubmitPage() {
     }
     setSubmitting(true);
     try {
+      for (let s = 0; s <= 5; s++) {
+        const stepErr = validateStandardCustomShopStep(s, { instrumentType, specs, dreamGuitar });
+        if (stepErr) {
+          setError(stepErr);
+          setSubmitting(false);
+          return;
+        }
+      }
+      const compact = compactSpecs(specs);
+      const conflict = evaluateCustomShopConstraintRules(compact, catalog.constraintRules);
+      if (conflict) {
+        setError(conflict);
+        setSubmitting(false);
+        return;
+      }
+      const estimate = computeEstimateFromCatalog(compact, catalog);
       const urls: string[] = [];
       for (const file of inspirationFiles) {
         const compressed = await compressImageForUpload(file);
@@ -75,7 +148,14 @@ export default function CustomShopSubmitPage() {
         submitterUid: currentUser.uid,
         submitterEmail: currentUser.email ?? "",
         submitterName: currentUser.displayName ?? undefined,
-        guitarDescription: trimmed,
+        guitarDescription: dreamGuitar.trim(),
+        specs: compact,
+        model: model.trim() || undefined,
+        formId: STANDARD_CUSTOM_SHOP_FORM_ID,
+        formVersion: STANDARD_CUSTOM_SHOP_FORM_VERSION,
+        instrumentType: instrumentType === "" ? undefined : instrumentType,
+        budgetRange: budgetRange.trim() || undefined,
+        estimatedTotalAUD: estimate.estimatedTotal,
         motivationNotes: motivation.trim() || undefined,
         additionalNotes: additionalNotes.trim() || undefined,
         inspirationImageUrls: urls,
@@ -89,196 +169,156 @@ export default function CustomShopSubmitPage() {
     }
   };
 
+  const progressPct = ((step + 1) / STANDARD_CUSTOM_SHOP_STEP_COUNT) * 100;
+  const isLastStep = step === STANDARD_CUSTOM_SHOP_STEP_COUNT - 1;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/custom-shop" className="text-gray-600 hover:text-gray-900 flex items-center gap-1">
+        <Link href="/custom-shop" className="text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Back
         </Link>
       </div>
-      <h1 className="text-2xl font-bold text-gray-900">Submit a Custom Shop request</h1>
-      <p className="text-gray-600">
-        We want to hear about your dream guitar in your own words — and see what inspires you. Tell us the vision; we'll help bring it to life.
+      <h1 className="text-2xl font-semibold text-slate-900">Submit a Custom Shop request</h1>
+      <p className="text-sm text-slate-500">
+        Configure your build step by step, see an indicative price, then tell us the story behind it. Logged-in
+        clients only.
       </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-accent transition-all duration-300 rounded-full"
+          style={{ width: `${progressPct}%` }}
+          role="progressbar"
+          aria-valuenow={step + 1}
+          aria-valuemin={1}
+          aria-valuemax={STANDARD_CUSTOM_SHOP_STEP_COUNT}
+          aria-label="Form progress"
+        />
+      </div>
+      <p className="text-sm text-slate-500">
+        Step {step + 1} of {STANDARD_CUSTOM_SHOP_STEP_COUNT}: {standardCustomShopStepTitle(step)}
+      </p>
+
+      <form onSubmit={isLastStep ? handleSubmit : (e) => e.preventDefault()} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-2">
+          <div
+            role="alert"
+            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-2"
+          >
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <p>{error}</p>
           </div>
         )}
 
-        {/* Inspiration images – prominent first */}
-        <Section title="Inspiration — show us what you're drawn to">
-          <p className="text-gray-600 text-sm">
-            Upload photos that capture the look, feel, or vibe you're after. Guitars, finishes, colours, shapes — anything that speaks to your vision. We'll use these to get a true feel for what you want.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            {inspirationFiles.map((file, i) => (
-              <div key={i} className="relative w-28 h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 group shadow-sm">
-                <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removeImage(i)}
-                  className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
-                  aria-label="Remove image"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            ))}
-            {inspirationFiles.length < MAX_IMAGES && (
-              <div className="flex flex-col gap-2">
-                {/* Gallery only: no capture = photo library; explicit MIME helps some mobile browsers show gallery not camera */}
-                <input
-                  id="inspiration-gallery"
-                  ref={galleryInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/heic"
-                  multiple
-                  onChange={handleFileChange}
-                  className="hidden"
-                  aria-label="Add from gallery"
-                />
-                {/* Camera only: capture = opens camera on mobile */}
-                <input
-                  id="inspiration-camera"
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  multiple
-                  onChange={handleFileChange}
-                  className="hidden"
-                  aria-label="Take photo"
-                />
-                <div className="flex gap-2 flex-wrap">
-                  <label
-                    htmlFor="inspiration-gallery"
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-800 font-medium text-sm cursor-pointer hover:bg-amber-100 hover:border-amber-500 transition-colors"
-                  >
-                    <ImagePlus className="w-5 h-5" />
-                    Add from gallery
-                  </label>
-                  <label
-                    htmlFor="inspiration-camera"
-                    className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/50 text-amber-700 font-medium text-sm cursor-pointer transition-colors"
-                  >
-                    <Camera className="w-5 h-5" />
-                    Take photo
-                  </label>
-                </div>
-              </div>
-            )}
+        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+            <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">
+              {standardCustomShopStepTitle(step)}
+            </h2>
           </div>
-          <p className="text-xs text-gray-500">
-            Max {MAX_IMAGES} images. We'll compress them to save space.{" "}
-            <a
-              href="https://ormsbyguitars.com/pages/custom-shop"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              View past Custom Shop builds
-            </a>
-          </p>
-        </Section>
-
-        {/* Dream guitar – main narrative */}
-        <Section title="Tell us about your dream guitar">
-          <p className="text-gray-600 text-sm mb-3">
-            Describe it in your own words. What does it look like? What do you want it to sound like? What details matter most? We want to hear the vision and the passion behind it.
-          </p>
-          <textarea
-            value={dreamGuitar}
-            onChange={(e) => setDreamGuitar(e.target.value)}
-            rows={6}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
-            placeholder="e.g. I'm imagining a Hype-style body with a deep burst that goes from black at the edges to amber in the centre. I want it to feel like my main player — something that can do cleans and high-gain, with a neck that's fast but not too thin..."
-            required
-            disabled={submitting}
-          />
-        </Section>
-
-        {/* Motivation – why now, commitment */}
-        <Section title="Why this build, and why now? (optional)">
-          <p className="text-gray-600 text-sm mb-3">
-            We'd love to know what's driving you to build this guitar and that you're ready to wait for something made just for you. A sentence or two is enough.
-          </p>
-          <textarea
-            value={motivation}
-            onChange={(e) => setMotivation(e.target.value)}
-            rows={3}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
-            placeholder="e.g. I've wanted a custom Ormsby for years. I'm in no rush — I'd rather wait and get exactly what I'm imagining."
-            disabled={submitting}
-          />
-        </Section>
-
-        {/* Timeline / other */}
-        <Section title="Anything else? (optional)">
-          <p className="text-gray-600 text-sm mb-3">
-            Specific specs you already know, rough timeline, budget, or any references. If you don't know yet, that's fine — we'll work through it together.
-          </p>
-          <textarea
-            value={additionalNotes}
-            onChange={(e) => setAdditionalNotes(e.target.value)}
-            rows={2}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
-            placeholder="e.g. Ideally ready by next summer. Open on woods — would love your recommendation."
-            disabled={submitting}
-          />
-        </Section>
-
-        {/* Timeline warning */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-900">Build timeline</p>
-            <p className="text-xs text-amber-800">
-              Your build may start <strong>6–18 months</strong> after acceptance and deposit is paid. Build duration varies. Our team will keep you updated.
-            </p>
-          </div>
-        </div>
-
-        {/* Deposit */}
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={depositAgreed}
-              onChange={(e) => setDepositAgreed(e.target.checked)}
-              className="mt-1 w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+          <div className="p-5 space-y-4">
+            <StandardCustomShopWizardBody
+              wizardCategories={wizardCategories}
+              indicativeEstimate={indicativeEstimate}
+              step={step}
               disabled={submitting}
+              specs={specs}
+              setSpec={setSpec}
+              instrumentType={instrumentType}
+              setInstrumentType={setInstrumentType}
+              model={model}
+              setModel={setModel}
+              budgetRange={budgetRange}
+              setBudgetRange={setBudgetRange}
+              dreamGuitar={dreamGuitar}
+              setDreamGuitar={setDreamGuitar}
+              motivation={motivation}
+              setMotivation={setMotivation}
+              additionalNotes={additionalNotes}
+              setAdditionalNotes={setAdditionalNotes}
+              inspirationFiles={inspirationFiles}
+              maxImages={MAX_IMAGES}
+              galleryInputRef={galleryInputRef}
+              cameraInputRef={cameraInputRef}
+              onInspirationFilesChange={handleFileChange}
+              removeInspiration={removeImage}
+              depositAgreed={depositAgreed}
+              setDepositAgreed={setDepositAgreed}
+              depositAud={DEPOSIT_AUD}
             />
-            <span className="text-gray-800">
-              I agree to a <strong>${DEPOSIT_AUD.toLocaleString()} AUD</strong> deposit to proceed once my request is approved. This deposit will be applied to my order.
-            </span>
-          </label>
+          </div>
         </div>
 
-        <div className="flex gap-3">
-          <Link href="/custom-shop" className="px-6 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+        {step < 5 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">Build timeline</p>
+              <p className="text-xs text-amber-800">
+                Your build may start <strong>6–18 months</strong> after acceptance and deposit is paid. Build duration
+                varies.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/custom-shop"
+            className="px-6 py-3 rounded-2xl border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
             Cancel
           </Link>
-          <button
-            type="submit"
-            disabled={submitting || !dreamGuitar.trim() || !depositAgreed}
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 text-white py-3 px-6 rounded-xl font-medium hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              "Submit request"
-            )}
-          </button>
+          {step > 0 && (
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={submitting}
+              className="px-6 py-3 rounded-2xl border border-slate-200 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Back
+            </button>
+          )}
+          {!isLastStep ? (
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={submitting}
+              className="flex-1 min-w-[140px] inline-flex justify-center items-center gap-2 h-11 bg-accent text-accent-foreground rounded-2xl font-medium hover:bg-accent-light disabled:opacity-60 transition-colors"
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={submitting || !depositAgreed}
+              className="flex-1 min-w-[140px] inline-flex justify-center items-center gap-2 h-11 bg-accent text-accent-foreground rounded-2xl font-medium hover:bg-accent-light disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit request"
+              )}
+            </button>
+          )}
         </div>
+
+        <p className="text-xs text-slate-500">
+          <a
+            href="https://ormsbyguitars.com/pages/custom-shop"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-accent hover:text-accent-light transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            View past Custom Shop builds
+          </a>
+        </p>
       </form>
     </div>
   );

@@ -10,291 +10,190 @@ import {
   LayoutDashboard,
   Package,
   Guitar,
-  Plus,
+  BarChart3,
   Menu,
   X,
-  LogOut,
   Settings,
   Users,
   DollarSign,
   UserPlus,
   Shield,
   FileText,
+  SlidersHorizontal,
 } from "lucide-react";
+import { NavLink } from "./NavLink";
+import { PublicLinksNav } from "./PublicLinksNav";
 
 export function Sidebar() {
-  const { currentUser, userRole, signOut } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const branding = useBranding();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { total: guitarUnreadCount } = useUnreadGuitarNotifications();
-  const showGuitarBadge = (userRole === "staff" || userRole === "admin" || userRole === "accounting") && guitarUnreadCount > 0;
+  const showGuitarBadge =
+    (userRole === "staff" || userRole === "admin" || userRole === "accounting") &&
+    guitarUnreadCount > 0;
 
   if (!currentUser) return null;
 
   const isActive = (path: string) => pathname === path || pathname?.startsWith(path + "/");
+  const closeMobile = () => setIsMobileOpen(false);
 
-  // Staff/Admin navigation
+  const homeHref =
+    userRole === "client"
+      ? "/my-guitars"
+      : userRole === "factory"
+        ? "/factory"
+        : userRole === "accounting"
+          ? "/accounting"
+          : "/dashboard";
+
   const staffNavItems = [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      label: "Runs",
-      href: "/runs",
-      icon: Package,
-    },
-    {
-      label: "Guitars",
-      href: "/guitars",
-      icon: Guitar,
-    },
-    {
-      label: "Clients",
-      href: "/clients",
-      icon: Users,
-    },
-    {
-      label: "Custom Shop requests",
-      href: "/settings/custom-shop-requests",
-      icon: FileText,
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-      icon: Settings,
-    },
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Runs", href: "/runs", icon: Package },
+    { label: "Guitars", href: "/guitars", icon: Guitar },
+    { label: "Clients", href: "/clients", icon: Users },
+    { label: "Custom Shop requests", href: "/settings/custom-shop-requests", icon: FileText },
+    { label: "Custom Shop specs", href: "/settings/custom-shop-specs", icon: SlidersHorizontal },
+    { label: "Settings", href: "/settings", icon: Settings },
   ];
 
-  // Factory worker navigation (simplified mobile portal)
-  const factoryNavItems = [
-    {
-      label: "Factory Portal",
-      href: "/factory",
-      icon: Package,
-    },
-  ];
+  const factoryNavItems = [{ label: "Factory Portal", href: "/factory", icon: Package }];
 
-  // Client navigation
   const clientNavItems = [
-    {
-      label: "My Guitars",
-      href: "/my-guitars",
-      icon: Guitar,
-    },
-    {
-      label: "Settings",
-      href: "/my/settings",
-      icon: Settings,
-    },
+    { label: "My Guitars", href: "/my-guitars", icon: Guitar },
+    { label: "Custom Shop", href: "/custom-shop", icon: FileText },
+    { label: "Settings", href: "/my/settings", icon: Settings },
   ];
 
-  // Accounting navigation
   const accountingNavItems = [
-    {
-      label: "Accounting",
-      href: "/accounting",
-      icon: DollarSign,
-    },
-    {
-      label: "Guitars",
-      href: "/guitars",
-      icon: Guitar,
-    },
+    { label: "Accounting", href: "/accounting", icon: DollarSign },
+    { label: "Run financial reports", href: "/runs", icon: BarChart3 },
+    { label: "Guitars", href: "/guitars", icon: Guitar },
   ];
 
-  const navItems = userRole === "client" 
-    ? clientNavItems 
-    : userRole === "factory"
-    ? factoryNavItems
-    : userRole === "accounting"
-    ? accountingNavItems
-    : staffNavItems;
+  const adminNavItems = [
+    { label: "Create User", href: "/admin/create-user", icon: UserPlus },
+    { label: "Set Role", href: "/admin/set-role", icon: Shield },
+    { label: "Audit Logs", href: "/settings/audit-logs", icon: FileText },
+  ];
 
-  const SidebarContent = () => (
+  const navItems =
+    userRole === "client"
+      ? clientNavItems
+      : userRole === "factory"
+        ? factoryNavItems
+        : userRole === "accounting"
+          ? accountingNavItems
+          : staffNavItems;
+
+  const sidebarBody = (
     <>
-      {/* Logo/Brand */}
-      <div className="p-6 border-b border-slate bg-card">
-        <Link
-          href={
-            userRole === "client" 
-              ? "/my-guitars" 
-              : userRole === "factory"
-              ? "/factory"
-              : userRole === "accounting"
-              ? "/accounting"
-              : "/dashboard"
-          }
-          className="flex items-center gap-3"
-        >
+      <div className="px-5 py-5 border-b border-white/10">
+        <Link href={homeHref} onClick={closeMobile} className="flex items-center gap-3">
           {branding.companyLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={branding.companyLogo}
-              alt={branding.companyName || "Factory Standards"}
+              alt={branding.companyName || "Australian Production"}
               className="h-10 w-auto object-contain"
             />
           ) : (
-            <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-soft"
-              style={{ backgroundColor: branding.primaryColor || "#F97316" }}
-            >
-              <Guitar className="w-5 h-5" />
+            <div className="h-10 w-10 bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+              <Guitar className="h-5 w-5 text-accent" />
             </div>
           )}
-          <div>
-            <h1 className="font-display text-lg">{branding.companyName || "Factory Standards"}</h1>
-            <p className="text-[11px] text-textMuted/80">Perth Custom Runs</p>
+          <div className="min-w-0">
+            <h1 className="font-display text-base font-bold leading-none text-text-onDark truncate tracking-wide">
+              {branding.companyName || "Australian Production"}
+            </h1>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-text-onDark/55 mt-1.5">
+              Factory Run
+            </p>
           </div>
         </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2 bg-card overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          const isGuitars = item.href === "/guitars";
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                active
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "text-textMuted hover:bg-slate/40 border-transparent"
-              }`}
-            >
-              <span className="relative">
-                <Icon className="w-5 h-5" />
-                {isGuitars && showGuitarBadge && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full">
-                    {guitarUnreadCount > 99 ? "99+" : guitarUnreadCount}
-                  </span>
-                )}
-              </span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-0.5">
+        <p className="px-3 pb-2 font-mono text-[10px] font-semibold uppercase tracking-wider text-text-onDark/45">
+          Menu
+        </p>
+        {navItems.map((item) => (
+          <NavLink
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isActive(item.href)}
+            onNavigate={closeMobile}
+            badge={item.href === "/guitars" && showGuitarBadge ? guitarUnreadCount : undefined}
+          />
+        ))}
 
-        {/* Admin Section - Only for Admin/Staff */}
+        {userRole !== "client" && (
+          <PublicLinksNav userRole={userRole} onNavigate={closeMobile} />
+        )}
+
         {(userRole === "admin" || userRole === "staff") && (
-          <div className="mt-4 pt-4 border-t border-slate">
-            <p className="text-xs text-textMuted uppercase tracking-[0.2em] mb-2 px-4">Admin</p>
-            <Link
-              href="/settings/custom-shop-requests"
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                isActive("/settings/custom-shop-requests")
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "text-textMuted hover:bg-slate/40 border-transparent"
-              }`}
-            >
-              <FileText className="w-5 h-5" />
-              <span>Custom Shop requests</span>
-            </Link>
-            <Link
-              href="/admin/create-user"
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                isActive("/admin/create-user")
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "text-textMuted hover:bg-slate/40 border-transparent"
-              }`}
-            >
-              <UserPlus className="w-5 h-5" />
-              <span>Create User</span>
-            </Link>
-            <Link
-              href="/admin/set-role"
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                isActive("/admin/set-role")
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "text-textMuted hover:bg-slate/40 border-transparent"
-              }`}
-            >
-              <Shield className="w-5 h-5" />
-              <span>Set Role</span>
-            </Link>
-            <Link
-              href="/settings/audit-logs"
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-                isActive("/settings/audit-logs")
-                  ? "bg-primary/10 text-primary border-primary/20"
-                  : "text-textMuted hover:bg-slate/40 border-transparent"
-              }`}
-            >
-              <FileText className="w-5 h-5" />
-              <span>Audit Logs</span>
-            </Link>
+          <div className="pt-4 mt-2">
+            <div className="h-px bg-white/10 mb-3" />
+            <p className="px-3 pb-2 font-mono text-[10px] font-semibold uppercase tracking-wider text-red-300/80">
+              Admin
+            </p>
+            {adminNavItems.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={isActive(item.href)}
+                onNavigate={closeMobile}
+              />
+            ))}
           </div>
         )}
       </nav>
 
-      {/* User Info & Sign Out */}
-      <div className="p-4 border-t border-slate bg-card">
-        <div className="mb-3 px-4 py-3 bg-shell rounded-xl border border-slate">
-          <p className="text-xs text-textMuted uppercase tracking-[0.2em] mb-1">Signed in</p>
-          <p className="text-sm font-semibold truncate">
-            {currentUser.email}
+      <div className="px-4 py-4 border-t border-white/10">
+        <div className="border border-white/15 bg-white/[0.07] px-3 py-3 text-xs">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-text-onDark/50 mb-1">
+            Signed in
           </p>
-          <p className="text-xs text-textMuted mt-1 capitalize">
-            {userRole || "No role"}
+          <p className="text-text-onDark/90 font-medium truncate">{currentUser.email}</p>
+          <p className="text-text-onDark/60 capitalize mt-0.5 font-mono text-[11px]">
+            {userRole || "User"}
           </p>
         </div>
-        <button
-          onClick={async () => {
-            await signOut();
-            window.location.href = "/login";
-          }}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-textMuted hover:bg-shell border border-slate transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-          <span>Sign Out</span>
-        </button>
       </div>
     </>
   );
 
   return (
     <>
-      {/* Mobile Menu Button */}
       <button
+        type="button"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 bg-sidebar text-text-onDark border border-white/15 min-h-[44px] min-w-[44px]"
+        aria-label={isMobileOpen ? "Close menu" : "Open menu"}
       >
-        {isMobileOpen ? (
-          <X className="w-6 h-6" />
-        ) : (
-          <Menu className="w-6 h-6" />
-        )}
+        {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
-      {/* Mobile Overlay */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => setIsMobileOpen(false)}
+          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          onClick={closeMobile}
+          aria-hidden
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full w-64 bg-card border-r border-slate z-40 flex flex-col transition-transform duration-300 ${
+        className={`fixed left-0 top-0 bottom-0 z-40 w-[280px] lg:w-[260px] bg-sidebar flex flex-col transition-transform duration-300 ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0`}
       >
-        <SidebarContent />
+        {sidebarBody}
       </aside>
-
-      {/* Spacer for desktop */}
-      <div className="hidden lg:block w-64 flex-shrink-0" />
     </>
   );
 }
-

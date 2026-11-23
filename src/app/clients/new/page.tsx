@@ -91,11 +91,11 @@ export default function CreateClientPage() {
     const siteUrl = getSiteUrl();
     const loginUrl = `${siteUrl}/login`;
     
-    return `Subject: Your Factory Standards Account
+    return `Subject: Your Australian Production Account
 
 Hi ${createdClientInfo.name},
 
-Your account has been created for Factory Standards. You can now log in to submit your guitar specifications and track your build progress.
+Your account has been created for Australian Production. You can now log in to submit your guitar specifications and track your build progress.
 
 Login Details:
 Email: ${createdClientInfo.email}
@@ -105,7 +105,7 @@ Login Link: ${loginUrl}
 
 Next Steps:
 1. Log in using the credentials above
-2. You'll be directed to the onboarding page where you can fill out your guitar specifications
+2. Log in to view your guitar builds and updates on My Guitars
 3. Submit your specs to begin your guitar build journey
 
 Please change your password after your first login for security.
@@ -113,7 +113,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`;
+Australian Production Team`;
   };
 
   const copyEmailTemplate = () => {
@@ -227,7 +227,7 @@ Factory Standards Team`;
             <h1 className="text-3xl font-bold text-gray-900">Create New Client</h1>
           </div>
           <p className="text-gray-600 mt-2">
-            Create a new client account. The client will then log in and fill out their guitar specifications through the onboarding workflow.
+            Create a new client account. Staff add guitars to runs; the client logs in to track builds and invoices.
           </p>
         </div>
 
@@ -383,7 +383,7 @@ Factory Standards Team`;
                   Next Steps
                 </p>
                 <p className="text-sm text-blue-700">
-                  After creating the account, the client will receive login credentials. They can then log in and fill out their guitar specifications through the onboarding workflow at <code className="bg-blue-100 px-1 rounded">/onboard</code>.
+                  After creating the account, the client can log in at the client login page. Assign guitars from a run board or when creating the client.
                   {assignedRunIds.length > 0 && (
                     <> The client will only see the {assignedRunIds.length} run{assignedRunIds.length > 1 ? "s" : ""} you've assigned.</>
                   )}
@@ -444,7 +444,7 @@ Factory Standards Team`;
                     <p className="font-medium text-green-900">Account Created Successfully</p>
                     <p className="text-sm text-green-700 mt-1">
                       Client account for <strong>{createdClientInfo.name}</strong> has been created.
-                      The client can now log in and fill out their guitar specifications through the onboarding workflow.
+                      The client can now log in and view builds once guitars are assigned to their account.
                     </p>
                   </div>
                 </div>

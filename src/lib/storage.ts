@@ -9,11 +9,15 @@ export async function uploadGuitarPhoto(
   // Use timestamp + random string to ensure unique filenames even for rapid uploads
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(2, 9);
-  const filename = `${timestamp}_${randomStr}_${file.name}`;
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const filename = `${timestamp}_${randomStr}_${safeName}`;
   const storageRef = ref(storage, `guitars/${guitarId}/${stageId}/${filename}`);
-  
+  // WhatsApp / some browsers send empty or odd content types — force image/*
+  const contentType =
+    file.type && file.type.startsWith("image/") ? file.type : "image/jpeg";
+
   try {
-    await uploadBytes(storageRef, file);
+    await uploadBytes(storageRef, file, { contentType });
     const downloadURL = await getDownloadURL(storageRef);
     return downloadURL;
   } catch (error) {
@@ -97,6 +101,19 @@ export async function uploadRunUpdateImage(
   await uploadBytes(storageRef, file);
   const downloadURL = await getDownloadURL(storageRef);
   return downloadURL;
+}
+
+export async function deleteRunUpdateImages(imageUrls: string[]): Promise<void> {
+  const results = await Promise.allSettled(
+    imageUrls
+      .filter(isFirebaseStorageUrl)
+      .map((imageUrl) => deleteImageFromStorage(imageUrl))
+  );
+
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    console.warn(`Failed to delete ${failed.length} run update image(s)`);
+  }
 }
 
 export async function uploadColorInspirationImage(
@@ -191,7 +208,41 @@ export function convertGoogleDriveLink(link: string): string {
  * Validates if a string looks like a Google Drive link
  */
 export function isGoogleDriveLink(url: string): boolean {
-  return url.includes('drive.google.com');
+  return url.includes("drive.google.com") || url.includes("docs.google.com");
+}
+
+/** True for Firebase Storage download URLs (real uploaded images). */
+export function isFirebaseStorageUrl(url: string): boolean {
+  return (
+    url.includes("firebasestorage.googleapis.com") ||
+    url.includes("storage.googleapis.com")
+  );
+}
+
+/**
+ * Share / view links pasted by staff (Drive, Dropbox, etc.) — open in a new tab,
+ * never render as &lt;img&gt;. Uploaded Firebase photos are excluded.
+ */
+export function isExternalShareLink(url: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  if (isFirebaseStorageUrl(url)) return false;
+  if (isGoogleDriveLink(url)) return true;
+  if (url.includes("dropbox.com") || url.includes("dl.dropboxusercontent.com")) return true;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Friendly label for share-link chips in the UI. */
+export function externalShareLinkLabel(url: string): string {
+  if (isGoogleDriveLink(url)) return "Click here to view on Google Drive";
+  if (url.includes("dropbox.com") || url.includes("dl.dropboxusercontent.com")) {
+    return "Click here to view on Dropbox";
+  }
+  return "Click here to view";
 }
 
 /**
@@ -230,26 +281,25 @@ export async function deleteImageFromStorage(imageUrl: string): Promise<void> {
  * Deletes a guitar reference image from storage
  */
 export async function deleteGuitarReferenceImage(guitarId: string, imageUrl: string): Promise<void> {
-  // Check if it's a Google Drive link - can't delete those
-  if (isGoogleDriveLink(imageUrl)) {
-    return; // Just return - we'll remove it from the array but can't delete from Drive
+  // Share links (Drive / Dropbox) can't be deleted from our storage
+  if (isExternalShareLink(imageUrl)) {
+    return;
   }
   
-  // Check if it's a Firebase Storage URL
-  if (imageUrl.includes('firebasestorage.googleapis.com')) {
+  if (isFirebaseStorageUrl(imageUrl)) {
     await deleteImageFromStorage(imageUrl);
   }
-}/**
+}
+
+/**
  * Deletes a photo from a guitar note
  */
 export async function deleteGuitarNotePhoto(guitarId: string, stageId: string, imageUrl: string): Promise<void> {
-  // Check if it's a Google Drive link - can't delete those
-  if (isGoogleDriveLink(imageUrl)) {
-    return; // Just return - we'll remove it from the array but can't delete from Drive
+  if (isExternalShareLink(imageUrl)) {
+    return;
   }
   
-  // Check if it's a Firebase Storage URL
-  if (imageUrl.includes('firebasestorage.googleapis.com')) {
+  if (isFirebaseStorageUrl(imageUrl)) {
     await deleteImageFromStorage(imageUrl);
   }
 }

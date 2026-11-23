@@ -84,11 +84,11 @@ export function AddGuitarModal({
     const siteUrl = getSiteUrl();
     const loginUrl = `${siteUrl}/login`;
     
-    return `Subject: Your Factory Standards Account
+    return `Subject: Your Australian Production Account
 
 Hi ${createdClientInfo.name},
 
-Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+Your account has been created for Australian Production. You can now log in to track your guitar build progress.
 
 Login Details:
 Email: ${createdClientInfo.email}
@@ -101,7 +101,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`;
+Australian Production Team`;
   };
 
   const handleCopyEmail = async () => {
@@ -486,7 +486,7 @@ Factory Standards Team`;
                         >
                           <ExternalLink className="w-4 h-4 text-blue-600" />
                           <span className="text-sm text-blue-700 font-medium flex-1 truncate">
-                            Google Drive Folder
+                            Click here to view
                           </span>
                         </a>
                         <button
@@ -699,7 +699,7 @@ Factory Standards Team`;
                   </div>
                   {!noCustomer && !lookupResult?.success && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Share this password with the client. They can change it after logging in.
+                      Share this password with the client when you&apos;re ready. Login details are not emailed automatically.
                     </p>
                   )}
                 </div>

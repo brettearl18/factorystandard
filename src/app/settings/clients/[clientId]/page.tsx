@@ -45,6 +45,7 @@ import {
   ArchiveRestore,
   Plus,
   DollarSign,
+  Edit,
 } from "lucide-react";
 import type { GuitarBuild, RunStage, GuitarNote, ClientProfile, InvoiceRecord } from "@/types/guitars";
 import { getNoteTypeLabel, getNoteTypeIcon, getNoteTypeColor } from "@/utils/noteTypes";
@@ -93,6 +94,9 @@ export default function ClientDashboardPage({
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -280,6 +284,41 @@ export default function ClientDashboardPage({
 
   const handleSaveProfile = (updates: Partial<ClientProfile>) => {
     return updateClientProfile(clientId, updates, currentUser?.uid);
+  };
+
+  const openEditNameModal = () => {
+    setEditDisplayName(client?.displayName || profile?.displayName || "");
+    setShowEditNameModal(true);
+  };
+
+  const handleSaveDisplayName = async () => {
+    if (!client || isEmailContact) return;
+    const trimmed = editDisplayName.trim();
+    if (!trimmed) {
+      alert("Display name cannot be empty.");
+      return;
+    }
+
+    setSavingDisplayName(true);
+    try {
+      const functions = getFunctions();
+      const updateName = httpsCallable(functions, "updateUserDisplayName");
+      const result = await updateName({
+        uid: clientId,
+        displayName: trimmed,
+      });
+      const data = result.data as { success?: boolean; displayName?: string; message?: string };
+      if (!data.success) {
+        throw new Error(data.message || "Failed to update display name");
+      }
+      setClient((prev) => (prev ? { ...prev, displayName: data.displayName || trimmed } : prev));
+      setShowEditNameModal(false);
+    } catch (error: any) {
+      console.error("Error updating display name:", error);
+      alert(`Failed to update name: ${error.message || "Unknown error"}`);
+    } finally {
+      setSavingDisplayName(false);
+    }
   };
 
   const generateRandomPassword = () => {
@@ -532,9 +571,22 @@ export default function ClientDashboardPage({
                 <span className="text-gray-500">Email:</span>
                 <span className="text-gray-900 font-medium">{client.email}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-gray-500">Display Name:</span>
-                <span className="text-gray-900 font-medium">{client.displayName || "Not set"}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-900 font-medium">{client.displayName || "Not set"}</span>
+                  {!isEmailContact && (
+                    <button
+                      type="button"
+                      onClick={openEditNameModal}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      title="Edit display name"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      Edit
+                    </button>
+                  )}
+                </div>
               </div>
               {profile?.accountCreatedAt && (
                 <div className="flex items-center justify-between">
@@ -827,6 +879,66 @@ export default function ClientDashboardPage({
         />
       )}
 
+      {/* Edit Display Name Modal */}
+      {showEditNameModal && client && !isEmailContact && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Edit Display Name</h2>
+              <button
+                type="button"
+                onClick={() => setShowEditNameModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={savingDisplayName}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-sm text-gray-600">
+                Updates the name shown across the app for {client.email}.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Display name</label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Client name"
+                  disabled={savingDisplayName}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSaveDisplayName();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowEditNameModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={savingDisplayName}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveDisplayName}
+                disabled={savingDisplayName || !editDisplayName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingDisplayName ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reset Password Modal */}
       {showResetPasswordModal && client && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -984,11 +1096,11 @@ export default function ClientDashboardPage({
                         const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://factorystandards.com";
                         const loginUrl = `${siteUrl}/login`;
                         const passwordToUse = newPassword || profile?.initialPassword || "";
-                        const emailText = `Subject: Your Factory Standards Account${newPassword ? " - Password Reset" : ""}
+                        const emailText = `Subject: Your Australian Production Account${newPassword ? " - Password Reset" : ""}
 
 Hi ${client.displayName || "Client"},
 
-${newPassword ? "Your password has been reset for Factory Standards." : "Your account has been created for Factory Standards."} You can now log in to track your guitar build progress.
+${newPassword ? "Your password has been reset for Australian Production." : "Your account has been created for Australian Production."} You can now log in to track your guitar build progress.
 
 Login Details:
 Email: ${client.email}
@@ -1001,7 +1113,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`;
+Australian Production Team`;
 
                         try {
                           await navigator.clipboard.writeText(emailText);
@@ -1036,11 +1148,11 @@ Factory Standards Team`;
                     </div>
                   <textarea
                     readOnly
-                    value={`Subject: Your Factory Standards Account${newPassword ? " - Password Reset" : ""}
+                    value={`Subject: Your Australian Production Account${newPassword ? " - Password Reset" : ""}
 
 Hi ${client.displayName || "Client"},
 
-${newPassword ? "Your password has been reset for Factory Standards." : "Your account has been created for Factory Standards."} You can now log in to track your guitar build progress.
+${newPassword ? "Your password has been reset for Australian Production." : "Your account has been created for Australian Production."} You can now log in to track your guitar build progress.
 
 Login Details:
 Email: ${client.email}
@@ -1053,7 +1165,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`}
+Australian Production Team`}
                       className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                     />

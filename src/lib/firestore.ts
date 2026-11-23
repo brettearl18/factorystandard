@@ -42,6 +42,7 @@ import type {
   RunStage,
   GuitarBuild,
   GuitarNote,
+  NoteType,
   NoteComment,
   RunUpdate,
   RunUpdateComment,
@@ -210,6 +211,24 @@ export function subscribeGuitarsForRun(
       ? guitars 
       : guitars.filter((g) => !g.archived);
     callback(filteredGuitars);
+  });
+}
+
+/** All guitars (staff/accounting). Used for cross-run financial tables. */
+export function subscribeAllGuitars(
+  callback: (guitars: GuitarBuild[]) => void,
+  includeArchived: boolean = false
+): Unsubscribe {
+  const guitarsRef = collection(db, "guitars");
+  const q = query(guitarsRef, orderBy("createdAt", "desc"));
+
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const guitars = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as GuitarBuild[];
+    const filtered = includeArchived ? guitars : guitars.filter((g) => !g.archived);
+    callback(filtered);
   });
 }
 
@@ -560,6 +579,17 @@ export function subscribeGuitarNotes(
   );
 }
 
+/** One-shot fetch of guitar notes (newest first). For reports / exports. */
+export async function getGuitarNotes(guitarId: string): Promise<GuitarNote[]> {
+  const notesRef = collection(db, "guitars", guitarId, "notes");
+  const q = query(notesRef, orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  })) as GuitarNote[];
+}
+
 export async function addGuitarNote(
   guitarId: string,
   note: Omit<GuitarNote, "id" | "createdAt">
@@ -665,15 +695,31 @@ export async function addGuitarNote(
 export async function updateGuitarNote(
   guitarId: string,
   noteId: string,
-  updates: { photoUrls?: string[] }
+  updates: {
+    message?: string;
+    type?: NoteType;
+    visibleToClient?: boolean;
+    photoUrls?: string[];
+  }
 ): Promise<void> {
   const noteRef = doc(db, "guitars", guitarId, "notes", noteId);
-  const cleanUpdates: any = {};
-  
+  const cleanUpdates: Record<string, unknown> = {
+    updatedAt: Timestamp.now().toMillis(),
+  };
+
+  if (updates.message !== undefined) {
+    cleanUpdates.message = updates.message.trim() || "Update";
+  }
+  if (updates.type !== undefined) {
+    cleanUpdates.type = updates.type;
+  }
+  if (updates.visibleToClient !== undefined) {
+    cleanUpdates.visibleToClient = updates.visibleToClient;
+  }
   if (updates.photoUrls !== undefined) {
     cleanUpdates.photoUrls = updates.photoUrls.length > 0 ? updates.photoUrls : null;
   }
-  
+
   await updateDoc(noteRef, cleanUpdates);
 }
 
@@ -1604,68 +1650,48 @@ export async function createRunUpdate(
     ...update,
     createdAt: Timestamp.now().toMillis(),
   });
-  
-  // Get all clients in this run (through their guitars)
-  const guitars = await new Promise<GuitarBuild[]>((resolve) => {
-    const unsubscribe = subscribeGuitarsForRun(runId, (guitars) => {
-      unsubscribe();
-      resolve(guitars);
-    });
-    // Timeout after 3 seconds
-    setTimeout(() => {
-      unsubscribe();
-      resolve([]);
-    }, 3000);
-  });
-  
-  // Get unique client UIDs
-  const clientUids = [...new Set(guitars.map((g) => g.clientUid).filter((uid): uid is string => !!uid))];
-  
-  // Notify all clients in the run if update is visible to them
-  if (update.visibleToClients && clientUids.length > 0) {
-    const run = await getRun(runId);
-    const batch = writeBatch(db);
-    const notificationsRef = collection(db, "notifications");
-    
-    clientUids.forEach((clientUid) => {
-      const notificationRef = doc(notificationsRef);
-      batch.set(notificationRef, {
-        type: "run_update",
-        title: update.title,
-        message: update.message,
-        read: false,
-        userId: clientUid,
-        runId: runId,
-        createdAt: Timestamp.now().toMillis(),
-        metadata: {
-          runName: run?.name,
-          authorName: update.authorName,
-        },
-      });
-    });
-    
-    await batch.commit().catch((error) => {
-      console.error("Failed to send notifications for run update:", error);
-    });
-  }
-  
-  // Also notify all staff about the update
-  const run = await getRun(runId);
-  notifyAllStaff({
-    type: "run_update",
-    title: `Run Update: ${update.title}`,
-    message: `${update.authorName} posted an update to ${run?.name || "the run"}`,
-    read: false,
-    runId: runId,
-    metadata: {
-      runName: run?.name,
-      authorName: update.authorName,
-    },
-  }).catch((error) => {
-    console.error("Failed to send staff notifications for run update:", error);
-  });
-  
+
+  // Email and in-app notifications are created by onRunUpdateCreated.
+  // Keep this client operation limited to the update write so the modal
+  // can close immediately instead of waiting on recipient lookups.
   return docRef.id;
+}
+
+export async function deleteRunUpdate(
+  runId: string,
+  updateId: string
+): Promise<void> {
+  const updateRef = doc(db, "runs", runId, "updates", updateId);
+  const commentsRef = collection(db, "runs", runId, "updates", updateId, "comments");
+  const comments = await getDocs(commentsRef);
+
+  // Firestore does not cascade-delete subcollections.
+  await Promise.all(comments.docs.map((comment) => deleteDoc(comment.ref)));
+  await deleteDoc(updateRef);
+}
+
+/** Publish cover URL for unauthenticated report/image proxy access. */
+export async function syncPublicGuitarProfile(
+  guitarId: string,
+  coverPhotoUrl: string | null | undefined
+): Promise<void> {
+  const ref = doc(db, "publicGuitarProfiles", guitarId);
+  if (!coverPhotoUrl?.trim()) {
+    await setDoc(
+      ref,
+      { coverPhotoUrl: null, updatedAt: Timestamp.now().toMillis() },
+      { merge: true }
+    );
+    return;
+  }
+  await setDoc(
+    ref,
+    {
+      coverPhotoUrl: coverPhotoUrl.trim(),
+      updatedAt: Timestamp.now().toMillis(),
+    },
+    { merge: true }
+  );
 }
 
 export async function updateGuitarPhotoInfo(
@@ -1683,6 +1709,11 @@ export async function updateGuitarPhotoInfo(
     updates.photoCount = photoCount;
   }
   await updateDoc(doc(db, "guitars", guitarId), updates);
+  if (coverPhotoUrl !== undefined) {
+    await syncPublicGuitarProfile(guitarId, coverPhotoUrl).catch((err) => {
+      console.warn("Failed to sync public guitar profile:", err);
+    });
+  }
 }
 
 /**
@@ -1693,6 +1724,9 @@ export async function addGuitarGalleryImages(
   guitarId: string,
   imageUrls: string[]
 ): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Must be signed in to upload gallery images");
+
   const guitarRef = doc(db, "guitars", guitarId);
   const guitarDoc = await getDoc(guitarRef);
   
@@ -1707,6 +1741,9 @@ export async function addGuitarGalleryImages(
   await updateDoc(guitarRef, {
     referenceImages: updatedImages,
     updatedAt: Timestamp.now().toMillis(),
+    lastGalleryUploadBy: user.uid,
+    lastGalleryUploadAt: Timestamp.now().toMillis(),
+    lastGalleryUploadAdded: imageUrls.length,
   });
 }
 
@@ -1751,6 +1788,12 @@ export async function updateGuitar(
   if (updates.invoiceTriggerStageId !== undefined) cleanUpdates.invoiceTriggerStageId = updates.invoiceTriggerStageId || null;
 
   await updateDoc(doc(db, "guitars", guitarId), cleanUpdates);
+
+  if (updates.coverPhotoUrl !== undefined) {
+    await syncPublicGuitarProfile(guitarId, updates.coverPhotoUrl).catch((err) => {
+      console.warn("Failed to sync public guitar profile:", err);
+    });
+  }
 }
 
 // App Settings
@@ -1796,7 +1839,7 @@ export async function updateAppSettings(
     // Create default settings if they don't exist
     const defaultSettings: AppSettings = {
       branding: {
-        companyName: "Factory Standards",
+        companyName: "Australian Production",
         primaryColor: "#F97316", // orange
         secondaryColor: "#3B82F6", // blue
         accentColor: "#10B981", // green
@@ -1989,6 +2032,11 @@ function mapCustomShopRequestDoc(
     guitarDescription: d.guitarDescription,
     specs: d.specs ?? undefined,
     model: d.model,
+    formId: d.formId ?? undefined,
+    formVersion: d.formVersion ?? undefined,
+    instrumentType: d.instrumentType ?? undefined,
+    budgetRange: d.budgetRange ?? undefined,
+    estimatedTotalAUD: typeof d.estimatedTotalAUD === "number" ? d.estimatedTotalAUD : undefined,
     motivationNotes: d.motivationNotes,
     additionalNotes: d.additionalNotes,
     inspirationImageUrls: d.inspirationImageUrls ?? [],
@@ -2013,6 +2061,11 @@ export async function createCustomShopRequest(data: {
   guitarDescription: string;
   specs?: Partial<import("@/types/guitars").GuitarSpecs>;
   model?: string;
+  formId?: string;
+  formVersion?: string;
+  instrumentType?: "guitar" | "bass";
+  budgetRange?: string;
+  estimatedTotalAUD?: number;
   motivationNotes?: string;
   additionalNotes?: string;
   inspirationImageUrls: string[];
@@ -2033,6 +2086,13 @@ export async function createCustomShopRequest(data: {
   };
   if (data.specs != null && Object.keys(data.specs).length > 0) payload.specs = data.specs;
   if (data.model != null && data.model.trim() !== "") payload.model = data.model.trim();
+  if (data.formId != null && data.formId.trim() !== "") payload.formId = data.formId.trim();
+  if (data.formVersion != null && data.formVersion.trim() !== "") payload.formVersion = data.formVersion.trim();
+  if (data.instrumentType === "guitar" || data.instrumentType === "bass") payload.instrumentType = data.instrumentType;
+  if (data.budgetRange != null && data.budgetRange.trim() !== "") payload.budgetRange = data.budgetRange.trim();
+  if (typeof data.estimatedTotalAUD === "number" && !Number.isNaN(data.estimatedTotalAUD)) {
+    payload.estimatedTotalAUD = data.estimatedTotalAUD;
+  }
   if (data.motivationNotes != null && data.motivationNotes.trim() !== "") payload.motivationNotes = data.motivationNotes.trim();
   if (data.additionalNotes != null && data.additionalNotes.trim() !== "") payload.additionalNotes = data.additionalNotes.trim();
   const docRef = await addDoc(ref, payload);

@@ -121,11 +121,11 @@ export function AddClientModal({ isOpen, onClose, onSuccess }: AddClientModalPro
     const siteUrl = getSiteUrl();
     const loginUrl = `${siteUrl}/login`;
     
-    return `Subject: Your Factory Standards Account
+    return `Subject: Your Australian Production Account
 
 Hi ${createdClientInfo.name},
 
-Your account has been created for Factory Standards. You can now log in to track your guitar build progress.
+Your account has been created for Australian Production. You can now log in to track your guitar build progress.
 
 Login Details:
 Email: ${createdClientInfo.email}
@@ -138,7 +138,7 @@ Please change your password after your first login for security.
 If you have any questions, please don't hesitate to reach out.
 
 Best regards,
-Factory Standards Team`;
+Australian Production Team`;
   };
 
   const handleCopyEmail = async () => {

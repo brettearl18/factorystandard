@@ -13,6 +13,7 @@ export { onCustomShopRequestCreated } from "./onCustomShopRequestCreated";
 export { onNoteCommentCreated } from "./onNoteCommentCreated";
 export { onRunUpdateCommentCreated } from "./onRunUpdateCommentCreated";
 export { onInvoiceUpdated } from "./onInvoiceUpdated";
+export { onGuitarGalleryUpload } from "./onGuitarGalleryUpload";
 
 // Export the setUserRole function
 export { setUserRole } from "./setUserRole";
@@ -26,14 +27,15 @@ export { createUser } from "./createUser";
 // Export the resetUserPassword function
 export { resetUserPassword } from "./resetUserPassword";
 
+// Staff/admin: update Auth + profile display name
+export { updateUserDisplayName } from "./updateUserDisplayName";
+
 // Export the listUsers function
 export { listUsers } from "./listUsers";
 
 // Export the getUserInfo function
 export { getUserInfo } from "./getUserInfo";// Export the setClientRole function
-export { setClientRole } from "./setClientRole";
-
-// Export sendTestEmails (admin only)
+export { setClientRole } from "./setClientRole";// Export sendTestEmails (admin only)
 export { sendTestEmails } from "./sendTestEmails";// Export the backupFirestore function
 export { backupFirestore } from "./backupFirestore";// Export the restoreFirestore function
 export { restoreFirestore } from "./restoreFirestore";// Export the listBackups function

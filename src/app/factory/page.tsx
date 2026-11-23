@@ -41,6 +41,11 @@ export default function FactoryPortalPage() {
     [guitars, clientDisplayNames]
   );
 
+  const runClientCount = useMemo(
+    () => new Set(guitars.map((g) => g.clientUid).filter(Boolean)).size,
+    [guitars]
+  );
+
   useEffect(() => {
     if (loading) return;
 
@@ -211,10 +216,6 @@ export default function FactoryPortalPage() {
 
   // Show guitar list for selected run
   const currentStage = selectedGuitar ? stages.find(s => s.id === selectedGuitar.stageId) : null;
-  const runClientCount = useMemo(
-    () => new Set(guitars.map((g) => g.clientUid).filter(Boolean)).size,
-    [guitars]
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">

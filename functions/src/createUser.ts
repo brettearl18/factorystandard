@@ -28,7 +28,7 @@ export const createUser = functions.runWith(callableOpts).https.onCall(async (da
     );
   }
 
-  const { email, password, displayName, role } = data;
+  const { email, password, displayName, role, sendWelcomeEmail } = data;
 
   if (!email || typeof email !== "string") {
     throw new functions.https.HttpsError(
@@ -101,8 +101,8 @@ export const createUser = functions.runWith(callableOpts).https.onCall(async (da
       }
     }
 
-    // Send welcome "you have a login and password" email to new clients (Mailgun)
-    if (userRole === "client") {
+    // Optional: staff must opt in — default is no email (manual copy from portal)
+    if (userRole === "client" && sendWelcomeEmail === true) {
       const mailCfg = getMailgunConfig();
       if (mailCfg) {
         const html = welcomeLoginHtml(

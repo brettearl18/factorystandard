@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onInvoiceUpdated = exports.onRunUpdateCommentCreated = exports.onNoteCommentCreated = exports.onCustomShopRequestCreated = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
+exports.listBackups = exports.restoreFirestore = exports.backupFirestore = exports.sendTestEmails = exports.setClientRole = exports.getUserInfo = exports.listUsers = exports.updateUserDisplayName = exports.resetUserPassword = exports.createUser = exports.lookupUserByEmail = exports.setUserRole = exports.onGuitarGalleryUpload = exports.onInvoiceUpdated = exports.onRunUpdateCommentCreated = exports.onNoteCommentCreated = exports.onCustomShopRequestCreated = exports.onRunUpdateCreated = exports.onGuitarStageChange = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
 // Firestore triggers: stage change + run update → email clients via Mailgun
@@ -18,6 +18,8 @@ var onRunUpdateCommentCreated_1 = require("./onRunUpdateCommentCreated");
 Object.defineProperty(exports, "onRunUpdateCommentCreated", { enumerable: true, get: function () { return onRunUpdateCommentCreated_1.onRunUpdateCommentCreated; } });
 var onInvoiceUpdated_1 = require("./onInvoiceUpdated");
 Object.defineProperty(exports, "onInvoiceUpdated", { enumerable: true, get: function () { return onInvoiceUpdated_1.onInvoiceUpdated; } });
+var onGuitarGalleryUpload_1 = require("./onGuitarGalleryUpload");
+Object.defineProperty(exports, "onGuitarGalleryUpload", { enumerable: true, get: function () { return onGuitarGalleryUpload_1.onGuitarGalleryUpload; } });
 // Export the setUserRole function
 var setUserRole_1 = require("./setUserRole");
 Object.defineProperty(exports, "setUserRole", { enumerable: true, get: function () { return setUserRole_1.setUserRole; } });
@@ -30,15 +32,17 @@ Object.defineProperty(exports, "createUser", { enumerable: true, get: function (
 // Export the resetUserPassword function
 var resetUserPassword_1 = require("./resetUserPassword");
 Object.defineProperty(exports, "resetUserPassword", { enumerable: true, get: function () { return resetUserPassword_1.resetUserPassword; } });
+// Staff/admin: update Auth + profile display name
+var updateUserDisplayName_1 = require("./updateUserDisplayName");
+Object.defineProperty(exports, "updateUserDisplayName", { enumerable: true, get: function () { return updateUserDisplayName_1.updateUserDisplayName; } });
 // Export the listUsers function
 var listUsers_1 = require("./listUsers");
 Object.defineProperty(exports, "listUsers", { enumerable: true, get: function () { return listUsers_1.listUsers; } });
 // Export the getUserInfo function
 var getUserInfo_1 = require("./getUserInfo"); // Export the setClientRole function
 Object.defineProperty(exports, "getUserInfo", { enumerable: true, get: function () { return getUserInfo_1.getUserInfo; } });
-var setClientRole_1 = require("./setClientRole");
+var setClientRole_1 = require("./setClientRole"); // Export sendTestEmails (admin only)
 Object.defineProperty(exports, "setClientRole", { enumerable: true, get: function () { return setClientRole_1.setClientRole; } });
-// Export sendTestEmails (admin only)
 var sendTestEmails_1 = require("./sendTestEmails"); // Export the backupFirestore function
 Object.defineProperty(exports, "sendTestEmails", { enumerable: true, get: function () { return sendTestEmails_1.sendTestEmails; } });
 var backupFirestore_1 = require("./backupFirestore"); // Export the restoreFirestore function
